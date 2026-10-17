@@ -4,6 +4,22 @@ import CloudKit
 import Observation
 import FolkiDuoCore
 
+private struct CloudEventSnapshot: Sendable {
+    let identifier: UUID
+    let storeIdentifier: String
+    let type: Int
+    let endDate: Date?
+    let succeeded: Bool
+
+    init(_ event: NSPersistentCloudKitContainer.Event) {
+        identifier = event.identifier
+        storeIdentifier = event.storeIdentifier
+        type = event.type.rawValue
+        endDate = event.endDate
+        succeeded = event.succeeded
+    }
+}
+
 @MainActor @Observable
 public final class BudgetRepository {
     public let container: NSPersistentCloudKitContainer
@@ -76,11 +92,52 @@ public final class BudgetRepository {
     }
 
     static func managedObjectModel(version: String? = nil) throws -> NSManagedObjectModel {
-        guard let root = Bundle.module.url(forResource: "FolkiDuo", withExtension: "momd") else { throw LedgerError.corruptStore }
+        let root: URL
+        if let compiled = Bundle.module.url(forResource: "FolkiDuo", withExtension: "momd") {
+            root = compiled
+        } else {
+            #if os(macOS)
+            // Classic command-line SwiftPM copies raw models; iOS/Xcode compiles them.
+            root = try compileCommandLineModel()
+            #else
+            throw LedgerError.corruptStore
+            #endif
+        }
         let url = version.map { root.appendingPathComponent("\($0).mom") } ?? root
         guard let model = NSManagedObjectModel(contentsOf: url) else { throw LedgerError.corruptStore }
         return model
     }
+
+    #if os(macOS)
+    private static var commandLineModelURL: URL?
+
+    private static func compileCommandLineModel() throws -> URL {
+        if let commandLineModelURL { return commandLineModelURL }
+        guard let source = Bundle.module.url(forResource: "FolkiDuo", withExtension: "xcdatamodeld") else {
+            throw LedgerError.corruptStore
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("FolkiModel-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let output = directory.appendingPathComponent("FolkiDuo.momd")
+        do {
+            let compiler = Process()
+            compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+            compiler.arguments = ["momc", source.path, output.path]
+            let diagnostics = Pipe()
+            compiler.standardOutput = diagnostics
+            compiler.standardError = diagnostics
+            try compiler.run()
+            _ = diagnostics.fileHandleForReading.readDataToEndOfFile()
+            compiler.waitUntilExit()
+            guard compiler.terminationStatus == 0 else { throw LedgerError.corruptStore }
+            commandLineModelURL = output
+            return output
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+    }
+    #endif
 
     private func fetch(_ entity: String, predicate: NSPredicate? = nil, stores: [NSPersistentStore]? = nil) throws -> [NSManagedObject] {
         let request = NSFetchRequest<NSManagedObject>(entityName: entity)
@@ -471,7 +528,8 @@ public final class BudgetRepository {
             object: container, queue: .main) { [weak self] notification in
                 guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
                         as? NSPersistentCloudKitContainer.Event else { return }
-                Task { @MainActor [weak self] in self?.handle(event) }
+                let snapshot = CloudEventSnapshot(event)
+                Task { @MainActor [weak self] in self?.handle(snapshot) }
             })
         observers.append(NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -481,21 +539,21 @@ public final class BudgetRepository {
             }
         })
     }
-    private func handle(_ event: NSPersistentCloudKitContainer.Event) {
-        if event.type == .export && event.endDate == nil {
+    private func handle(_ event: CloudEventSnapshot) {
+        if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue && event.endDate == nil {
             exports.started(id: event.identifier, store: event.storeIdentifier)
         }
         guard let end = event.endDate else { return }
         if event.succeeded {
             syncError = nil
-            if event.type == .import || event.type == .export { lastCloudUpdate = end }
-            if event.type == .export {
+            if event.type == NSPersistentCloudKitContainer.EventType.import.rawValue || event.type == NSPersistentCloudKitContainer.EventType.export.rawValue { lastCloudUpdate = end }
+            if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue {
                 exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: true)
                 pendingExport = !exports.pending.isEmpty
             }
             persistSyncMetadata()
         } else {
-            if event.type == .export { exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: false) }
+            if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue { exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: false) }
             syncError = "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть."
         }
         changeToken = UUID()

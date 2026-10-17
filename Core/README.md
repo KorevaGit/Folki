@@ -1,6 +1,6 @@
 # FolkiDuoCore
 
-Чистая финансовая логика: Foundation, без SwiftUI, Core Data и CloudKit. Проверяется через `swift test --package-path Core` на Mac с Swift 6.2+.
+Чистая финансовая логика: Foundation, без SwiftUI, Core Data и CloudKit. Все тесты пакета, включая хранение, проверяются через `swift test --package-path Core` на Mac с Swift 6.2+ и Xcode. Если командный SwiftPM копирует исходную модель Core Data, macOS-загрузчик компилирует её через `xcrun momc` во временный каталог. iOS использует только скомпилированный ресурс приложения.
 
 ## Вход и результат
 
