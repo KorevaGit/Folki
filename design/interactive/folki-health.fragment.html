@@ -1,0 +1,174 @@
+<style>
+#folki-health{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;display:flex;justify-content:center;padding:20px 6px;color-scheme:dark}
+#folki-health *{box-sizing:border-box}
+#folki-health .device{--bg:#000;--surface:#1c1c1e;--group:#2c2c2e;--ink:#f5f5f7;--sub:#a1a1a6;--hair:#38383a;--accent:#ff9f0a;--glass:rgba(42,42,44,.91);width:390px;max-width:100%;height:820px;display:flex;flex-direction:column;position:relative;overflow:hidden;border:5px solid #343436;border-radius:49px;background:var(--bg);color:var(--ink);box-shadow:0 18px 45px #0003}
+#folki-health .device.light{--bg:#f2f2f7;--surface:#fff;--group:#e5e5ea;--ink:#1c1c1e;--sub:#636366;--hair:#d1d1d6;--accent:#aa6200;--glass:rgba(247,247,249,.94);color-scheme:light}
+#folki-health button,#folki-health input,#folki-health select{font:inherit;color:inherit}
+#folki-health button{border:0;cursor:pointer}
+#folki-health .status{height:48px;flex-shrink:0;padding:15px 25px 0;display:flex;justify-content:space-between;align-items:flex-start;font-size:13px;font-weight:600;position:relative}
+#folki-health .status .island{position:absolute;width:104px;height:25px;background:#080809;border-radius:18px;left:50%;transform:translateX(-50%);top:8px}
+#folki-health .status .sys{display:flex;gap:5px;align-items:center}
+#folki-health .sys svg{width:13px;height:13px}
+#folki-health .body-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--hair) transparent;padding:8px 17px 20px}
+#folki-health .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+#folki-health .eyebrow{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.3px;margin:0 0 5px}
+#folki-health h1{font-size:33px;font-weight:700;line-height:1.12;letter-spacing:-1.1px;margin:0}
+#folki-health h2{font-size:21px;letter-spacing:-.4px;font-weight:700;margin:0}
+#folki-health h3{font-size:16px;font-weight:600;letter-spacing:-.2px;margin:0}
+#folki-health p{margin:0}
+#folki-health .actions{display:flex;gap:8px}
+#folki-health .round{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--group);color:var(--ink)}
+#folki-health .round svg{width:20px;height:20px}
+#folki-health .initials{font-size:11px;letter-spacing:-.4px}
+#folki-health .section{display:flex;align-items:center;justify-content:space-between;margin:25px 0 11px;gap:8px}
+#folki-health .text-action{font-size:13px;background:transparent;color:var(--accent);padding:8px 0;min-height:34px;white-space:nowrap}
+#folki-health .panel{background:var(--surface);border-radius:14px;padding:17px;margin-bottom:10px}
+#folki-health .panel-button{display:block;text-align:left;width:100%;color:var(--ink)}
+#folki-health .panel-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:13px;font-weight:600}
+#folki-health .category{color:var(--accent);display:flex;align-items:center;gap:6px}
+#folki-health .category svg{width:15px;height:15px}
+#folki-health .chevron{color:var(--sub);width:14px;height:14px;flex-shrink:0}
+#folki-health .secondary{font-size:12px;color:var(--sub);line-height:1.45}
+#folki-health .daily{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:104px}
+#folki-health .daily-copy{min-width:0}
+#folki-health .value{font-size:37px;line-height:1.15;letter-spacing:-1.1px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;margin:5px 0 4px}
+#folki-health .value small{font-size:22px;font-weight:500}
+#folki-health .ring{width:100px;height:100px;flex-shrink:0;position:relative}
+#folki-health .ring svg{display:block;width:100%;height:100%;transform:rotate(-90deg)}
+#folki-health .ring-track{stroke:var(--group)}
+#folki-health .ring-fill{stroke:var(--accent)}
+#folki-health .ring-center{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+#folki-health .ring-center small{font-size:10px;font-weight:400;color:var(--sub);margin-top:3px}
+#folki-health .divider{border:0;height:1px;background:var(--hair);margin:15px 0 11px}
+#folki-health .line{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}
+#folki-health .line strong{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+#folki-health .trend-value{font-size:29px;letter-spacing:-.8px;font-weight:650;margin:2px 0 7px}
+#folki-health .trend-value small{font-size:15px;font-weight:500;color:var(--sub)}
+#folki-health .goal-row{display:flex;align-items:center;gap:14px}
+#folki-health .goal-row .ring{width:66px;height:66px}
+#folki-health .goal-row .ring-center{font-size:14px}
+#folki-health .goal-copy{flex:1}
+#folki-health .goal-copy h3{margin-bottom:6px}
+#folki-health .badge{height:66px;width:66px;flex-shrink:0;display:grid;place-items:center;color:var(--accent);background:var(--group);border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 65%,var(--group));box-shadow:inset 0 0 0 4px var(--surface)}
+#folki-health .badge svg{width:28px;height:28px;stroke-width:1.7}
+#folki-health .achievement{display:flex;align-items:center;gap:14px}
+#folki-health .achievement h3{margin-bottom:5px}
+#folki-health .grouped{padding:0 17px}
+#folki-health .row{display:flex;gap:11px;align-items:center;padding:15px 0;border-bottom:1px solid var(--hair)}
+#folki-health .row:last-child{border-bottom:0}
+#folki-health .row-icon{width:30px;height:30px;border-radius:8px;background:var(--group);display:grid;place-items:center;flex-shrink:0}
+#folki-health .row-icon svg{width:16px;height:16px}
+#folki-health .row-copy{flex:1;font-size:13px}
+#folki-health .row-amount{font-size:13px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+#folki-health .tabbar{height:75px;flex-shrink:0;margin:0 10px 8px;border-radius:30px;display:flex;align-items:center;padding:5px;background:var(--glass);border:1px solid color-mix(in srgb,var(--ink) 16%,transparent);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);box-shadow:inset 0 1px 1px color-mix(in srgb,var(--ink) 12%,transparent)}
+#folki-health .tabbar button{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;min-height:55px;background:none;color:var(--sub);border-radius:24px;font-size:10px}
+#folki-health .tabbar button.active{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+#folki-health .tabbar svg{width:21px;height:21px}
+#folki-health .home-indicator{width:105px;height:4px;background:var(--ink);border-radius:3px;margin:0 auto 8px;flex-shrink:0}
+#folki-health .award-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+#folki-health .award-tile{background:var(--surface);border-radius:14px;min-height:177px;padding:18px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+#folki-health .award-tile h3{font-size:13px;line-height:1.3}
+#folki-health .award-tile .secondary{font-size:11px}
+#folki-health .award-tile.locked .badge{color:var(--sub);border-color:var(--hair)}
+#folki-health .tiny-track{height:4px;border-radius:3px;background:var(--group);overflow:hidden;width:100%;margin-top:7px}
+#folki-health .tiny-track span{height:100%;background:var(--accent);display:block;border-radius:3px}
+#folki-health .sheet{position:absolute;inset:45px 0 0;background:var(--bg);z-index:4;overflow:auto;border-radius:24px 24px 0 0;padding:18px 20px 25px}
+#folki-health .sheet[hidden]{display:none}
+#folki-health .sheet .toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:12px}
+#folki-health .sheet .toolbar h2{font-size:18px}
+#folki-health .sheet label{display:block;color:var(--sub);font-size:13px;margin:17px 0}
+#folki-health .sheet input,#folki-health .sheet select{display:block;width:100%;padding:13px;margin-top:7px;background:var(--surface);border:1px solid var(--hair);border-radius:11px;color:var(--ink);font-size:16px}
+#folki-health .sheet .amount-input{font-size:40px;font-weight:650;padding:18px 12px;letter-spacing:-1px}
+#folki-health .primary{min-height:49px;border-radius:25px;background:var(--ink);color:var(--bg);padding:13px 16px;font-weight:600;width:100%;margin-top:17px;font-size:15px}
+#folki-health .detail-copy{font-size:14px;color:var(--sub);line-height:1.65;margin:16px 0}
+#folki-health .demo-label{font-size:11px;text-align:center;color:var(--sub);padding:9px 0 5px}
+@media(max-width:370px){#folki-health{padding:12px 0}#folki-health .device{border-width:3px;border-radius:38px}#folki-health .body-scroll{padding-left:13px;padding-right:13px}#folki-health .panel{padding:14px}#folki-health .value{font-size:33px}#folki-health .ring{width:85px;height:85px}#folki-health .status{padding-left:20px;padding-right:20px}}
+
+#folki-health .device{--month:#bf5af2}
+#folki-health .device.light{--month:#8944bd}
+#folki-health .budget-hero{display:block;width:100%;padding:0 0 18px;background:transparent;text-align:left;color:var(--ink)}
+#folki-health .budget-rings{position:relative;width:310px;max-width:100%;aspect-ratio:1;margin:0 auto 9px}
+#folki-health .budget-rings svg{width:100%;height:100%;display:block;transform:rotate(-90deg)}
+#folki-health .day-track{stroke:color-mix(in srgb,var(--accent) 13%,var(--bg))}
+#folki-health .month-track{stroke:color-mix(in srgb,var(--month) 14%,var(--bg))}
+#folki-health .day-arc{stroke:var(--accent)}
+#folki-health .month-arc{stroke:var(--month)}
+#folki-health .budget-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px}
+#folki-health .budget-center .secondary{font-size:12px}
+#folki-health .hero-value{font-size:39px;font-weight:700;letter-spacing:-1.3px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#folki-health .budget-legend{display:flex;flex-direction:column;gap:12px;padding:0 4px}
+#folki-health .legend-line{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+#folki-health .legend-label{display:flex;align-items:center;gap:8px}
+#folki-health .key{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+#folki-health .day-key{background:var(--accent)}
+#folki-health .month-key{background:var(--month)}
+#folki-health .legend-number{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+#folki-health .legend-denom{font-size:11px;color:var(--sub);font-weight:400}
+@media(max-width:370px){#folki-health .hero-value{font-size:34px}#folki-health .budget-rings{width:290px}#folki-health .legend-line{font-size:12px}#folki-health .legend-denom{font-size:10px}}
+</style>
+<div id="folki-health" class="viz-dotted-background">
+ <div class="device" aria-label="Folki — интерфейс в духе Apple Health">
+  <div class="status"><span>9:41</span><div class="island"></div><span class="sys"><i data-lucide="signal" aria-hidden="true"></i><i data-lucide="wifi" aria-hidden="true"></i><i data-lucide="battery-full" aria-hidden="true"></i></span></div>
+  <div class="body-scroll"><div id="fh-content"></div></div>
+  <nav class="tabbar" aria-label="Разделы Folki">
+   <button type="button" data-tab="summary" class="active" aria-current="page"><i data-lucide="layout-grid" aria-hidden="true"></i>Сводка</button>
+   <button type="button" data-tab="history"><i data-lucide="list" aria-hidden="true"></i>История</button>
+   <button type="button" data-tab="awards"><i data-lucide="award" aria-hidden="true"></i>Награды</button>
+  </nav>
+  <div class="home-indicator"></div>
+  <section class="sheet" id="fh-sheet" aria-label="Подробности" hidden></section>
+ </div>
+</div>
+<script>
+(() => {
+ const root=document.getElementById('folki-health'),device=root.querySelector('.device'),content=root.querySelector('#fh-content'),sheet=root.querySelector('#fh-sheet'),scroller=root.querySelector('.body-scroll');
+ const icon=n=>`<i data-lucide="${n}" aria-hidden="true"></i>`;
+ const chevron=()=>'<i data-lucide="chevron-right" class="chevron" aria-hidden="true"></i>';
+ const money=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n)+' ₽';
+ const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const saved=window.openai?.widgetState?.privateContent;
+ let added=[],tab='summary',lastTrigger=null;
+ function restore(s){if(s&&Array.isArray(s.expenses))added=s.expenses.filter(x=>typeof x.name==='string'&&typeof x.who==='string'&&Number.isFinite(x.amount)&&x.amount>0&&x.amount<=1e7).slice(0,50);}
+ restore(saved);
+ const expenses=()=>[{name:'Продукты к ужину',amount:1050,who:'Маша',symbol:'shopping-basket'},{name:'Кофе и прогулка',amount:620,who:'Саша',symbol:'coffee'},...added];
+ const spent=()=>expenses().reduce((a,x)=>a+x.amount,0);
+ const ring=(fraction,label,center,foot='')=>`<div class="ring"><svg viewBox="0 0 100 100" role="img" aria-label="${safe(label)}"><circle class="ring-track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle class="ring-fill" style="opacity:${fraction>0?1:0}" cx="50" cy="50" r="42" fill="none" stroke-width="9" stroke-linecap="round" pathLength="100" stroke-dasharray="${Math.max(0,Math.min(1,fraction))*100} 100"/></svg><div class="ring-center">${center}${foot?`<small>${foot}</small>`:''}</div></div>`;
+ const budgetHero=(left,free)=>{
+ const day=Math.max(0,Math.min(1,left/2770)),month=Math.max(0,Math.min(1,free/120000));
+ return `<button type="button" class="budget-hero" data-open="daily" aria-label="Остаток бюджета за день и месяц. Открыть расчёт"><div class="budget-rings"><svg viewBox="0 0 320 320" role="img" aria-label="Сегодня осталось ${money(Math.max(0,left))} из 2 770 ₽; за октябрь осталось ${money(Math.max(0,free))} из 120 000 ₽"><circle class="day-track" cx="160" cy="160" r="139" fill="none" stroke-width="17"/><circle class="day-arc" cx="160" cy="160" r="139" fill="none" stroke-width="17" stroke-linecap="round" pathLength="100" stroke-dasharray="${day*100} 100" style="opacity:${day>0?1:0}"/><circle class="month-track" cx="160" cy="160" r="113" fill="none" stroke-width="16"/><circle class="month-arc" cx="160" cy="160" r="113" fill="none" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="${month*100} 100" style="opacity:${month>0?1:0}"/></svg><div class="budget-center"><p class="secondary">${left>=0?'Сегодня осталось':'Сегодня сверх плана'}</p><p class="hero-value">${money(Math.abs(left))}</p><p class="secondary">на двоих</p></div></div><div class="budget-legend"><div class="legend-line"><span class="legend-label"><span class="key day-key"></span>Сегодня</span><span class="legend-number">${money(Math.max(0,left))}<span class="legend-denom"> / 2 770 ₽</span></span></div><div class="legend-line"><span class="legend-label"><span class="key month-key"></span>Октябрь${free<0?' · дефицит':''}</span><span class="legend-number">${money(Math.abs(free))}<span class="legend-denom"> / 120 000 ₽</span></span></div></div></button>`;
+ };
+ const title=(name,eyebrow='СУББОТА, 17 ОКТЯБРЯ')=>`<header class="top"><div><p class="eyebrow">${eyebrow}</p><h1>${name}</h1></div><div class="actions"><button class="round" type="button" data-open="add" aria-label="Добавить расход">${icon('plus')}</button><button class="round initials" type="button" data-open="couple" aria-label="Профиль пары">МС</button></div></header>`;
+ const section=(name,action,kind)=>`<div class="section"><h2>${name}</h2>${action?`<button class="text-action" type="button" data-go="${kind}">${action}</button>`:''}</div>`;
+ const transactions=items=>items.map(x=>`<div class="row"><span class="row-icon">${icon(x.symbol||'receipt')}</span><div class="row-copy">${safe(x.name)}<p class="secondary">${safe(x.who)}</p></div><span class="row-amount">−${money(x.amount)}</span></div>`).join('');
+ const badge=(symbol)=>`<span class="badge">${icon(symbol)}</span>`;
+ const awards=[{name:'Планируем вдвоём',symbol:'users',desc:'Оба участвуют в бюджете',detail:'Маша и Саша добавили записи в общий бюджет. Достижение общее — вклад каждого виден без сравнения сумм.'},{name:'Первый шаг',symbol:'flag',desc:'5 000 ₽ к общей цели',detail:'Вы отложили первые 5 000 ₽ на общую цель. В этом демонстрационном пространстве сейчас накоплено 48 000 ₽.'},{name:'Ясный план',symbol:'check-check',desc:'Платежи учтены',detail:'Пара проверила список обязательных платежей и подтвердила план. Эти деньги исключаются из дневного свободного бюджета.'},{name:'Неделя в ритме',symbol:'calendar-check',desc:'Проверили план 5 из 7 дней',detail:'Отметьте проверку дневного плана в семь разных дней недели. Прогресс относится к вниманию к плану, а не к отсутствию покупок.',locked:true}];
+ function render(){
+ const s=spent(),left=2770-s,free=41550-s,next=free/14;
+ if(tab==='summary')content.innerHTML=title('Сводка')+`${budgetHero(left,free)}<button type="button" class="panel panel-button" data-open="forecast"><div class="panel-title"><span class="category">${icon('calendar-days')}Следующие дни</span>${chevron()}</div><p class="trend-value">≈${money(Math.round(next))} <small>/ день</small></p><p class="secondary">Если сегодня больше не тратить · 14 дней</p></button>`+section('Накопления')+`<button type="button" class="panel panel-button" data-open="goal"><div class="panel-title"><span class="category">${icon('flag')}Общая цель</span>${chevron()}</div><div class="goal-row"><div class="goal-copy"><h3>Путешествие</h3><p style="font-size:20px;font-weight:650">48 000 ₽</p><p class="secondary">из 80 000 ₽</p></div>${ring(.6,'На цель накоплено 60 процентов','60%')}</div></button>`+section('Награды','Показать все','awards')+`<button class="panel panel-button" type="button" data-award="0"><div class="achievement">${badge('users')}<div><h3>Планируем вдвоём</h3><p class="secondary">Получено · 12 октября</p></div>${chevron()}</div></button>`+section('Последние расходы','Все','history')+`<div class="panel grouped">${transactions(expenses().slice(-3).reverse())}</div><p class="demo-label">Folki · демонстрационные данные</p>`;
+ if(tab==='history')content.innerHTML=title('История')+section('Сегодня')+`<div class="panel"><p class="secondary">Всего за день</p><p class="value">${money(s)}</p></div><div class="panel grouped">${transactions(expenses().slice().reverse())}</div>`+section('Вчера')+`<div class="panel grouped">${transactions([{name:'Для дома',who:'Саша',amount:3490,symbol:'house'},{name:'Ужин вдвоём',who:'Маша',amount:1580,symbol:'utensils'}])}</div>`;
+ if(tab==='awards')content.innerHTML=title('Награды','ВАШ ПРОГРЕСС ВМЕСТЕ')+`<p class="secondary">Маленькие шаги к общим планам.</p>`+section('Получено · 3')+`<div class="award-grid">${awards.map((a,i)=>`<button type="button" class="award-tile ${a.locked?'locked':''}" data-award="${i}">${badge(a.symbol)}<div><h3>${a.name}</h3><p class="secondary" style="margin-top:5px">${a.desc}</p>${a.locked?'<div class="tiny-track"><span style="width:71.4286%"></span></div>':''}</div></button>`).join('')}</div><p class="demo-label" style="margin-top:18px">В вашем темпе. Без соревнования.</p>`;
+ root.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ if(globalThis.lucide)lucide.createIcons();
+ }
+ function persist(){window.openai?.setWidgetState?.({modelContent:{prototype:'Folki — структура Health',tab,expenseCount:added.length},privateContent:{expenses:added}}).catch(()=>{});}
+ function close(){sheet.hidden=true;lastTrigger?.focus();}
+ function show(name,body){sheet.innerHTML=`<div class="toolbar"><h2>${name}</h2><button type="button" class="round" data-close aria-label="Закрыть">${icon('x')}</button></div>${body}`;sheet.hidden=false;sheet.querySelector('[data-close]').focus();if(globalThis.lucide)lucide.createIcons();}
+ function open(kind){
+ const s=spent(),left=2770-s;
+ if(kind==='add'){
+ show('Новый расход',`<form id="fh-form"><label>Сумма, ₽<input class="amount-input" name="amount" type="number" inputmode="decimal" min="0.01" max="10000000" step="0.01" placeholder="0" required></label><label>Название<input name="name" placeholder="Например, для дома" maxlength="70" required></label><label>Оплатил<select name="who"><option>Маша</option><option>Саша</option></select></label><div class="panel" id="fh-impact" aria-live="polite"><p class="secondary">Введите сумму, чтобы увидеть влияние на план.</p></div><button type="button" class="primary" data-save>Записать расход</button><p class="demo-label">Запись только в этом макете</p></form>`);
+ const form=sheet.querySelector('form'),amount=form.elements.amount;
+ amount.addEventListener('input',()=>{const a=Number(amount.value),next=(41550-s-a)/14,excess=Math.max(0,s+a-2770);sheet.querySelector('#fh-impact').innerHTML=a>0?`<p class="secondary">После записи · если сегодня больше не тратить</p><p style="font-size:24px;font-weight:650;margin:10px 0">${next>=0?'≈'+money(Math.round(next))+' / день':'Нехватка '+money(-next*14)}</p><p class="secondary">${excess?'Сегодня сверх ориентира на '+money(excess):'Сегодня останется '+money(left-a)}</p>`:'<p class="secondary">Введите сумму, чтобы увидеть влияние на план.</p>';});
+ const save=()=>{if(!form.reportValidity())return;const a=Number(amount.value),name=form.elements.name.value.trim();if(!name||!Number.isFinite(a)||a<=0)return;added.push({name,amount:a,who:form.elements.who.value,symbol:'receipt'});render();persist();close();};
+ sheet.querySelector('[data-save]').addEventListener('click',save);form.addEventListener('submit',e=>{e.preventDefault();save();});form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();save();}});
+ }
+ const detail={daily:['Дневной бюджет',`<p class="secondary">Ориентир на сегодня</p><p class="value">2 770 ₽</p><p class="detail-copy">Свободные 41 550 ₽ на начало дня распределены на 15 дней, включая сегодня. Уже потрачено ${money(s)}. Этот ориентир относится к паре целиком.</p><p class="detail-copy">Обязательные платежи и накопления исключены из свободной суммы. Внешнее оранжевое кольцо показывает остаток дня: ${money(Math.max(0,left))} из 2 770 ₽. Внутреннее фиолетовое — остаток свободного месячного плана: ${money(Math.max(0,41550-s))} из 120 000 ₽. До сегодняшнего дня из него потрачено 78 450 ₽. При превышении плана соответствующее кольцо пустое, а дефицит указан отдельно.</p>`],forecast:['Следующие дни',`<p class="value">≈${money(Math.round((41550-s)/14))}</p><p class="secondary">в день на следующие 14 дней</p><p class="detail-copy">Сейчас свободно ${money(41550-s)}. Прогноз предполагает, что сегодня больше не будет трат. Новые записи пары обновят расчёт.</p>`],goal:['Путешествие',`<div style="display:flex;justify-content:center;margin:20px 0">${ring(.6,'Накоплено 60 процентов','60%')}</div><p class="value">48 000 ₽</p><p class="secondary">из 80 000 ₽ · осталось 32 000 ₽</p><div class="panel" style="margin-top:24px"><div class="line"><span>Маша</span><strong>26 000 ₽</strong></div><hr class="divider"><div class="line"><span>Саша</span><strong>22 000 ₽</strong></div></div><p class="detail-copy">Деньги на общую цель учитываются отдельно от повседневного бюджета.</p>`],couple:['Ваше пространство',`<h1>Маша + Саша</h1><p class="detail-copy">Общий бюджет, цели и достижения. В этом прототипе используются демонстрационные данные; обмен через iCloud пока не подключён.</p>`]};
+ if(detail[kind])show(...detail[kind]);
+ }
+ root.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.tab||b.dataset.go){tab=b.dataset.tab||b.dataset.go;render();scroller.scrollTop=0;persist();}if(b.dataset.open){lastTrigger=b;open(b.dataset.open);}if(b.hasAttribute('data-close'))close();if(b.dataset.award!==undefined){lastTrigger=b;const a=awards[Number(b.dataset.award)];show(a.name,`<div style="display:flex;justify-content:center;margin:35px 0">${badge(a.symbol)}</div><p class="secondary">${a.locked?'В процессе · 5 из 7 дней':'Получено'}</p><p class="detail-copy">${a.detail}</p>`);}});
+ root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!sheet.hidden)close();if(e.key==='Tab'&&!sheet.hidden){const list=[...sheet.querySelectorAll('button,input,select')];const first=list[0],last=list[list.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+ window.addEventListener('openai:set_globals',e=>{const s=e.detail?.globals?.widgetState?.privateContent;if(s){restore(s);render();}});
+ render();
+ if(globalThis.Tweak){const design={light:false};const tweak=new Tweak({container:device,onChange:()=>device.classList.toggle('light',design.light)});tweak.addToggle(design,'light',{label:'Светлая тема'});}
+})();
+</script>

@@ -1,0 +1,25 @@
+# macOS / Xcode
+.DS_Store
+DerivedData/
+build/
+.build/
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.xcarchive
+*.ipa
+
+# Tooling
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.swiftpm/
