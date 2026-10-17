@@ -15,8 +15,8 @@ struct FinancialRings: View {
     var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
-            let width = size * (compact ? 0.048 : 0.046)
-            let gap = size * 0.014
+            let width = size * (compact ? 0.048 : 0.05)
+            let gap = size * 0.012
             ZStack {
                 ForEach(0..<4, id: \.self) { index in
                     FinancialRing(fraction: fractions[index], palette: RingPalette.all[index], lineWidth: width)
@@ -28,19 +28,26 @@ struct FinancialRings: View {
     }
 }
 
-private struct RingPalette {
+struct RingPalette {
     let start: (Double, Double, Double)
     let end: (Double, Double, Double)
     static let all = [
-        RingPalette(start: (1, 0.40, 0.03), end: (1, 0.69, 0.16)),
-        RingPalette(start: (0.02, 0.58, 0.57), end: (0.15, 0.85, 0.73)),
-        RingPalette(start: (0.43, 0.28, 0.91), end: (0.74, 0.48, 1)),
-        RingPalette(start: (0.12, 0.37, 0.88), end: (0.35, 0.67, 1))
+        RingPalette(start: (0.94, 0.06, 0.24), end: (1, 0.30, 0.42)),
+        RingPalette(start: (0.48, 0.85, 0.03), end: (0.77, 1, 0.10)),
+        RingPalette(start: (0.02, 0.65, 0.90), end: (0.27, 0.95, 1)),
+        RingPalette(start: (0.43, 0.25, 0.95), end: (0.78, 0.53, 1))
     ]
     func color(at fraction: Double) -> Color {
         Color(red: start.0 + (end.0 - start.0) * fraction,
               green: start.1 + (end.1 - start.1) * fraction,
               blue: start.2 + (end.2 - start.2) * fraction)
+    }
+    func readableColor(in scheme: ColorScheme) -> Color {
+        let factor = scheme == .dark ? 1.0 : 0.58
+        let fraction = 0.65
+        return Color(red: (start.0 + (end.0 - start.0) * fraction) * factor,
+                     green: (start.1 + (end.1 - start.1) * fraction) * factor,
+                     blue: (start.2 + (end.2 - start.2) * fraction) * factor)
     }
 }
 
@@ -78,6 +85,12 @@ private struct FinancialRing: View, Animatable {
                         .frame(width: lineWidth, height: lineWidth)
                         .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.12), radius: 2, x: 0, y: 1)
                         .position(x: size / 2 + cos(angle) * radius, y: size / 2 + sin(angle) * radius)
+                    if lineWidth >= 10 && progress > 0.08 {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: lineWidth * 0.58, weight: .heavy))
+                            .foregroundStyle(.black.opacity(0.7))
+                            .position(x: size / 2, y: lineWidth / 2)
+                    }
                 }
             }
             .frame(width: size, height: size)
@@ -89,14 +102,17 @@ private struct FinancialRing: View, Animatable {
 struct BudgetRingsCard: View {
     let personal: DailyBudgetSnapshot?
     let family: DailyBudgetSnapshot?
+    var isToday = true
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 34
     var body: some View {
         VStack(spacing: 20) {
             HStack {
-                Label("Личное и общее", systemImage: "circle.circle").foregroundStyle(.orange)
+                Text("Личное и общее").foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption.bold())
-            }.font(.headline)
+            }.font(.title2.bold())
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
                 ZStack {
@@ -106,16 +122,17 @@ struct BudgetRingsCard: View {
                         centralAmounts(large: false, width: size * 0.50)
                     }.frame(width: size * 0.50, height: size * 0.48)
                 }
-            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 326)
-            LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 18) {
+            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 344)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 18) {
                 metric("Личный · день", index: 0, remaining: personal?.todayRemaining, plan: personal?.todayGuide)
                 metric("Семейный · день", index: 1, remaining: family?.todayRemaining, plan: family?.todayGuide)
                 metric("Личный · месяц", index: 2, remaining: personal?.monthlyRemaining, plan: personal?.monthlyPlan)
                 metric("Семейный · месяц", index: 3, remaining: family?.monthlyRemaining, plan: family?.monthlyPlan)
-            }
-        }.budgetCard()
+            }.padding(16)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Личный бюджет: \(description(personal)). Семейный бюджет: \(description(family)).")
+        .accessibilityLabel("\(isToday ? "Сегодня" : "Выбранный день"). Личный бюджет: \(description(personal)). Семейный бюджет: \(description(family)).")
         .accessibilityHint("Открыть расчёт выбранного бюджета")
     }
     private func centralAmounts(large: Bool, width: CGFloat) -> some View {
@@ -124,12 +141,12 @@ struct BudgetRingsCard: View {
         let measured = (personalText as NSString).size(withAttributes: [.font: roundedFont(size: desiredSize, weight: .bold)]).width
         let fittedSize = min(desiredSize, desiredSize * width / max(1, measured))
         return VStack(spacing: large ? 5 : 2) {
-            Text(personal.map { $0.todayRemaining.minorUnits < 0 ? "Личный · сверх плана" : "Личный · сегодня" } ?? "Личный · сегодня")
+            Text(personal.map { $0.todayRemaining.minorUnits < 0 ? "Личный · сверх плана" : "Личный · \(isToday ? "сегодня" : "день")" } ?? "Личный")
                 .font(large ? .caption : .caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
             Text(personalText)
                 .font(Font(roundedFont(size: fittedSize, weight: .bold)))
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-            Text(family.map { $0.todayRemaining.minorUnits < 0 ? "Общий · сверх плана" : "Общий · сегодня" } ?? "Общий · сегодня")
+            Text(family.map { $0.todayRemaining.minorUnits < 0 ? "Общий · сверх плана" : "Общий · \(isToday ? "сегодня" : "день")" } ?? "Общий")
                 .font(.caption2).foregroundStyle(.secondary).padding(.top, large ? 3 : 0).lineLimit(1).minimumScaleFactor(0.6)
             Text(family.map { MoneyText.string($0.todayRemaining.minorUnits >= 0 ? $0.todayRemaining : $0.todayOverspending) } ?? "—")
                 .font(Font(roundedFont(size: fittedSize * 0.64, weight: .semibold)))
@@ -142,11 +159,9 @@ struct BudgetRingsCard: View {
     }
     private func metric(_ title: String, index: Int, remaining: Money?, plan: Money?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 5) {
-                Circle().fill(RingPalette.all[index].color(at: 0.5)).frame(width: 6, height: 6)
-                Text(title).font(.caption).foregroundStyle(.secondary)
-            }
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Text(remaining.map(MoneyText.string) ?? "—").font(.title3.bold()).monospacedDigit()
+                .foregroundStyle(RingPalette.all[index].readableColor(in: colorScheme))
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(plan.map { "из \(MoneyText.string($0))" } ?? "Не настроен")
                 .font(.caption2).foregroundStyle(.secondary)
@@ -154,6 +169,6 @@ struct BudgetRingsCard: View {
     }
     private func description(_ result: DailyBudgetSnapshot?) -> String {
         guard let result else { return "не настроен" }
-        return "сегодня \(MoneyText.string(result.todayRemaining)) из \(MoneyText.string(result.todayGuide)), месяц \(MoneyText.string(result.monthlyRemaining)) из \(MoneyText.string(result.monthlyPlan))"
+        return "\(isToday ? "сегодня" : "день") \(MoneyText.string(result.todayRemaining)) из \(MoneyText.string(result.todayGuide)), месяц \(MoneyText.string(result.monthlyRemaining)) из \(MoneyText.string(result.monthlyPlan))"
     }
 }

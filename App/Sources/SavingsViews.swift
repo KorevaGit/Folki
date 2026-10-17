@@ -36,7 +36,7 @@ struct SavingsSection: View {
                                 Text(MoneyText.string(goal.balance)).font(.title2.bold()).monospacedDigit()
                                 Text("из \(MoneyText.string(goal.target))").font(.caption).foregroundStyle(.secondary)
                             }
-                            ProgressView(value: goal.fraction).tint(session.scope == .personal ? .orange : .teal)
+                            ProgressView(value: goal.fraction).tint(RingPalette.all[session.scope == .personal ? 0 : 1].color(at: 0.5))
                         }.budgetCard()
                     }.buttonStyle(.plain).disabled(session.result == nil)
                 }

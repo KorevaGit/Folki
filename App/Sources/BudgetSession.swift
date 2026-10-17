@@ -3,6 +3,12 @@ import Observation
 import FolkiDuoCore
 import FolkiDuoPersistence
 
+struct BudgetDayOverview {
+    let result: DailyBudgetSnapshot?
+    let records: [LedgerRecord]
+    let errorMessage: String?
+}
+
 @MainActor @Observable
 final class BudgetSession {
     let scope: BudgetScope
@@ -62,6 +68,38 @@ final class BudgetSession {
             result = nil; errorMessage = "Период закончился. Создайте новый план месяца. История сохранится."
         } catch {
             result = nil; errorMessage = "Не удалось рассчитать бюджет. Проверьте суммы и резервы."
+        }
+    }
+
+    /// Browsing a day must never move the live session or the date used by entry forms.
+    func overview(on day: Date) -> BudgetDayOverview {
+        let calendar = household?.period.calendar ?? Calendar.current
+        let start = calendar.startOfDay(for: day)
+        guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else {
+            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось определить дату.")
+        }
+        let cutoff = min(referenceDate, nextDay.addingTimeInterval(-0.001))
+        let selectedRecords: ([LedgerRecord]) -> [LedgerRecord] = { records in
+            records.filter { !$0.transaction.isDeleted && $0.transaction.date >= start && $0.transaction.date <= cutoff }
+        }
+        if calendar.isDate(day, inSameDayAs: referenceDate) {
+            return BudgetDayOverview(result: result, records: selectedRecords(allRecords), errorMessage: errorMessage)
+        }
+        do {
+            let snapshot: HouseholdSnapshot?
+            let records: [LedgerRecord]
+            if let repository {
+                let budget = try repository.load(asOf: cutoff, scope: scope)
+                snapshot = budget?.snapshot
+                records = budget?.records ?? []
+            } else {
+                snapshot = household?.period.contains(cutoff) == true ? household : nil
+                records = allRecords
+            }
+            let result = try snapshot.map { try DailyBudgetCalculator.calculate($0, asOf: cutoff) }
+            return BudgetDayOverview(result: result, records: selectedRecords(records), errorMessage: nil)
+        } catch {
+            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось прочитать выбранный день. Попробуйте ещё раз.")
         }
     }
 
