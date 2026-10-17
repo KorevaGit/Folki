@@ -23,3 +23,6 @@ node_modules/
 __pycache__/
 *.pyc
 .swiftpm/
+
+# Generated from project.yml
+FolkiDuo.xcodeproj/

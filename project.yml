@@ -1,0 +1,62 @@
+name: FolkiDuo
+options:
+  minimumXcodeGenVersion: 2.44.0
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: ru
+  defaultConfig: Debug
+configs:
+  Debug: debug
+  Release: release
+  Demo: debug
+packages:
+  FolkiDuoCore:
+    path: Core
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  FolkiDuo:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/Sources
+      - path: App/Demo
+      - path: App/Resources
+    dependencies:
+      - package: FolkiDuoCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folkiduo
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: FolkiDuo
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+      configs:
+        Demo:
+          PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folkiduo.demo
+          INFOPLIST_KEY_CFBundleDisplayName: FolkiDuo Demo
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG FOLKI_DEMO"
+schemes:
+  FolkiDuo:
+    build:
+      targets:
+        FolkiDuo: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  FolkiDuo-Demo:
+    build:
+      targets:
+        FolkiDuo: all
+    run:
+      config: Demo
+    archive:
+      config: Demo
