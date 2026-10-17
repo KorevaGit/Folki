@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24400" systemVersion="25A" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="1">
+<entity name="Household" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="name" optional="YES" attributeType="String"/>
+<attribute name="timeZone" optional="YES" attributeType="String"/>
+<attribute name="createdAt" optional="YES" attributeType="Date"/>
+<relationship name="members" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Member" inverseName="household" inverseEntity="Member"/>
+<relationship name="budgetPeriods" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="BudgetPeriod" inverseName="household" inverseEntity="BudgetPeriod"/>
+<relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Transaction" inverseName="household" inverseEntity="Transaction"/>
+<relationship name="obligations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Obligation" inverseName="household" inverseEntity="Obligation"/>
+<relationship name="reserves" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reserve" inverseName="household" inverseEntity="Reserve"/>
+<relationship name="goals" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Goal" inverseName="household" inverseEntity="Goal"/>
+<relationship name="goalContributions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GoalContribution" inverseName="household" inverseEntity="GoalContribution"/>
+</entity>
+<entity name="Member" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="name" optional="YES" attributeType="String"/>
+<attribute name="cloudIdentity" optional="YES" attributeType="String"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="members" inverseEntity="Household"/>
+</entity>
+<entity name="BudgetPeriod" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="month" optional="YES" attributeType="Date"/>
+<attribute name="monthlyPlan" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<attribute name="openingFunds" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<attribute name="currency" optional="YES" attributeType="String"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="budgetPeriods" inverseEntity="Household"/>
+<relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Transaction" inverseName="period" inverseEntity="Transaction"/>
+<relationship name="reserves" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reserve" inverseName="period" inverseEntity="Reserve"/>
+<relationship name="obligations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Obligation" inverseName="period" inverseEntity="Obligation"/>
+</entity>
+<entity name="Transaction" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="amount" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<attribute name="kind" optional="YES" attributeType="String"/>
+<attribute name="funding" optional="YES" attributeType="String"/>
+<attribute name="reserveID" optional="YES" attributeType="UUID"/>
+<attribute name="date" optional="YES" attributeType="Date"/>
+<attribute name="authorID" optional="YES" attributeType="UUID"/>
+<attribute name="payerID" optional="YES" attributeType="UUID"/>
+<attribute name="title" optional="YES" attributeType="String"/>
+<attribute name="category" optional="YES" attributeType="String"/>
+<attribute name="tombstone" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="NO"/>
+<attribute name="revision" optional="YES" attributeType="UUID"/>
+<attribute name="updatedAt" optional="YES" attributeType="Date"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="transactions" inverseEntity="Household"/>
+<relationship name="period" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="BudgetPeriod" inverseName="transactions" inverseEntity="BudgetPeriod"/>
+</entity>
+<entity name="Obligation" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="name" optional="YES" attributeType="String"/>
+<attribute name="amount" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<attribute name="dueDate" optional="YES" attributeType="Date"/>
+<attribute name="reserveID" optional="YES" attributeType="UUID"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="obligations" inverseEntity="Household"/>
+<relationship name="period" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="BudgetPeriod" inverseName="obligations" inverseEntity="BudgetPeriod"/>
+</entity>
+<entity name="Reserve" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="name" optional="YES" attributeType="String"/>
+<attribute name="openingAmount" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="reserves" inverseEntity="Household"/>
+<relationship name="period" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="BudgetPeriod" inverseName="reserves" inverseEntity="BudgetPeriod"/>
+</entity>
+<entity name="Goal" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="name" optional="YES" attributeType="String"/>
+<attribute name="target" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="goals" inverseEntity="Household"/>
+</entity>
+<entity name="GoalContribution" representedClassName="NSManagedObject" syncable="YES">
+<attribute name="id" optional="YES" attributeType="UUID"/>
+<attribute name="goalID" optional="YES" attributeType="UUID"/>
+<attribute name="memberID" optional="YES" attributeType="UUID"/>
+<attribute name="amount" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+<attribute name="direction" optional="YES" attributeType="String"/>
+<attribute name="date" optional="YES" attributeType="Date"/>
+<relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="goalContributions" inverseEntity="Household"/>
+</entity>
+</model>

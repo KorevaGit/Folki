@@ -1,4 +1,4 @@
-name: FolkiDuo
+name: Folki
 options:
   minimumXcodeGenVersion: 2.44.0
   deploymentTarget:
@@ -9,6 +9,7 @@ configs:
   Debug: debug
   Release: release
   Demo: debug
+  Cloud: debug
 packages:
   FolkiDuoCore:
     path: Core
@@ -18,45 +19,68 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_EMIT_LOC_STRINGS: YES
+    DEVELOPMENT_TEAM: AKH3FW2JK6
 targets:
-  FolkiDuo:
+  Folki:
     type: application
     platform: iOS
     sources:
       - path: App/Sources
       - path: App/Demo
       - path: App/Resources
+    info:
+      path: App/Configuration/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CKSharingSupported: true
+        UIBackgroundModes: [remote-notification]
+        FolkiCloudContainer: "$(FOLKI_CLOUD_CONTAINER)"
     dependencies:
       - package: FolkiDuoCore
+      - package: FolkiDuoCore
+        product: FolkiDuoPersistence
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folkiduo
+        PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: FolkiDuo
+        INFOPLIST_KEY_CFBundleDisplayName: Folki
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
+        FOLKI_CLOUD_CONTAINER: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
       configs:
+        Cloud:
+          FOLKI_CLOUD_CONTAINER: iCloud.dev.korevagit.folki
+          CODE_SIGN_ENTITLEMENTS: App/Configuration/Folki.entitlements
         Demo:
-          PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folkiduo.demo
-          INFOPLIST_KEY_CFBundleDisplayName: FolkiDuo Demo
+          PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki.demo
+          INFOPLIST_KEY_CFBundleDisplayName: Folki Demo
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG FOLKI_DEMO"
 schemes:
-  FolkiDuo:
+  Folki:
     build:
       targets:
-        FolkiDuo: all
+        Folki: all
     run:
       config: Debug
     archive:
       config: Release
-  FolkiDuo-Demo:
+  Folki-Demo:
     build:
       targets:
-        FolkiDuo: all
+        Folki: all
     run:
       config: Demo
     archive:
       config: Demo
+  Folki-iCloud:
+    build:
+      targets:
+        Folki: all
+    run:
+      config: Cloud
+    archive:
+      config: Cloud

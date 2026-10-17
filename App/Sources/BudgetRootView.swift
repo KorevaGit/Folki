@@ -2,212 +2,211 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, expense, daily, forecast
+    case setup, expense, details, sharing
     var id: String { rawValue }
 }
 
 struct BudgetRootView: View {
-    @Bindable var session: BudgetSession
-    @State private var tab = 0
+    let personal: BudgetSession
+    let family: BudgetSession
+    @State private var selectedScope: BudgetScope = .personal
+    private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
+    @State private var editingRecord: LedgerRecord?
 
     var body: some View {
-        TabView(selection: $tab) {
-            Tab("Сводка", systemImage: "square.grid.2x2.fill", value: 0) {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if let result = session.result {
-                                Button { sheet = .daily } label: { BudgetRingsView(result: result) }
-                                    .buttonStyle(.plain)
-                                Button { sheet = .forecast } label: { forecast(result) }
-                                    .buttonStyle(.plain)
-                                #if FOLKI_DEMO
-                                DemoHighlightsView { tab = 2 }
-                                #endif
-                                sectionTitle("Последние расходы")
-                                if session.records.isEmpty {
-                                    Text("Здесь появятся ваши расходы.")
-                                        .foregroundStyle(.secondary).padding(.vertical)
-                                } else {
-                                    VStack(spacing: 0) {
-                                        ForEach(session.records.suffix(3).reversed()) { record in
-                                            LedgerRow(record: record, payer: session.payerName(for: record))
-                                            if record.id != session.records.suffix(3).first?.id { Divider() }
-                                        }
-                                    }.budgetCard()
-                                }
-                            } else {
-                                ContentUnavailableView {
-                                    Label("Ваш общий бюджет", systemImage: "wallet.bifold")
-                                } description: {
-                                    Text(session.errorMessage ?? "Укажите свободные деньги и план месяца — посчитаем ориентир на сегодня.")
-                                } actions: {
-                                    Button { sheet = .setup } label: {
-                                        Text("Настроить бюджет")
-                                            .foregroundStyle(Color(uiColor: .systemBackground))
-                                    }.buttonStyle(.borderedProminent)
-                                }
-                            }
-                            Text(session.isDemo ? "Демонстрационные данные · 17 октября" : "Локальный прототип · после закрытия данные сбросятся")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity).padding(.vertical)
-                        }.padding(.horizontal, 16).padding(.bottom, 16)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(session.referenceDate, format: .dateTime.weekday(.wide).day().month(.wide))
+                        .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                    Button { sheet = .details } label: {
+                        BudgetRingsCard(personal: personal.result, family: family.result)
+                    }.buttonStyle(.plain)
+                    Picker("Бюджет", selection: $selectedScope) {
+                        ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
+                    }.pickerStyle(.segmented)
+                    if let result = session.result {
+                        forecast(result)
+                        recentRecords
+                    } else {
+                        ContentUnavailableView {
+                            Label(session.scope.title + " бюджет", systemImage: "wallet.bifold")
+                        } description: {
+                            Text(session.errorMessage ?? (selectedScope == .personal ? "Личные расходы и накопления видите только вы. Укажите свой план месяца." : "Здесь общий план пары. Личные деньги участников остаются отдельно."))
+                        } actions: {
+                            Button("Настроить бюджет") { sheet = .setup }.buttonStyle(.borderedProminent)
+                        }.frame(minHeight: 230)
                     }
-                    .background(Color(uiColor: .systemGroupedBackground))
-                    .navigationTitle("Сводка")
-                    .toolbar { expenseToolbar }
-                }
+                    SavingsSection(session: session).id(selectedScope)
+                    budgetLinks
+                    Text(session.isDemo ? "Демонстрационные данные · 17 октября" : (session.repository?.statusText ?? "Хранилище недоступно"))
+                        .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
+                }.padding(20).padding(.bottom, 24)
             }
-            Tab("История", systemImage: "list.bullet", value: 1) {
-                NavigationStack {
-                    List {
-                        ForEach(session.records.reversed()) { record in
-                            LedgerRow(record: record, payer: session.payerName(for: record))
-                        }
-                    }
-                    .overlay {
-                        if session.records.isEmpty {
-                            ContentUnavailableView("Расходов пока нет", systemImage: "list.bullet.rectangle",
-                                                   description: Text("Добавьте первый расход кнопкой сверху."))
-                        }
-                    }
-                    .navigationTitle("История")
-                    .toolbar { expenseToolbar }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("Бюджет")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Бюджет и пара", systemImage: "person.2") { sheet = .sharing }
                 }
-            }
-            Tab("Награды", systemImage: "medal.fill", value: 2) {
-                NavigationStack {
-                    #if FOLKI_DEMO
-                    DemoAwardsView()
-                    #else
-                    ContentUnavailableView("Ваш прогресс вместе", systemImage: "medal",
-                                           description: Text("Достижения появятся после подключения целей и совместного бюджета."))
-                        .navigationTitle("Награды")
-                    #endif
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu("Добавить запись", systemImage: "plus") {
+                        Button("Личная запись", systemImage: "person") { openEntry(.personal) }
+                        Button("Семейная запись", systemImage: "person.2") { openEntry(.family) }
+                    }
                 }
             }
         }
-        .tint(.primary)
+        .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .setup: BudgetSetupView(session: session)
             case .expense: ExpenseEditorView(session: session)
-            case .daily, .forecast:
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            if let result = session.result {
-                                Text(destination == .daily ? "День и месяц" : "Следующие дни").font(.title.bold())
-                                if destination == .daily {
-                                    Text("Внешнее оранжевое кольцо — остаток дня. Внутреннее фиолетовое — остаток свободного месячного плана.")
-                                    Text("Ориентир дня: \(MoneyText.string(result.todayGuide)). Потрачено: \(MoneyText.string(result.todayNetSpending)).")
-                                } else {
-                                    Text("Свободно \(MoneyText.string(result.monthlyRemaining)). Прогноз предполагает, что сегодня больше не будет расходов.")
-                                    Text("Распределяем каждую копейку: первые дни могут отличаться на одну копейку от следующих.")
-                                }
-                            }
-                        }.foregroundStyle(.secondary).padding(24)
-                    }
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { sheet = nil } } }
-                }.presentationDetents([.medium, .large])
+            case .sharing: SharingView(session: family)
+            case .details: BudgetCalculationView(personal: personal, family: family)
             }
         }
     }
 
-    @ToolbarContentBuilder private var expenseToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button("Добавить расход", systemImage: "plus") { sheet = session.result == nil ? .setup : .expense }
+    private func openEntry(_ scope: BudgetScope) {
+        selectedScope = scope
+        let destination = scope == .personal ? personal : family
+        sheet = destination.result == nil ? .setup : .expense
+    }
+
+    private var recentRecords: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Последние записи").font(.title2.bold())
+                Spacer()
+                NavigationLink("Все") { BudgetHistoryView(session: session) }.font(.subheadline)
+            }
+            if session.records.isEmpty {
+                Text("Здесь появятся ваши расходы и поступления.")
+                    .font(.subheadline).foregroundStyle(.secondary).budgetCard()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(session.records.suffix(3).reversed()) { record in
+                        if session.isEditable(record) {
+                            Button { editingRecord = record } label: {
+                                LedgerRow(record: record, payer: session.payerName(for: record))
+                            }.buttonStyle(.plain)
+                        } else {
+                            LedgerRow(record: record, payer: session.payerName(for: record))
+                        }
+                        if record.id != session.records.suffix(3).first?.id { Divider() }
+                    }
+                }.budgetCard()
+            }
         }
     }
 
-    private func sectionTitle(_ title: LocalizedStringKey) -> some View {
-        Text(title).font(.title2.bold()).padding(.top, 14)
+    private var budgetLinks: some View {
+        VStack(spacing: 0) {
+            NavigationLink { BudgetHistoryView(session: session) } label: {
+                destinationRow("История операций", symbol: "clock.arrow.circlepath")
+            }
+            Divider().padding(.leading, 36)
+            NavigationLink { BudgetAwardsView() } label: {
+                destinationRow("Награды", symbol: "medal")
+            }
+        }.buttonStyle(.plain).budgetCard()
+    }
+
+    private func destinationRow(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).foregroundStyle(.orange).frame(width: 24)
+            Text(title).font(.body)
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+        }.padding(.vertical, 10)
     }
 
     private func forecast(_ result: DailyBudgetSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Следующие дни", systemImage: "calendar").foregroundStyle(.orange)
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-            }.font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Следующие дни", systemImage: "calendar").font(.headline).foregroundStyle(.orange)
             if result.monthlyRemaining.minorUnits < 0 {
-                Text("Свободный бюджет закончился").font(.headline)
-                Text("Пересмотрите расходы или план.").font(.caption).foregroundStyle(.secondary)
+                Text("Свободный бюджет закончился").font(.title3.bold())
+                Text("Пересмотрите расходы или план.").font(.subheadline).foregroundStyle(.secondary)
             } else if let future = result.futureAllocation {
-                Text("≈\(MoneyText.string(future.firstDayAmount)) / день")
-                    .font(.title2.bold()).monospacedDigit()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("≈\(MoneyText.string(future.firstDayAmount))").font(.system(.title, design: .rounded, weight: .bold))
+                    Text("в день").font(.subheadline).foregroundStyle(.secondary)
+                }.monospacedDigit()
                 Text("Если сегодня больше не тратить · \(future.days) дн.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(.secondary)
             } else {
-                Text("Последний день периода").font(.headline)
-                Text("Сегодня доступен оставшийся бюджет.").font(.caption).foregroundStyle(.secondary)
+                Text("Последний день периода").font(.title3.bold())
+                Text("Сегодня доступен оставшийся бюджет.").font(.subheadline).foregroundStyle(.secondary)
             }
         }.budgetCard()
     }
 }
 
-private struct BudgetRingsView: View {
-    let result: DailyBudgetSnapshot
+private struct BudgetCalculationView: View {
+    @Environment(\.dismiss) private var dismiss
+    let personal: BudgetSession
+    let family: BudgetSession
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                ZStack {
-                    arc(result.dayRingFraction, color: .orange, width: 17)
-                    arc(result.monthRingFraction, color: .purple, width: 16).padding(26)
-                }.padding(12).accessibilityHidden(true)
-                VStack(spacing: 7) {
-                    Text(result.todayRemaining.minorUnits >= 0 ? "Сегодня осталось" : "Сегодня сверх плана")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text(MoneyText.string(result.todayRemaining.minorUnits >= 0 ? result.todayRemaining : result.todayOverspending))
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-                    Text("на двоих").font(.caption).foregroundStyle(.secondary)
-                }.padding(.horizontal, 60)
+        NavigationStack {
+            Form {
+                calculation(personal)
+                calculation(family)
+                Section("Кольца снаружи внутрь") {
+                    Text("Личный остаток дня, семейный остаток дня, личный остаток месячного лимита, семейный остаток месячного лимита.")
+                    Text("Резервы и накопления исключены из свободных денег. Прогноз предполагает, что сегодня больше не будет расходов.")
+                }
             }
-            .aspectRatio(1, contentMode: .fit).frame(maxWidth: 320)
-            legend("Сегодня", color: .orange, remaining: result.todayRemaining.nonnegative, plan: result.todayGuide)
-            legend("Месяц", color: .purple, remaining: result.monthlyRemaining, plan: result.monthlyPlan)
-        }.frame(maxWidth: .infinity).padding(.bottom, 16)
-    }
-
-    private func arc(_ value: Double, color: Color, width: CGFloat) -> some View {
-        ZStack {
-            Circle().stroke(color.opacity(0.14), lineWidth: width)
-            if value > 0 {
-                Circle().trim(from: 0, to: value)
-                    .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            }
+            .navigationTitle("Личный и семейный").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
         }
     }
+    @ViewBuilder private func calculation(_ session: BudgetSession) -> some View {
+        Section(session.scope.title + " бюджет") {
+            if let result = session.result {
+                LabeledContent("Ориентир дня", value: MoneyText.string(result.todayGuide))
+                LabeledContent("Потрачено с учётом возвратов", value: MoneyText.string(result.todayNetSpending))
+                LabeledContent("Сегодня осталось", value: MoneyText.string(result.todayRemaining))
+                LabeledContent("Месячный лимит", value: MoneyText.string(result.monthlyPlan))
+                LabeledContent("Остаток месяца", value: MoneyText.string(result.monthlyRemaining))
+            } else { Text("План не настроен или период закончился.").foregroundStyle(.secondary) }
+        }
+    }
+}
 
-    private func legend(_ title: LocalizedStringKey, color: Color, remaining: Money, plan: Money) -> some View {
-        HStack(spacing: 7) {
-            Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
-            Text(title)
-            Spacer(minLength: 4)
-            HStack(spacing: 0) {
-                Text(MoneyText.string(remaining)).fontWeight(.semibold)
-                Text(" / \(MoneyText.string(plan))").foregroundStyle(.secondary)
-            }.monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-        }.font(.caption)
+struct BudgetAwardsView: View {
+    var body: some View {
+        #if FOLKI_DEMO
+        DemoAwardsView()
+        #else
+        ContentUnavailableView("Ваш прогресс вместе", systemImage: "medal",
+            description: Text("Здесь появятся достижения за совместное планирование бюджета."))
+            .navigationTitle("Награды")
+        #endif
     }
 }
 
 struct LedgerRow: View {
     let record: LedgerRecord
     let payer: String
+    private var prefix: String {
+        switch record.transaction.kind {
+        case .expense: "−"
+        case .refund, .income: "+"
+        case .reserveAllocation: "↗ "
+        case .reserveRelease: "↙ "
+        }
+    }
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: record.symbol).frame(width: 24).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.title)
-                Text(payer).font(.caption).foregroundStyle(.secondary)
+                Text("\(payer) · \(record.category.title) · \(record.transaction.date.formatted(.dateTime.day().month()))").font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
-            Text("−\(MoneyText.string(record.transaction.amount))").monospacedDigit()
+            Text("\(prefix)\(MoneyText.string(record.transaction.amount))").monospacedDigit()
         }.font(.subheadline).padding(.vertical, 10)
     }
 }
@@ -215,6 +214,6 @@ struct LedgerRow: View {
 extension View {
     func budgetCard() -> some View {
         padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
     }
 }
