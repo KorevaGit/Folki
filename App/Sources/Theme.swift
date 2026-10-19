@@ -255,12 +255,13 @@ struct FolkiSoftButtonStyle: ButtonStyle {
 
 /// The main action of a screen: accent-tinted liquid glass, white text.
 struct FolkiPrimaryButtonStyle: ButtonStyle {
+    var fullWidth = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.title3, design: .rounded, weight: .bold)).foregroundStyle(.white)
-            .padding(.horizontal, 20).frame(minHeight: 56)
+            .padding(.horizontal, 20).frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 56)
             .glassEffect(.regular.tint(Color.folkiAccent.opacity(isEnabled ? 1 : 0.35)).interactive(), in: Capsule())
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)

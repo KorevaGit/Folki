@@ -9,6 +9,8 @@ struct FolkiRootView: View {
     let family: BudgetSession
     @State private var selectedDay: Date?
     @State private var selection: FolkiTab = .budget
+    @AppStorage("FolkiOnboarded") private var onboarded = false
+    @State private var showsOnboarding = false
 
     private var tabSelection: Binding<FolkiTab> {
         Binding(get: { selection }, set: select)
@@ -27,6 +29,17 @@ struct FolkiRootView: View {
                 BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
             }
         }.tint(Color.folkiAccent)
+        .onAppear {
+            // New users only; `-FolkiShowOnboarding YES` forces it for checks.
+            let forced = UserDefaults.standard.bool(forKey: "FolkiShowOnboarding")
+            showsOnboarding = forced || (!onboarded && personal.result == nil && !personal.isDemo)
+        }
+        .fullScreenCover(isPresented: $showsOnboarding) {
+            OnboardingView(personal: personal, family: family) {
+                onboarded = true
+                showsOnboarding = false
+            }
+        }
     }
 }
 
