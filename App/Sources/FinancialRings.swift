@@ -125,6 +125,8 @@ struct BudgetRingsCard: View {
             monthValue(family, scope: .family)
         }
         .font(.subheadline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .folkiGlass(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func monthValue(_ result: DailyBudgetSnapshot?, scope: BudgetScope) -> some View {

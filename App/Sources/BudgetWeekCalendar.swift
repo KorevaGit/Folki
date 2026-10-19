@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A Monday-first week; selection is independent of the live ledger's clock.
+/// Seven days ending tomorrow, paged back a week at a time; selection is independent of the live ledger's clock.
 struct BudgetWeekCalendar: View {
     @Binding var selection: Date?
     let today: Date
@@ -11,15 +11,13 @@ struct BudgetWeekCalendar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var selected: Date { selection ?? today }
+    /// Weeks moved back from the current window; 0 shows five days before today, today and tomorrow.
+    @State private var page = 0
     private var weekStart: Date {
-        let start = calendar.startOfDay(for: selected)
-        let offset = (calendar.component(.weekday, from: start) + 5) % 7
-        return calendar.date(byAdding: .day, value: -offset, to: start) ?? start
+        let start = calendar.startOfDay(for: today)
+        return calendar.date(byAdding: .day, value: -5 - 7 * page, to: start) ?? start
     }
-    private var isCurrentWeek: Bool {
-        guard let end = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return true }
-        return today < end
-    }
+    private var isCurrentWeek: Bool { page == 0 }
     private var dateBinding: Binding<Date> {
         Binding(get: { selected }, set: { select($0) })
     }
@@ -71,10 +69,11 @@ struct BudgetWeekCalendar: View {
     private var monthButton: some View {
         Button { showingMonth = true } label: {
             HStack(spacing: 6) {
-                Text(selected, format: .dateTime.day().month(.wide))
-                    .font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
-                Image(systemName: "calendar").font(.caption.weight(.semibold))
-            }.frame(minHeight: 44)
+                Image(systemName: "calendar").font(.subheadline.weight(.semibold))
+                if selection != nil {
+                    Text(selected, format: .dateTime.day().month(.wide)).font(.subheadline.weight(.semibold))
+                }
+            }.frame(minWidth: 44, minHeight: 44, alignment: .leading)
         }.buttonStyle(.plain).accessibilityLabel("Выбрать дату в календаре")
     }
     @ViewBuilder private var todayButton: some View {
@@ -119,8 +118,13 @@ struct BudgetWeekCalendar: View {
     }
 
     private func select(_ date: Date) {
+        let day = calendar.startOfDay(for: date)
+        // Page back far enough that the chosen day sits inside the visible seven.
+        let firstVisible = calendar.date(byAdding: .day, value: -5, to: calendar.startOfDay(for: today)) ?? today
+        let behind = calendar.dateComponents([.day], from: day, to: firstVisible).day ?? 0
         withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-            selection = calendar.isDate(date, inSameDayAs: today) ? nil : calendar.startOfDay(for: date)
+            page = behind <= 0 ? 0 : (behind + 6) / 7
+            selection = calendar.isDate(day, inSameDayAs: today) ? nil : day
         }
     }
     private func moveWeek(_ direction: Int) {

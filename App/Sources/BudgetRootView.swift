@@ -31,6 +31,7 @@ struct BudgetRootView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    header.padding(.top, 8)
                     BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar) { day in
                         (personal.overview(on: day).result?.dayRingFraction, family.overview(on: day).result?.dayRingFraction)
                     }
@@ -48,11 +49,7 @@ struct BudgetRootView: View {
                         .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
                 }.padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 40)
             }
-            .background(Color.folkiBackground)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                header.padding(.horizontal, 20).padding(.vertical, 8)
-                    .background(Color.folkiBackground)
-            }
+            .background { FolkiBackground() }
             .navigationTitle("Бюджет")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
@@ -86,8 +83,12 @@ struct BudgetRootView: View {
         }
     }
     private var heading: some View {
-        Text("Бюджет").font(.system(.largeTitle, design: .rounded, weight: .bold))
-            .lineLimit(1).minimumScaleFactor(0.6).accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(personal.referenceDate, format: .dateTime.weekday(.wide).day().month(.wide))
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Text("Бюджет").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                .lineLimit(1).minimumScaleFactor(0.6).accessibilityAddTraits(.isHeader)
+        }
     }
     private var headerActions: some View {
         HStack(spacing: 4) {
@@ -100,8 +101,8 @@ struct BudgetRootView: View {
                 Image(systemName: "gearshape").frame(width: 44, height: 44)
             }.accessibilityLabel("Настройки")
         }
-        .font(.system(size: 20, weight: .medium)).foregroundStyle(Color.folkiAccent).buttonStyle(.plain)
-        .padding(.horizontal, 6).padding(.vertical, 2)
+        .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.folkiInk).buttonStyle(.plain)
+        .padding(3)
         .glassEffect(.regular, in: .capsule)
     }
 
@@ -121,7 +122,7 @@ struct BudgetRootView: View {
                 Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
             } label: {
                 Text("+ Внести").frame(width: 132, height: 64)
-                    .background(Color.folkiSurface, in: Capsule()).foregroundStyle(Color.folkiInk)
+                    .folkiGlass(Capsule()).foregroundStyle(Color.folkiInk)
             }
             .menuStyle(.button).buttonStyle(.plain).fixedSize()
         }
@@ -221,6 +222,6 @@ struct LedgerRow: View {
 extension View {
     func budgetCard() -> some View {
         padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.folkiSurface.opacity(0.6), in: RoundedRectangle(cornerRadius: 20))
+            .folkiGlass(RoundedRectangle(cornerRadius: 20))
     }
 }

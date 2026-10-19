@@ -67,7 +67,7 @@ struct SummaryCards: View {
             Spacer(minLength: 0)
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
-        .background(Color.folkiSurface.opacity(0.6), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .folkiGlass(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .foregroundStyle(Color.folkiInk)
     }
     private func value(_ text: String) -> some View {
@@ -147,7 +147,7 @@ struct ScopedScreen<Content: View>: View {
                 content(current == .personal ? personal : family).id(current)
             }.padding(20)
         }
-        .background(Color.folkiBackground)
+        .background { FolkiBackground() }
         .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
     }
