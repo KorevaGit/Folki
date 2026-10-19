@@ -70,6 +70,7 @@ struct ExpenseEditorView: View {
     @State private var assignIncome: Bool
     @State private var reserveID: UUID?
     @State private var errorMessage: String?
+    @State private var choosingCategory = false
 
     init(session: BudgetSession, editing: LedgerRecord? = nil, initialKind: TransactionKind = .expense) {
         self.session = session; self.editing = editing
@@ -94,12 +95,6 @@ struct ExpenseEditorView: View {
         return try? session.draft(amount: money, title: title, payerID: payerID, date: date,
             kind: type, categoryID: categoryID, funding: funding, editing: editing, newRecordID: newRecordID)
     }
-    /// Active categories, plus the archived one an edited record already uses.
-    private var categoryChoices: [SpendingCategory] {
-        var choices = session.catalog.selectable
-        if !choices.contains(where: { $0.id == categoryID }) { choices.append(session.catalog.category(for: categoryID)) }
-        return choices
-    }
     private var editingBudget: StoredBudget? { try? session.budget(editing: editing) }
     private var expenseReserves: [ProtectedReserve] {
         (editingBudget?.snapshot.reserves ?? []).filter { reserve in !session.goals.contains(where: { $0.id == reserve.id }) }
@@ -108,18 +103,32 @@ struct ExpenseEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // The amount leads, like on the spend screen.
                 Section {
-                    LabeledContent("Бюджет", value: session.scope.title)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        TextField("0", text: $amount).keyboardType(.decimalPad)
+                            .font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit()
+                            .multilineTextAlignment(.trailing).fixedSize()
+                        Text(MoneyText.symbol).font(.system(size: 44, weight: .bold, design: .rounded))
+                            .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
+                    }.frame(maxWidth: .infinity)
                     Picker("Операция", selection: $kind) {
-                        Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Поступление").tag("income")
-                    }
-                    TextField("Сумма, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
+                        Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Доход").tag("income")
+                    }.pickerStyle(.segmented)
+                }.listRowBackground(Color.clear).listRowSeparator(.hidden)
+                Section {
                     TextField("Описание · необязательно", text: $title)
-                    Picker("Категория", selection: $categoryID) {
-                        ForEach(categoryChoices) { category in
-                            Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 22) }.tag(category.id)
+                    Button { choosingCategory = true } label: {
+                        HStack(spacing: 10) {
+                            Text("Категория").foregroundStyle(Color.folkiInk)
+                            Spacer()
+                            let category = session.catalog.category(for: categoryID)
+                            CategoryIcon(category: category, size: 24)
+                            Text(category.name).foregroundStyle(Color(uiColor: .secondaryLabel))
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                         }
-                    }.pickerStyle(.navigationLink)
+                    }
+                    LabeledContent("Бюджет", value: session.scope.title)
                     Picker(kind == "expense" ? "Оплатил" : "Получил", selection: $payerID) {
                         ForEach(session.members.filter { $0.isActive || $0.id == editing?.transaction.payerID }) { Text(session.memberName($0.id)).tag($0.id) }
                     }
@@ -146,8 +155,19 @@ struct ExpenseEditorView: View {
                     Text("Проверь сумму, описание, дату и доступный резерв.").foregroundStyle(.secondary)
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
+                if let editing, session.isEditable(editing), !editing.transaction.isDeleted {
+                    Section {
+                        Button("Удалить запись", role: .destructive) {
+                            do { try session.setDeleted(true, record: editing); FolkiFeedback.saved(); dismiss() }
+                            catch { errorMessage = "Не удалось удалить. Попробуй снова." }
+                        }.frame(maxWidth: .infinity)
+                    }
+                }
             }
             .folkiFormLayout()
+            .sheet(isPresented: $choosingCategory) {
+                CategoryPickerView(session: session, selection: Binding(get: { categoryID }, set: { categoryID = $0 ?? BuiltInCategory.other.id }))
+            }
             .navigationTitle(editing == nil ? "Новая запись" : "Запись").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }

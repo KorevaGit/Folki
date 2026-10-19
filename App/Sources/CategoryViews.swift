@@ -113,8 +113,12 @@ struct CategoriesView: View {
             } header: { Text("Свои") } footer: {
                 Text(session.scope == .personal ? "Личные категории видишь только ты." : "Семейные категории видят все участники семьи.")
             }
-            Section("Базовые") {
-                ForEach(BuiltInCategory.all) { row($0) }
+            // Built-ins grouped by kind, so the tag on every row is not needed.
+            Section("Обязательное") {
+                ForEach(BuiltInCategory.all.filter(\.isEssential)) { row($0, showsKind: false) }
+            }
+            Section("Желания") {
+                ForEach(BuiltInCategory.all.filter { !$0.isEssential }) { row($0, showsKind: false) }
             }
             let archived = custom.filter(\.isArchived)
             if !archived.isEmpty {
@@ -130,17 +134,20 @@ struct CategoriesView: View {
         }
         .folkiFormLayout()
         .navigationTitle(session.scope == .personal ? "Личные категории" : "Семейные категории")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $creating) { CategoryEditorView(session: session, category: nil) }
         .sheet(item: $editing) { CategoryEditorView(session: session, category: $0) }
     }
 
-    private func row(_ category: SpendingCategory) -> some View {
+    private func row(_ category: SpendingCategory, showsKind: Bool = true) -> some View {
         HStack(spacing: 12) {
-            CategoryIcon(category: category)
+            CategoryIcon(category: category, size: 30)
             Text(category.name)
             Spacer()
-            Text(category.isEssential ? "Обязательная" : "Желание").font(.caption).foregroundStyle(.secondary)
-        }.frame(minHeight: 52).contentShape(Rectangle())
+            if showsKind {
+                Text(category.isEssential ? "обязательное" : "желание").font(.caption).foregroundStyle(.secondary)
+            }
+        }.frame(minHeight: 40).contentShape(Rectangle())
     }
 
     private func setArchived(_ category: SpendingCategory, _ archived: Bool) {
@@ -171,14 +178,21 @@ struct CategoryEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // A big preview, like Reminders lists.
                 Section {
-                    HStack(spacing: 12) {
-                        CategoryIcon(symbol: symbol, color: color.color, size: 44)
-                        TextField("Название", text: $name).font(.title3)
-                    }
+                    VStack(spacing: 14) {
+                        CategoryIcon(symbol: symbol, color: color.color, size: 76)
+                            .animation(.spring(duration: 0.3, bounce: 0.3), value: symbol)
+                        TextField("Название", text: $name)
+                            .font(.system(.title2, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
+                            .padding(.vertical, 10).padding(.horizontal, 14)
+                            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }.frame(maxWidth: .infinity).padding(.vertical, 8)
+                }
+                Section {
                     Toggle("Обязательная трата", isOn: $isEssential)
                 } footer: {
-                    Text("Обязательные — то, без чего не обойтись: жильё, еда, лечение. Остальное — желания. В аналитике видно, как делятся траты.")
+                    Text("Обязательное — жильё, еда, лечение. Остальное — желания.")
                 }
                 Section("Цвет") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {

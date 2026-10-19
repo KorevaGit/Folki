@@ -20,7 +20,8 @@ struct SavingsSection: View {
                     Text("Деньги в накоплениях защищены от повседневных трат.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     if session.result != nil && !session.isDemo {
-                        Button("Создать цель") { creating = true }.font(.subheadline.weight(.semibold))
+                        Button("Создать цель", systemImage: "plus") { creating = true }
+                            .buttonStyle(FolkiSoftButtonStyle()).padding(.top, 4)
                     }
                 }.budgetCard()
             } else {
@@ -29,7 +30,10 @@ struct SavingsSection: View {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Label(goal.name, systemImage: "flag.fill").font(.headline)
+                                    .foregroundStyle(Color.budget(session.scope))
                                 Spacer()
+                                Text("\(Int((goal.fraction * 100).rounded()))%").font(.subheadline.weight(.semibold))
+                                    .monospacedDigit().foregroundStyle(.secondary)
                                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                             }
                             ViewThatFits(in: .horizontal) {
@@ -43,7 +47,13 @@ struct SavingsSection: View {
                                     Text("из \(MoneyText.whole(goal.target))").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            ProgressView(value: goal.fraction).tint(Color.budget(session.scope))
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Color.budget(session.scope).opacity(0.15))
+                                    Capsule().fill(Color.budget(session.scope))
+                                        .frame(width: max(8, geo.size.width * min(1, goal.fraction)))
+                                }
+                            }.frame(height: 10).accessibilityHidden(true)
                         }.budgetCard()
                     }.buttonStyle(.plain).disabled(session.result == nil)
                 }
