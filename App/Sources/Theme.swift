@@ -230,6 +230,10 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
     static func toggle() { medium.impactOccurred(intensity: 1); medium.prepare() }
     /// A soft bump when a swipe hits today.
     static func boundary() { soft.impactOccurred(intensity: 0.9); soft.prepare() }
+    /// Something went wrong.
+    static func warning() { notifier.notificationOccurred(.error); notifier.prepare() }
+    /// A finished flow: onboarding done, goal reached.
+    static func success() { notifier.notificationOccurred(.success); notifier.prepare() }
     static func prepare() { selector.prepare(); soft.prepare(); light.prepare() }
 }
 
@@ -283,8 +287,30 @@ struct FolkiErrorMessage: View {
     let message: String
     var body: some View {
         Label(message, systemImage: "exclamationmark.circle")
+            .onAppear { FolkiFeedback.warning() }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
             .font(.footnote).foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
     }
+}
+
+/// Cards rise in gently, one after another, the first time a screen appears.
+private struct FolkiAppear: ViewModifier {
+    let order: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 14)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(.spring(duration: 0.5, bounce: 0.2).delay(0.05 * Double(order))) { shown = true }
+            }
+    }
+}
+
+extension View {
+    func folkiAppear(_ order: Int = 0) -> some View { modifier(FolkiAppear(order: order)) }
 }

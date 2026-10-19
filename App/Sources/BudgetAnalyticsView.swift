@@ -38,22 +38,22 @@ struct BudgetAnalyticsSection: View {
                 let monthPlan = period == .month ? session.overview(on: result.cutoff).result : nil
                 let insights = PeriodInsights(result: result, records: session.historyRecords, catalog: session.catalog,
                                               snapshot: monthPlan, isMonth: period == .month)
-                if let tip = insights.tip { InsightTip(text: tip) }
+                if let tip = insights.tip { InsightTip(text: tip).folkiAppear(0) }
                 if period == .month, let plan = monthPlan {
-                    pace(result, plan: plan)
+                    pace(result, plan: plan).folkiAppear(1)
                 } else {
-                    overview(result)
+                    overview(result).folkiAppear(1)
                 }
-                changes(result)
+                changes(result).folkiAppear(2)
                 if result.recordCount == 0 {
                     ContentUnavailableView("Пока без операций", systemImage: "chart.bar.xaxis",
-                        description: Text("За этот период нет записей. Выбери другой период или добавь трату через «Потратить»."))
+                        description: Text("Здесь пока пусто — запиши первую трату 🙂"))
                 }
                 if result.expenses.minorUnits > 0 || result.refunds.minorUnits > 0 {
-                    if period == .month { balance(result) }
-                    chart(result, plan: monthPlan).budgetCard()
-                    HabitsCard(insights: insights)
-                    categories(result)
+                    if period == .month { balance(result).folkiAppear(3) }
+                    chart(result, plan: monthPlan).budgetCard().folkiAppear(4)
+                    HabitsCard(insights: insights).folkiAppear(5)
+                    categories(result).folkiAppear(6)
                 }
                 if result.contributions.minorUnits > 0 || result.reserveTransfers.minorUnits != 0 {
                     transfers(result)
@@ -65,8 +65,8 @@ struct BudgetAnalyticsSection: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }.buttonStyle(FolkiSoftButtonStyle())
             } else {
-                ContentUnavailableView("Не удалось посчитать", systemImage: "chart.bar.xaxis",
-                    description: Text("Открой историю и проверь записи, затем попробуй снова."))
+                ContentUnavailableView("Не получилось посчитать", systemImage: "chart.bar.xaxis",
+                    description: Text("Загляни в историю и попробуй ещё раз 🙏"))
             }
         }
         .environment(\.calendar, analyticsCalendar).environment(\.timeZone, session.calendar.timeZone)
@@ -82,7 +82,6 @@ struct BudgetAnalyticsSection: View {
                 } else {
                     Text("\(result.interval.start.formatted(.dateTime.day().month(.abbreviated))) — \(result.cutoff.formatted(.dateTime.day().month(.abbreviated).year()))")
                 }
-                Text("\(session.scope.title) бюджет").font(.caption).foregroundStyle(.secondary)
             }.font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).multilineTextAlignment(.center)
             Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
                 .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).disabled(!canGoForward)
@@ -133,6 +132,7 @@ struct BudgetAnalyticsSection: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                    .contentTransition(.numericText(value: Double(net.minorUnits))).animation(.snappy, value: net.minorUnits)
                 if plan > 0 {
                     Text("из \(MoneyText.whole(snapshot.monthlyPlan))").font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
@@ -156,8 +156,8 @@ struct BudgetAnalyticsSection: View {
         if overPlan > 0 { return "План превышен на \(MoneyText.whole(Money(minorUnits: overPlan).roundedUpToWholeUnits))" }
         // Round to 100 ₽: an estimate should not look more exact than it is.
         let gap = MoneyText.whole(Money(minorUnits: abs(ahead) / 10_000 * 10_000))
-        if finished { return "Уложился в план, осталось \(gap)" }
-        if ahead <= 0 { return "Идёшь с запасом \(gap) — так держать" }
+        if finished { return "Уложился в план, осталось \(gap) 🎉" }
+        if ahead <= 0 { return "Идёшь с запасом \(gap) — так держать 💪" }
         if let next = snapshot.futureAllocation {
             return "Тратишь быстрее плана на \(gap). Дальше лучше держаться около \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день"
         }
@@ -325,7 +325,7 @@ struct BudgetAnalyticsSection: View {
             }
             if sorted.count > 5 {
                 Button(showsAllCategories ? "Свернуть" : "Все категории (\(sorted.count))") {
-                    withAnimation(.snappy) { showsAllCategories.toggle() }
+                    FolkiFeedback.selection(); withAnimation(.snappy) { showsAllCategories.toggle() }
                 }.buttonStyle(FolkiSoftButtonStyle()).frame(maxWidth: .infinity)
             }
         }.budgetCard()
@@ -346,7 +346,7 @@ struct BudgetAnalyticsSection: View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Баланс месяца").font(.headline)
-                    Text("Простой ориентир: 50% на обязательное, 30% на желания, 20% отложить.")
+                    Text("Ориентир: 50% на обязательное, 30% на желания, 20% в копилку 🐷")
                         .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(parts, id: \.0) { title, hint, amount, target, color in
@@ -371,10 +371,10 @@ struct BudgetAnalyticsSection: View {
 
     private func balanceAdvice(needs: Int64, wants: Int64, saved: Int64, total: Int64) -> String {
         let wantsShare = Double(wants) / Double(total), savedShare = Double(saved) / Double(total)
-        if saved == 0 { return "В этом месяце пока ничего не отложено. Начни с малого: даже 5% в накопления — уже привычка." }
-        if wantsShare > 0.35 { return "Желаний больше ориентира. Это не плохо, просто стоит знать, куда уходят деньги." }
-        if savedShare >= 0.2 { return "Откладываешь 20% и больше — отличный темп." }
-        return "Хороший баланс. Если получится, понемногу увеличивай долю накоплений."
+        if saved == 0 { return "Пока ничего не отложено. Начни с малого — даже 5% уже привычка 🌱" }
+        if wantsShare > 0.35 { return "Желаний больше ориентира — не страшно, просто держи в голове 😉" }
+        if savedShare >= 0.2 { return "Откладываешь 20% и больше — огонь 🔥" }
+        return "Хороший баланс 👍 Если получится, откладывай чуть больше."
     }
 
     private func transfers(_ result: BudgetAnalyticsSnapshot) -> some View {
@@ -394,7 +394,7 @@ struct BudgetAnalyticsSection: View {
                     amountRow(session.memberName(item.memberID), item.amount)
                 }
             }
-            Text("Это не траты: деньги остаются в семье.").font(.footnote).foregroundStyle(.secondary)
+            Text("Это не траты — деньги остаются в семье 💚").font(.footnote).foregroundStyle(.secondary)
         }.budgetCard()
     }
 }

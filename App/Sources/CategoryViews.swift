@@ -111,7 +111,7 @@ struct CategoriesView: View {
                 Button("Новая категория", systemImage: "plus.circle.fill") { creating = true }
                     .disabled(session.result == nil || session.isDemo)
             } header: { Text("Свои") } footer: {
-                Text(session.scope == .personal ? "Личные категории видишь только ты." : "Семейные категории видят все участники семьи.")
+                Text(session.scope == .personal ? "Их видишь только ты 🤫" : "Их видит вся семья 💚")
             }
             // Built-ins grouped by kind, so the tag on every row is not needed.
             Section("Обязательное") {
@@ -127,7 +127,7 @@ struct CategoriesView: View {
                         row(category).swipeActions { Button("Вернуть") { setArchived(category, false) }.tint(Color.folkiAccent) }
                     }
                 } header: { Text("Архив") } footer: {
-                    Text("Категории из архива нельзя выбрать для новых записей, но старые записи и аналитика их сохраняют.")
+                    Text("Старые записи с ними никуда не денутся 📦")
                 }
             }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -153,7 +153,7 @@ struct CategoriesView: View {
     private func setArchived(_ category: SpendingCategory, _ archived: Bool) {
         do { try session.setCategoryArchived(category, archived: archived); errorMessage = nil }
         catch LedgerError.duplicateCategory { errorMessage = "Активная категория с таким названием уже есть. Переименуй её, чтобы вернуть эту." }
-        catch { errorMessage = "Не удалось изменить категорию. Обнови экран и попробуй снова." }
+        catch { errorMessage = "Не получилось изменить категорию. Обнови экран и попробуй снова." }
     }
 }
 
@@ -190,9 +190,9 @@ struct CategoryEditorView: View {
                     }.frame(maxWidth: .infinity).padding(.vertical, 8)
                 }
                 Section {
-                    Toggle("Обязательная трата", isOn: $isEssential)
+                    Toggle("Обязательная трата", isOn: $isEssential).sensoryFeedback(.selection, trigger: isEssential)
                 } footer: {
-                    Text("Обязательное — жильё, еда, лечение. Остальное — желания.")
+                    Text("Обязательное — жильё, еда, лечение. Остальное — желания 🎈")
                 }
                 Section("Цвет") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
@@ -245,6 +245,6 @@ struct CategoryEditorView: View {
             dismiss()
         } catch LedgerError.duplicateCategory { errorMessage = "Категория с таким названием уже есть." }
         catch LedgerError.conflict { errorMessage = "Категорию уже изменили на другом устройстве. Закрой и открой её снова." }
-        catch { errorMessage = "Не удалось сохранить категорию. Попробуй снова." }
+        catch { errorMessage = "Не получилось сохранить категорию. Попробуй снова." }
     }
 }

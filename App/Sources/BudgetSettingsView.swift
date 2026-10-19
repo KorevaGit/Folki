@@ -19,7 +19,7 @@ struct BudgetSettingsView: View {
                         Text("Какой бюджет настроим?").font(.headline)
                         FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
                             options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 52)
-                        Text(scope == .personal ? "Личные суммы и категории видишь только ты." : "Семейный план и категории общие для участников семьи.")
+                        Text(scope == .personal ? "Это только твоё 🤫" : "Это общее для всей семьи 💚")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     plan
@@ -32,7 +32,7 @@ struct BudgetSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Семья и доступ").font(.system(.title2, design: .rounded, weight: .bold))
                         FamilyMembersCard(family: family) { showingFamily = true }
-                        Text("Личные бюджеты друг другу не видны.")
+                        Text("Ты можешь позвать до 4 близких 👨‍👩‍👧‍👦 Личные бюджеты у каждого свои.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }.folkiPagePadding()
@@ -60,7 +60,7 @@ struct BudgetSettingsView: View {
                     Text(MoneyText.whole(result.monthlyPlan))
                         .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
                         .foregroundStyle(Color.budget(scope)).lineLimit(1).minimumScaleFactor(0.5)
-                    Text("Столько ты планируешь потратить за месяц из свободных денег.")
+                    Text("Столько ты хочешь потратить за месяц")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Divider()
                     LabeledContent("Свободно сейчас", value: MoneyText.whole(result.monthlyRemaining))
@@ -69,12 +69,12 @@ struct BudgetSettingsView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }.buttonStyle(FolkiSoftButtonStyle())
                 }.budgetCard()
-                Text("Чтобы добавить деньги, используй «Внести».")
+                Text("Пришли деньги? Жми «Внести» 💸")
                     .font(.footnote).foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("План на текущий месяц ещё не создан").font(.headline)
-                    Text("Укажи план расходов и сколько денег уже есть. После этого появится ориентир на день.")
+                    Text("Плана на месяц пока нет").font(.headline)
+                    Text("Две цифры — и Folki скажет, сколько можно тратить в день ✨")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button("Создать план месяца", systemImage: "plus") { setupScope = scope }
                         .buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)

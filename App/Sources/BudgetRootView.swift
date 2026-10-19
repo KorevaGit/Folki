@@ -230,8 +230,8 @@ private struct BudgetCalculationView: View {
                 calculation(personal, title: "Личный бюджет")
                 calculation(family, title: "Семейный бюджет")
                 Section("Кольца") {
-                    Text("Снаружи — личный остаток дня, внутри — семейный. Кольцо пустеет по мере трат и становится пустым при перерасходе.")
-                    Text("Резервы и накопления исключены из свободных денег. Прогноз предполагает, что сегодня больше не будет расходов.")
+                    Text("Снаружи — твой день, внутри — семейный. Тратишь — кольцо тает 🍩")
+                    Text("Накопления сюда не входят. Прогноз — если сегодня больше ничего не тратить.")
                 }
             }
             .folkiFormLayout()
@@ -247,7 +247,7 @@ private struct BudgetCalculationView: View {
                 LabeledContent("Сегодня осталось", value: MoneyText.whole(result.todayRemaining))
                 LabeledContent("Месячный лимит", value: MoneyText.whole(result.monthlyPlan))
                 LabeledContent("Остаток месяца", value: MoneyText.whole(result.monthlyRemaining))
-            } else { Text("План не настроен или период закончился.").foregroundStyle(.secondary) }
+            } else { Text("Тут пока нет плана").foregroundStyle(.secondary) }
         }
     }
 }
@@ -359,8 +359,6 @@ private struct BudgetDaySpendingSummary: View {
                 summary(personal, overview: personalDay)
                 summary(family, overview: familyDay)
             }
-            Text("С учётом возвратов. Взносы и накопления не входят в траты.")
-                .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -370,7 +368,7 @@ private struct BudgetDaySpendingSummary: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(session.scope.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.budget(session.scope))
             if overview.errorMessage != nil {
-                Text("Не удалось загрузить").font(.footnote).foregroundStyle(.secondary)
+                Text("Не получилось загрузить").font(.footnote).foregroundStyle(.secondary)
             } else if overview.result == nil && overview.records.isEmpty {
                 Text("Нет плана на этот день").font(.footnote).foregroundStyle(.secondary)
             } else if let result = try? BudgetAnalytics.calculate(records: overview.records, period: .day,
@@ -384,7 +382,7 @@ private struct BudgetDaySpendingSummary: View {
                     Text("Возвраты: \(MoneyText.whole(result.refunds))").font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Не удалось посчитать").font(.footnote).foregroundStyle(.secondary)
+                Text("Не получилось посчитать").font(.footnote).foregroundStyle(.secondary)
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)

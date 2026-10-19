@@ -43,14 +43,14 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         page(title: "Сколько можно\nпотратить сегодня",
-             text: "Folki делит месячный план на дни. Кольцо показывает, сколько осталось на сегодня, и пересчитывает остальные дни после каждой траты.") {
+             text: "Folki делит месяц на дни и после каждой траты подсказывает, сколько осталось 🍩") {
             DemoRings(outer: 0.7, inner: 0.45).frame(width: 200, height: 200)
         }
     }
 
     private var budgets: some View {
         page(title: "Два бюджета",
-             text: "Личный видишь только ты. Семейный общий для всех участников. Деньги из личного в семейный переводятся взносом — это не трата.") {
+             text: "Личный — только твой 🤫 Семейный — общий 💚 Скидываться в общий можно взносом, это не трата.") {
             HStack(spacing: 14) {
                 budgetBadge("Личный", symbol: "person.fill", scope: .personal, note: "только ты")
                 budgetBadge("Семейный", symbol: "person.2.fill", scope: .family, note: "вся семья")
@@ -62,7 +62,7 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 Text("Твой личный план").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("Две цифры — и Folki посчитает, сколько можно тратить в день. Всё можно поменять позже.")
+                Text("Две цифры — и Folki посчитает твой день ✨ Всё можно поменять потом.")
                     .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 amountField("Сколько денег у тебя сейчас", hint: "Всё, что есть на картах и наличными",
                             text: $available, field: .available)
@@ -75,7 +75,7 @@ struct OnboardingView: View {
 
     private var familyPage: some View {
         page(title: "Позови семью",
-             text: "Пригласи до четырёх человек в семейный бюджет. Каждый увидит общие траты и взносы, а личные бюджеты останутся у каждого свои.") {
+             text: "Ты можешь позвать до 4 близких 👨‍👩‍👧‍👦 Общие траты видны всем, а личный бюджет у каждого свой.") {
             Image(systemName: "person.2.circle.fill").font(.system(size: 120))
                 .foregroundStyle(Color.budget(.family), Color.budget(.family).opacity(0.2))
         }
@@ -138,7 +138,7 @@ struct OnboardingView: View {
         case 3:
             Button("Пригласить", systemImage: "person.badge.plus") { showingFamily = true }
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            Button("Начать без семьи") { finish() }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Начать без семьи") { FolkiFeedback.success(); finish() }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
         default:
             Button("Дальше") { page += 1 }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             Button("Пропустить") { finish() }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
@@ -152,7 +152,7 @@ struct OnboardingView: View {
             try personal.createPlan(monthlyPlan: monthlyPlan, available: funds, reserves: [])
             FolkiFeedback.saved(); errorMessage = nil; focused = nil; page = 3
         } catch {
-            errorMessage = "Не удалось сохранить план. Проверь суммы и попробуй снова."
+            errorMessage = "Не получилось сохранить план. Проверь суммы и попробуй снова."
         }
     }
 }

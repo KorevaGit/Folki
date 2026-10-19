@@ -16,6 +16,7 @@ struct FolkiRootView: View {
         Binding(get: { selection }, set: select)
     }
     private func select(_ tab: FolkiTab) {
+        if tab != selection { FolkiFeedback.selection() }
         var transaction = Transaction(animation: nil)
         transaction.disablesAnimations = true
         withTransaction(transaction) { selection = tab }
@@ -86,8 +87,8 @@ struct FolkiSummaryView: View {
         return VStack(alignment: .leading, spacing: FolkiSpacing.item) {
             Button(action: openBudget) {
                 budgetFavorite(personal: personal.overview(on: date).result, family: family.overview(on: date).result)
-            }.buttonStyle(.plain).accessibilityHint("Открыть вкладку «Бюджет»")
-            SummaryCards(personal: personal, family: family, date: date)
+            }.buttonStyle(FolkiPressStyle()).accessibilityHint("Открыть вкладку «Бюджет»").folkiAppear(0)
+            SummaryCards(personal: personal, family: family, date: date).folkiAppear(1)
         }
     }
 

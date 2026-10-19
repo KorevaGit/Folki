@@ -37,7 +37,7 @@ struct SpendingLimitsView: View {
                                     .accessibilityLabel("План расходов за месяц в рублях")
                                 Text(MoneyText.symbol).font(.title2).foregroundStyle(.secondary)
                             }
-                            Text("Введи сумму за весь месяц, включая уже совершённые траты.")
+                            Text("Сумма на весь месяц, вместе с тем, что уже потрачено")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }.budgetCard()
                         if let stats = try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month,
@@ -52,13 +52,13 @@ struct SpendingLimitsView: View {
                                 }
                             }.font(.subheadline).budgetCard()
                         }
-                        Text("Меняется только план расходов. Деньги и записи останутся прежними. Ориентир дня рассчитывается из свободного остатка и от этого изменения не увеличится.")
+                        Text("Это только план — деньги и записи никуда не денутся 👌")
                             .font(.footnote).foregroundStyle(.secondary)
                         Button(action: save) {
                             Text("Сохранить план").font(.headline).frame(maxWidth: .infinity, minHeight: 52)
                         }.buttonStyle(FolkiPrimaryButtonStyle()).disabled(limit == nil)
                     } else {
-                        Text("На текущий месяц ещё нет плана.").font(.headline)
+                        Text("Плана на этот месяц пока нет").font(.headline)
                         Button("Создать план месяца") { settingUp = true }.buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
                     }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -78,7 +78,7 @@ struct SpendingLimitsView: View {
         guard let limit, let expected else { return }
         do { try session.updateSpendingLimit(limit, expected: expected); FolkiFeedback.saved(); dismiss() }
         catch LedgerError.conflict { errorMessage = "План уже изменился. Закрой экран и открой его снова." }
-        catch { errorMessage = "Не удалось сохранить план. Проверь сумму и доступ к бюджету." }
+        catch { errorMessage = "Не получилось сохранить план. Проверь сумму и доступ к бюджету." }
     }
     private func reload() {
         expected = session.storedBudget

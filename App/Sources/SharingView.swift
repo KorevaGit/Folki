@@ -33,11 +33,11 @@ struct SharingView: View {
                             }.font(.caption)
                         }
                     }
-                    Text("До пяти участников вместе с владельцем. Личные бюджеты не входят в общий доступ. Имена можно изменить. При удалении участника его прежние операции и имя сохраняются в истории.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Ты можешь позвать до 4 близких 👨‍👩‍👧‍👦 Личные бюджеты у каждого свои.").font(.footnote).foregroundStyle(.secondary)
                 }
                 if session.household == nil {
                     Section {
-                        Text("Сначала создай семейный план. Личные данные сохранятся отдельно.")
+                        Text("Сначала создай семейный план — и зови своих 🙌")
                         Button("Создать семейный бюджет") { creatingBudget = true }
                     }
                 } else {
@@ -45,23 +45,23 @@ struct SharingView: View {
                         TextField("Имя", text: $name)
                         if session.repository?.cloudIdentifier != nil {
                             TextField("Email Apple ID", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
-                            Button(preparing ? "Подготовка…" : "Подготовить приглашение") {
+                            Button(preparing ? "Готовим…" : "Создать приглашение") {
                                 guard let repository = session.repository, let budget = session.storedBudget else { return }
                                 preparing = true; invitationURL = nil
                                 Task {
                                     defer { preparing = false }
                                     do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
-                                    catch { errorMessage = "Приглашение не подготовлено. Проверь Apple ID, права владельца и свободное место. После ошибки обмена повтори для того же Apple ID." }
+                                    catch { errorMessage = "Не получилось 😕 Проверь Apple ID и попробуй ещё раз." }
                                 }
                             }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
                             if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
-                            Text("Приглашает владелец. Учитываются также ожидающие приглашения; публичный доступ отключён. После подготовки отправьте ссылку указанному человеку. Принимающему не нужно создавать отдельный семейный бюджет.").font(.footnote).foregroundStyle(.secondary)
+                            Text("Отправь ссылку — человек откроет её и сразу окажется в вашем бюджете 💌").font(.footnote).foregroundStyle(.secondary)
                         } else {
                             Button("Добавить для учёта") {
                                 do { try session.addMember(name: name); name = "" }
-                                catch { errorMessage = "Не удалось добавить участника. В семье может быть не больше пяти человек." }
+                                catch { errorMessage = "В семье уже 5 человек — это максимум 🙂" }
                             }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
-                            Text("Это участник локального учёта, без доступа с другого устройства. Обмен доступен в сборке iCloud.").font(.footnote).foregroundStyle(.secondary)
+                            Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -77,7 +77,7 @@ struct SharingView: View {
                         guard let repository = session.repository, let budget = session.storedBudget else { return }
                         Task {
                             do { try await repository.removeFamilyMember(member, in: budget, asOf: session.referenceDate); session.refresh() }
-                            catch { errorMessage = "Не удалось убрать участника. Для отзыва облачного доступа нужны права владельца и сеть." }
+                            catch { errorMessage = "Не получилось убрать участника. Для отзыва облачного доступа нужны права владельца и сеть." }
                         }
                     }
                 }

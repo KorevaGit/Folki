@@ -134,7 +134,7 @@ struct QuickSpendView: View {
                         ContentUnavailableView {
                             Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
                         } description: {
-                            Text("Укажи план на месяц, и Folki посчитает, сколько можно тратить в день.")
+                            Text("Задай план на месяц — и Folki посчитает твой день ✨")
                         } actions: {
                             Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
                         }
@@ -203,7 +203,7 @@ struct QuickSpendView: View {
             FolkiFeedback.saved(overspending: overspends)
             dismiss()
         } catch {
-            errorMessage = "Не удалось записать. Сумма осталась здесь, попробуй ещё раз."
+            errorMessage = "Не получилось записать. Сумма осталась здесь, попробуй ещё раз."
         }
     }
 }

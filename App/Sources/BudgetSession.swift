@@ -63,7 +63,7 @@ final class BudgetSession {
                     authorID = try repository.authorID(in: stored)
                 } else { authorID = nil }
             } catch {
-                result = nil; errorMessage = "Не удалось прочитать бюджет или подтвердить доступ. Локальные данные сохранены."
+                result = nil; errorMessage = "Не получилось прочитать бюджет или подтвердить доступ. Локальные данные сохранены."
                 return
             }
         }
@@ -74,7 +74,7 @@ final class BudgetSession {
         } catch BudgetError.dateOutsidePeriod {
             result = nil; errorMessage = "Период закончился. Создай новый план месяца. История сохранится."
         } catch {
-            result = nil; errorMessage = "Не удалось рассчитать бюджет. Проверь суммы и резервы."
+            result = nil; errorMessage = "Не получилось рассчитать бюджет. Проверь суммы и резервы."
         }
     }
 
@@ -83,7 +83,7 @@ final class BudgetSession {
         let calendar = household?.period.calendar ?? Calendar.current
         let start = calendar.startOfDay(for: day)
         guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else {
-            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось определить дату.")
+            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не получилось определить дату.")
         }
         let cutoff = min(referenceDate, nextDay.addingTimeInterval(-0.001))
         let selectedRecords: ([LedgerRecord]) -> [LedgerRecord] = { records in
@@ -106,7 +106,7 @@ final class BudgetSession {
             let result = try snapshot.map { try DailyBudgetCalculator.calculate($0, asOf: cutoff) }
             return BudgetDayOverview(result: result, records: selectedRecords(records), errorMessage: nil)
         } catch {
-            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось прочитать выбранный день. Попробуй ещё раз.")
+            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не получилось прочитать выбранный день. Попробуй ещё раз.")
         }
     }
 

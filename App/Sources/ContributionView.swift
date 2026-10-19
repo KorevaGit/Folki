@@ -46,7 +46,7 @@ struct ContributionView: View {
                     if !amount.isEmpty && money == nil {
                         Text("Больше, чем свободно в личном бюджете").font(.footnote).foregroundStyle(.red)
                     }
-                    Text("Семья увидит взнос, личные суммы — нет.")
+                    Text("Семья увидит взнос, а твой личный бюджет — нет 🤫")
                         .font(.footnote).foregroundStyle(.secondary)
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
@@ -74,6 +74,6 @@ struct ContributionView: View {
         guard let money else { return }
         do { try personal.contribute(money, to: family, linkID: linkID); FolkiFeedback.saved(); dismiss() }
         catch BudgetError.insufficientReserve { errorMessage = "В личном бюджете недостаточно свободных денег." }
-        catch { errorMessage = "Не удалось перевести. Сумма осталась здесь; попробуй снова." }
+        catch { errorMessage = "Не получилось перевести. Сумма осталась здесь; попробуй снова." }
     }
 }

@@ -17,7 +17,7 @@ struct SavingsSection: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(session.scope == .personal ? "На то, что важно тебе" : "На общие планы семьи", systemImage: "flag")
                         .font(.headline)
-                    Text("Деньги в накоплениях защищены от повседневных трат.")
+                    Text("Отложенное не потратится случайно 🔒")
                         .font(.subheadline).foregroundStyle(.secondary)
                     if session.result != nil && !session.isDemo {
                         Button("Создать цель", systemImage: "plus") { creating = true }
@@ -80,7 +80,7 @@ private struct GoalSetupView: View {
                 Section(session.scope.savingsTitle) {
                     TextField("На что копим", text: $name)
                     TextField("Цель, \(MoneyText.symbol)", text: $target).keyboardType(.decimalPad)
-                    Text(session.scope == .personal ? "Эту цель видишь только ты." : "Эта цель относится к семейному бюджету.")
+                    Text(session.scope == .personal ? "Эту цель видишь только ты 🤫" : "Это цель всей семьи 💚")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -93,7 +93,7 @@ private struct GoalSetupView: View {
                     Button("Создать") {
                         guard let money else { return }
                         do { try session.createGoal(name: name, target: money); FolkiFeedback.saved(); dismiss() }
-                        catch { errorMessage = "Не удалось создать цель. Данные формы сохранены здесь." }
+                        catch { errorMessage = "Не получилось создать цель. Данные формы сохранены здесь." }
                     }.disabled(money == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
@@ -137,7 +137,7 @@ struct GoalTransferView: View {
                             ImpactLines(before: before, after: after).frame(maxWidth: .infinity)
                         }
                     }
-                    Text("Это перевод между свободными деньгами и накоплениями внутри выбранного бюджета.")
+                    Text("Деньги просто переедут из свободных в копилку и обратно 🐷")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -150,7 +150,7 @@ struct GoalTransferView: View {
                     Button("Сохранить") {
                         guard let money else { return }
                         do { try session.transfer(goal: goal, amount: money, withdrawal: withdrawal, operationID: operationID); FolkiFeedback.saved(); dismiss() }
-                        catch { errorMessage = "Не удалось перевести деньги. Проверь остаток и повтори." }
+                        catch { errorMessage = "Не получилось перевести деньги. Проверь остаток и повтори." }
                     }.disabled(money == nil)
                 }
             }
