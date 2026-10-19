@@ -201,8 +201,8 @@ struct RepositoryTests {
         let path = directory(); defer { try? FileManager.default.removeItem(at: path) }
         let repo = try await open(path, UUID())
         let model = repo.container.managedObjectModel
-        #expect(model.entities.count == 10)
-        #expect(model.versionIdentifiers.contains(AnyHashable("3")))
+        #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Goal", "GoalContribution"])
+        #expect(model.versionIdentifiers.contains(AnyHashable("1")))
         for entity in model.entities {
             #expect(entity.uniquenessConstraints.isEmpty)
             for relationship in entity.relationshipsByName.values {

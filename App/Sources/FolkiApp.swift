@@ -25,7 +25,7 @@ final class FolkiApplication {
             let memberID = defaults.string(forKey: key).flatMap(UUID.init(uuidString:)) ?? UUID()
             defaults.set(memberID.uuidString, forKey: key)
             let directory = try FileManager.default.url(for: .applicationSupportDirectory,
-                in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("FolkiBudgetV1")
+                in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("Folki")
             let identifier = (Bundle.main.object(forInfoDictionaryKey: "FolkiCloudContainer") as? String)
                 .flatMap { $0.hasPrefix("iCloud.") ? $0 : nil }
             let repository = try await BudgetRepository.open(directory: directory, cloudIdentifier: identifier, localMemberID: memberID)

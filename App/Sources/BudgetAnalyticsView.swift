@@ -22,9 +22,6 @@ struct BudgetAnalyticsSection: View {
                 anchor: date, asOf: session.referenceDate, calendar: session.calendar) {
                 Text("\(session.scope.title) бюджет · по \(result.cutoff.formatted(.dateTime.day().month(.wide)))")
                     .font(.footnote).foregroundStyle(.secondary)
-                if period != .day { SpendingReviewCard(session: session, date: date, period: period) }
-                CategoryLimitsStatus(session: session, date: date)
-                NavigationLink("Настроить лимиты категорий") { CategoryLimitsView(session: session).toolbar(.visible, for: .navigationBar) }
                 if result.recordCount == 0 {
                     ContentUnavailableView("За этот период записей нет", systemImage: "chart.bar.xaxis",
                         description: Text("Добавьте расход или поступление, чтобы увидеть динамику."))
@@ -32,6 +29,7 @@ struct BudgetAnalyticsSection: View {
                     totals(result)
                     chart(result).budgetCard()
                     if !result.categories.isEmpty { categories(result) }
+                    if !result.contributionsByMember.isEmpty { contributions(result) }
                 }
                 if period == .month, let budget = periodBudget, budget.snapshot.period.contains(date),
                    let left = try? budget.snapshot.monthlyFreePlan.subtracting(result.flexibleNetSpending) {
@@ -43,7 +41,7 @@ struct BudgetAnalyticsSection: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }.budgetCard()
                 }
-                Text("Расходы включают оплату из резервов. Переводы в накопления не считаются расходом. Показаны только внесённые записи до выбранной даты.")
+                Text("Потрачено — расходы за вычетом возвратов, включая оплату из резервов. Переводы в накопления и взносы в семейный бюджет расходом не считаются.")
                     .font(.footnote).foregroundStyle(.secondary)
             } else {
                 ContentUnavailableView("Не удалось рассчитать аналитику", systemImage: "chart.bar.xaxis",
@@ -54,11 +52,12 @@ struct BudgetAnalyticsSection: View {
 
     private func totals(_ result: BudgetAnalyticsSnapshot) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 18) {
-            total("Расходы", result.expenses)
-            total("Возвраты", result.refunds)
-            total("Чистые расходы", (try? result.netSpending) ?? result.expenses)
+            total("Потрачено", (try? result.netSpending) ?? result.expenses)
             total("Поступления", result.income)
-            total("В резервы, нетто", result.reserveTransfers)
+            if result.contributions.minorUnits > 0 {
+                total(session.scope == .personal ? "В семейный бюджет" : "Взносы участников", result.contributions)
+            }
+            if result.reserveTransfers.minorUnits != 0 { total("В накопления", result.reserveTransfers) }
         }.budgetCard()
     }
     private func total(_ title: String, _ amount: Money) -> some View {
@@ -71,26 +70,21 @@ struct BudgetAnalyticsSection: View {
         let id: String
         let date: Date
         let value: Double
-        let kind: String
     }
     private func points(_ result: BudgetAnalyticsSnapshot) throws -> [PlotPoint] {
-        try result.buckets.filter(\.isObserved).flatMap { bucket in
-            try [(bucket.expenses, "Расходы", 1.0), (bucket.refunds, "Возвраты", -1.0)].map { amount, kind, sign in
-                let converted = try CurrencyDisplay.shared.activeQuote?.fromRubles(amount) ?? amount
-                return PlotPoint(id: "\(bucket.start)-\(kind)", date: bucket.start,
-                    value: NSDecimalNumber(decimal: converted.decimalValue).doubleValue * sign, kind: kind)
-            }
+        try result.buckets.filter(\.isObserved).map { bucket in
+            let spent = try bucket.expenses.subtracting(bucket.refunds)
+            return PlotPoint(id: "\(bucket.start)", date: bucket.start, value: NSDecimalNumber(decimal: spent.decimalValue).doubleValue)
         }
     }
     @ViewBuilder private func chart(_ result: BudgetAnalyticsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Динамика, \(CurrencyDisplay.shared.code)").font(.headline)
+            Text("Траты по дням").font(.headline)
             if let points = try? points(result) {
                 Chart(points) { point in
                     BarMark(x: .value("Дата", point.date, unit: period == .day ? .hour : .day), y: .value("Сумма", point.value))
-                        .foregroundStyle(by: .value("Операция", point.kind))
+                        .foregroundStyle(Color.folkiAccent)
                 }
-                .chartForegroundStyleScale(["Расходы": Color.folkiAccent, "Возвраты": Color.teal])
                 .chartXScale(domain: result.interval.start...result.interval.end)
                 .chartXAxis {
                     AxisMarks(values: .stride(by: period == .day ? .hour : .day, count: period == .day ? 6 : period == .month ? 7 : 1)) { _ in
@@ -100,8 +94,8 @@ struct BudgetAnalyticsSection: View {
                 }
                 .environment(\.calendar, session.calendar).environment(\.timeZone, session.calendar.timeZone)
                 .frame(height: 180)
-                .accessibilityLabel("Динамика расходов и возвратов. Расходы \(MoneyText.string(result.expenses)), возвраты \(MoneyText.string(result.refunds)).")
-            } else { Text("Диаграмма недоступна в выбранной валюте.").foregroundStyle(.secondary) }
+                .accessibilityLabel("Траты за период: \(MoneyText.string((try? result.netSpending) ?? result.expenses)).")
+            }
         }
     }
     private func categories(_ result: BudgetAnalyticsSnapshot) -> some View {
@@ -117,10 +111,19 @@ struct BudgetAnalyticsSection: View {
                     if result.expenses.minorUnits > 0 {
                         ProgressView(value: Double(item.expenses.minorUnits) / Double(result.expenses.minorUnits)).tint(Color.folkiAccent)
                     }
-                    if item.refunds.minorUnits > 0 {
-                        Text("Возвраты: \(MoneyText.string(item.refunds))").font(.caption).foregroundStyle(.secondary)
-                    }
                 }
+            }
+        }.budgetCard()
+    }
+    private func contributions(_ result: BudgetAnalyticsSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Кто сколько внёс").font(.headline)
+            ForEach(result.contributionsByMember) { item in
+                HStack {
+                    Label(session.memberName(item.memberID), systemImage: "person.fill")
+                    Spacer()
+                    Text(MoneyText.string(item.amount)).monospacedDigit()
+                }.font(.subheadline)
             }
         }.budgetCard()
     }

@@ -5,6 +5,8 @@ public enum BudgetScope: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
     public var title: String { self == .personal ? "Личный" : "Семейный" }
     public var savingsTitle: String { self == .personal ? "Личные накопления" : "Семейные накопления" }
+    /// The direction a contribution takes in a budget of this scope.
+    public var contributionKind: TransactionKind { self == .personal ? .contributionOut : .contributionIn }
 }
 
 public struct SavingsGoalSnapshot: Identifiable, Sendable {
@@ -12,14 +14,8 @@ public struct SavingsGoalSnapshot: Identifiable, Sendable {
     public let name: String
     public let target: Money
     public let balance: Money
-    public let deadline: Date?
-    public let monthlyContribution: Money?
-    public let purpose: SavingsPurpose
-    public let revision: UUID?
-    public init(id: UUID, name: String, target: Money, balance: Money, deadline: Date? = nil,
-                monthlyContribution: Money? = nil, purpose: SavingsPurpose = .goal, revision: UUID? = nil) {
+    public init(id: UUID, name: String, target: Money, balance: Money) {
         self.id = id; self.name = name; self.target = target; self.balance = balance
-        self.deadline = deadline; self.monthlyContribution = monthlyContribution; self.purpose = purpose; self.revision = revision
     }
     public var fraction: Double {
         guard target.minorUnits > 0 else { return 0 }
@@ -64,11 +60,15 @@ public struct LedgerRecord: Identifiable, Sendable {
     public let category: ExpenseCategory
     public let revision: UUID
     public let symbol: String
+    /// Shared by both sides of a contribution; nil for every other operation.
+    public let linkID: UUID?
     public var id: UUID { transaction.id }
     public init(transaction: TransactionSnapshot, title: String, symbol: String? = nil,
-                category: ExpenseCategory = .other, revision: UUID = UUID()) {
+                category: ExpenseCategory = .other, revision: UUID = UUID(), linkID: UUID? = nil) {
         self.transaction = transaction; self.title = title; self.category = category
-        self.revision = revision; self.symbol = symbol ?? ([.reserveAllocation, .reserveRelease].contains(transaction.kind) ? "arrow.left.arrow.right" : category.symbol)
+        self.revision = revision; self.linkID = linkID
+        self.symbol = symbol ?? (transaction.kind.isContribution ? "person.2.fill"
+            : [.reserveAllocation, .reserveRelease].contains(transaction.kind) ? "arrow.left.arrow.right" : category.symbol)
     }
 }
 
@@ -96,7 +96,8 @@ public enum LedgerRules {
         guard !record.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               entry.amount.minorUnits > 0, entry.amount.currency == .rub,
               budget.snapshot.period.contains(entry.date), entry.date <= now,
-              [.expense, .refund, .income, .reserveAllocation, .reserveRelease].contains(entry.kind) else { throw BudgetError.invalidTransaction }
+              entry.kind.isContribution == (record.linkID != nil),
+              !entry.kind.isContribution || entry.kind == budget.scope.contributionKind else { throw BudgetError.invalidTransaction }
         guard budget.members.contains(where: { $0.id == entry.payerID }),
               budget.members.contains(where: { $0.id == entry.authorID }) else { throw LedgerError.invalidMember }
         var records = budget.records.filter { $0.id != record.id }

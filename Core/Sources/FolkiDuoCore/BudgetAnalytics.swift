@@ -21,6 +21,12 @@ public struct CategorySpending: Identifiable, Sendable {
     public let refunds: Money
 }
 
+public struct MemberContribution: Identifiable, Sendable {
+    public var id: UUID { memberID }
+    public let memberID: UUID
+    public let amount: Money
+}
+
 public struct BudgetAnalyticsSnapshot: Sendable {
     public let interval: DateInterval
     public let cutoff: Date
@@ -28,6 +34,10 @@ public struct BudgetAnalyticsSnapshot: Sendable {
     public let refunds: Money
     public let income: Money
     public let reserveTransfers: Money
+    /// Personal budget: moved to the family. Family budget: received from members.
+    public let contributions: Money
+    /// Family budget only: who contributed how much, largest first.
+    public let contributionsByMember: [MemberContribution]
     public let flexibleNetSpending: Money
     public let recordCount: Int
     public let buckets: [AnalyticsBucket]
@@ -48,7 +58,8 @@ public enum BudgetAnalytics {
         }
         let cutoff = min(now, nextDay.addingTimeInterval(-0.001), interval.end.addingTimeInterval(-0.001))
         let zero = Money(minorUnits: 0)
-        var expenses = zero, refunds = zero, income = zero, transfers = zero, flexible = zero
+        var expenses = zero, refunds = zero, income = zero, transfers = zero, flexible = zero, contributions = zero
+        var byMember: [UUID: Money] = [:]
         var categoryAmounts: [ExpenseCategory: (Money, Money)] = [:]
         var expenseBuckets: [Date: Money] = [:], refundBuckets: [Date: Money] = [:]
         var ids = Set<UUID>()
@@ -81,6 +92,10 @@ public enum BudgetAnalytics {
             case .income: income = try income.adding(entry.amount)
             case .reserveAllocation: transfers = try transfers.adding(entry.amount)
             case .reserveRelease: transfers = try transfers.subtracting(entry.amount)
+            case .contributionOut: contributions = try contributions.adding(entry.amount)
+            case .contributionIn:
+                contributions = try contributions.adding(entry.amount)
+                byMember[entry.payerID] = try (byMember[entry.payerID] ?? zero).adding(entry.amount)
             }
         }
         var buckets: [AnalyticsBucket] = []
@@ -102,7 +117,12 @@ public enum BudgetAnalytics {
             return left.expenses.minorUnits > right.expenses.minorUnits
         }
         _ = try expenses.subtracting(refunds)
+        let members = byMember.map { MemberContribution(memberID: $0.key, amount: $0.value) }.sorted { left, right in
+            if left.amount.minorUnits == right.amount.minorUnits { return left.memberID.uuidString < right.memberID.uuidString }
+            return left.amount.minorUnits > right.amount.minorUnits
+        }
         return BudgetAnalyticsSnapshot(interval: interval, cutoff: cutoff, expenses: expenses, refunds: refunds, income: income,
-            reserveTransfers: transfers, flexibleNetSpending: flexible, recordCount: count, buckets: buckets, categories: categories)
+            reserveTransfers: transfers, contributions: contributions, contributionsByMember: members,
+            flexibleNetSpending: flexible, recordCount: count, buckets: buckets, categories: categories)
     }
 }

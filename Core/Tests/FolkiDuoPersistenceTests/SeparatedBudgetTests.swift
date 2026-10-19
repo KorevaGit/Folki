@@ -145,47 +145,4 @@ struct SeparatedBudgetTests {
         #expect(throws: LedgerError.corruptStore) { try repo.goals(scope: .personal, asOf: now) }
         try repo.close()
     }
-
-    @Test(arguments: ["FolkiDuoV1", "FolkiDuoV2"]) func migratingLegacyModelsKeepsExistingBudgetAsFamilyAndCreatesNoPersonalCopy(version: String) async throws {
-        let directory = path(); defer { try? FileManager.default.removeItem(at: directory) }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let model = try BudgetRepository.managedObjectModel(version: version)
-        let legacy = NSPersistentContainer(name: "Legacy", managedObjectModel: model)
-        let description = NSPersistentStoreDescription(url: directory.appendingPathComponent("private.sqlite"))
-        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        legacy.persistentStoreDescriptions = [description]
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            legacy.loadPersistentStores { _, error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
-            }
-        }
-        let context = legacy.viewContext
-        let householdID = UUID(), author = UUID(), recordID = UUID()
-        func insert(_ name: String, values: [String: Any]) -> NSManagedObject {
-            let object = NSEntityDescription.insertNewObject(forEntityName: name, into: context)
-            object.setValuesForKeys(values)
-            return object
-        }
-        let household = insert("Household", values: ["id": householdID, "name": "Наш бюджет", "timeZone": "Europe/Moscow", "createdAt": now])
-        for member in [author, UUID()] {
-            _ = insert("Member", values: ["id": member, "name": member == author ? "Я" : "Партнёр", "household": household])
-        }
-        let period = insert("BudgetPeriod", values: ["id": UUID(), "month": try BudgetPeriod(monthContaining: now, timeZoneIdentifier: "Europe/Moscow").start,
-            "monthlyPlan": Int64(12_000_000), "openingFunds": Int64(4_155_000), "currency": "RUB", "household": household])
-        _ = insert("Transaction", values: ["id": recordID, "amount": Int64(167000), "kind": "expense", "funding": "flexible", "date": now,
-            "authorID": author, "payerID": author, "title": "Старая запись", "category": "groceries", "revision": UUID(), "tombstone": false,
-            "updatedAt": now, "household": household, "period": period])
-        try context.save()
-        for store in legacy.persistentStoreCoordinator.persistentStores { try legacy.persistentStoreCoordinator.remove(store) }
-        let current = try await BudgetRepository.open(directory: directory, localMemberID: author)
-        let family = try #require(try current.load(asOf: now, scope: .family))
-        #expect(family.snapshot.id == householdID)
-        #expect(family.records.first?.id == recordID)
-        #expect(try DailyBudgetCalculator.calculate(family.snapshot, asOf: now).monthlyRemaining == rub(39880))
-        #expect(try current.load(asOf: now, scope: .personal) == nil)
-        _ = try create(current, scope: .personal)
-        #expect(try current.history(scope: .family).first?.id == recordID)
-        #expect(try current.history(scope: .personal).isEmpty == true)
-        try current.close()
-    }
 }

@@ -12,11 +12,6 @@ struct BudgetDayOverview {
 @MainActor @Observable
 final class BudgetSession {
     let scope: BudgetScope
-    var categoryNotice: String?
-    var incomeJustReceived = false
-    private(set) var obligations: [ObligationSnapshot] = []
-    private(set) var expectedIncomes: [ExpectedIncomeSnapshot] = []
-    private(set) var categoryLimits: [CategoryLimitSnapshot] = []
     private(set) var goals: [SavingsGoalSnapshot] = []
     private(set) var household: HouseholdSnapshot?
     private(set) var result: DailyBudgetSnapshot?
@@ -60,9 +55,6 @@ final class BudgetSession {
                 allRecords = stored?.records ?? []
                 historyRecords = try repository.history(scope: scope)
                 goals = try repository.goals(scope: scope, asOf: referenceDate)
-                obligations = try repository.obligations(scope: scope, asOf: referenceDate)
-                expectedIncomes = try repository.expectedIncomes(scope: scope)
-                categoryLimits = try repository.categoryLimits(scope: scope)
                 members = stored?.members ?? []
                 if let stored {
                     periodID = stored.periodID
@@ -164,7 +156,6 @@ final class BudgetSession {
     func save(_ record: LedgerRecord, editing: LedgerRecord? = nil) throws {
         let budget = try budget(editing: editing)
         let date = calculationDate(in: budget)
-        let before = try? BudgetAnalytics.calculate(records: historyRecords, period: .month, anchor: referenceDate, asOf: referenceDate, calendar: calendar)
         if let repository {
             try repository.save(record, in: budget, expectedRevision: editing?.revision, asOf: date)
         } else {
@@ -173,22 +164,6 @@ final class BudgetSession {
             household = candidate.snapshot; allRecords = candidate.records; historyRecords = candidate.records
         }
         refresh()
-        if record.transaction.kind == .income && !record.transaction.isDeleted { incomeJustReceived = true }
-        notifyCategoryLimits(before: before)
-    }
-    private func notifyCategoryLimits(before: BudgetAnalyticsSnapshot?) {
-        if let after = try? BudgetAnalytics.calculate(records: historyRecords, period: .month, anchor: referenceDate, asOf: referenceDate, calendar: calendar) {
-            for limit in categoryLimits {
-                let old = before?.categories.first { $0.category == limit.category }
-                let new = after.categories.first { $0.category == limit.category }
-                let oldValue = (old?.expenses.minorUnits ?? 0) - (old?.refunds.minorUnits ?? 0)
-                let newValue = (new?.expenses.minorUnits ?? 0) - (new?.refunds.minorUnits ?? 0)
-                let warning = limit.amount.minorUnits - limit.amount.minorUnits / 5
-                if (oldValue < warning && newValue >= warning) || (oldValue < limit.amount.minorUnits && newValue >= limit.amount.minorUnits) {
-                    categoryNotice = "\(limit.category.title): \(MoneyText.string(Money(minorUnits: newValue))) из \(MoneyText.string(limit.amount)). Лимит мягкий — запись сохранена."
-                }
-            }
-        }
     }
     func setDeleted(_ deleted: Bool, record: LedgerRecord) throws {
         let entry = record.transaction
@@ -196,9 +171,9 @@ final class BudgetSession {
             kind: entry.kind, category: record.category, funding: entry.funding, editing: record, deleted: deleted)
         try save(draft, editing: record)
     }
-    func createGoal(name: String, target: Money, deadline: Date? = nil, monthlyContribution: Money? = nil, purpose: SavingsPurpose = .goal) throws {
+    func createGoal(name: String, target: Money) throws {
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
-        try repository.createGoal(name: name, target: target, deadline: deadline, monthlyContribution: monthlyContribution, purpose: purpose, in: budget, asOf: referenceDate)
+        try repository.createGoal(name: name, target: target, in: budget, asOf: referenceDate)
         refresh()
     }
     func transfer(goal: SavingsGoalSnapshot, amount: Money, withdrawal: Bool, operationID: UUID) throws {
@@ -206,47 +181,31 @@ final class BudgetSession {
         try repository.transferToGoal(goal.id, amount: amount, withdrawal: withdrawal, in: budget, asOf: referenceDate, operationID: operationID)
         refresh()
     }
-    var cashPlan: CashPlan? {
-        guard let result else { return nil }
-        return try? BudgetPlanning.forecast(available: result.monthlyRemaining, incomes: expectedIncomes, obligations: obligations, asOf: referenceDate, calendar: calendar)
-    }
-    func createBill(name: String, amount: Money, due: Date, recurrence: PaymentRecurrence, category: ExpenseCategory, reserve: Bool) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        try repository.createObligation(name: name, amount: amount, due: due, recurrence: recurrence, category: category, reserveNow: reserve, in: budget, asOf: referenceDate)
-        refresh()
-    }
-    func billAction(_ bill: ObligationSnapshot, action: String) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        let before = try? BudgetAnalytics.calculate(records: historyRecords, period: .month, anchor: referenceDate, asOf: referenceDate, calendar: calendar)
-        switch action {
-        case "reserve": try repository.reserveObligation(bill, in: budget, asOf: referenceDate)
-        case "pay": try repository.payObligation(bill, in: budget, asOf: referenceDate)
-        default: try repository.cancelObligation(bill, in: budget, asOf: referenceDate)
+    /// Called on the personal session: moves money from it into the family budget.
+    func contribute(_ amount: Money, to family: BudgetSession, linkID: UUID) throws {
+        guard scope == .personal, family.scope == .family,
+              let personalBudget = storedBudget, let familyBudget = family.storedBudget else { throw LedgerError.unavailable }
+        if let repository {
+            try repository.contribute(amount, from: personalBudget, to: familyBudget, asOf: referenceDate, linkID: linkID)
+        } else {
+            guard isDemo, let authorID, let familyAuthor = family.authorID else { throw LedgerError.unavailable }
+            let out = LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionOut, date: referenceDate,
+                authorID: authorID, payerID: authorID), title: "В семейный бюджет", linkID: linkID)
+            let into = LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionIn, date: referenceDate,
+                authorID: familyAuthor, payerID: familyAuthor), title: "Взнос в семейный бюджет", linkID: linkID)
+            let personalNext = try LedgerRules.replacing(out, in: personalBudget, asOf: referenceDate)
+            let familyNext = try LedgerRules.replacing(into, in: familyBudget, asOf: referenceDate)
+            apply(personalNext); family.apply(familyNext)
         }
-        refresh()
-        notifyCategoryLimits(before: before)
+        refresh(); family.refresh()
     }
-    func createIncome(name: String, amount: Money, due: Date, recurrence: PaymentRecurrence) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        try repository.createExpectedIncome(name: name, amount: amount, due: due, recurrence: recurrence, in: budget, asOf: referenceDate)
-        refresh()
-    }
-    func incomeAction(_ income: ExpectedIncomeSnapshot, receive: Bool) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        if receive {
-            try repository.receiveIncome(income, in: budget, asOf: referenceDate); incomeJustReceived = true
-        } else { try repository.cancelExpectedIncome(income, in: budget, asOf: referenceDate) }
+    func cancelContribution(_ record: LedgerRecord) throws {
+        guard let linkID = record.linkID, let repository else { throw LedgerError.unavailable }
+        try repository.cancelContribution(linkID: linkID, asOf: referenceDate)
         refresh()
     }
-    func updateGoal(_ goal: SavingsGoalSnapshot, deadline: Date?, contribution: Money?, purpose: SavingsPurpose) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        try repository.updateGoal(goal, deadline: deadline, monthlyContribution: contribution, purpose: purpose, in: budget, asOf: referenceDate)
-        refresh()
-    }
-    func setCategoryLimit(_ category: ExpenseCategory, amount: Money?, expected: CategoryLimitSnapshot?) throws {
-        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
-        try repository.setCategoryLimit(category: category, amount: amount, expected: expected, in: budget, asOf: referenceDate)
-        refresh()
+    private func apply(_ budget: StoredBudget) {
+        household = budget.snapshot; allRecords = budget.records; historyRecords = budget.records
     }
     func addMember(name: String) throws {
         guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
@@ -257,7 +216,11 @@ final class BudgetSession {
         try repository.renameMember(member, name: name, in: budget, asOf: referenceDate); refresh()
     }
     func isEditable(_ record: LedgerRecord) -> Bool {
-        [.expense, .refund, .income].contains(record.transaction.kind) && ((try? repository?.isPlanningRecord(record.id)) != true)
+        [.expense, .refund, .income].contains(record.transaction.kind)
+    }
+    /// Only the contributor holds both sides, so only they can cancel a contribution.
+    func canCancelContribution(_ record: LedgerRecord) -> Bool {
+        record.linkID != nil && !isDemo && !record.transaction.isDeleted && record.transaction.authorID == authorID
     }
     func payerName(for record: LedgerRecord) -> String {
         memberName(record.transaction.payerID)
@@ -271,18 +234,9 @@ final class BudgetSession {
 }
 
 @MainActor enum MoneyText {
+    /// Budgets are kept in rubles; choosing the budget currency comes with localization.
+    static let symbol = "₽"
     static func string(_ money: Money) -> String {
-        string(money, quote: CurrencyDisplay.shared.activeQuote)
-    }
-    static func string(_ money: Money, quote: CurrencyQuote?) -> String {
-        let displayed: Money
-        if let quote {
-            guard let converted = try? quote.fromRubles(money) else { return "—" }
-            displayed = converted
-        } else { displayed = money }
-        return formatted(displayed)
-    }
-    private static func formatted(_ money: Money) -> String {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "ru_RU"); formatter.numberStyle = .currency
         formatter.currencyCode = money.currency.code
@@ -291,12 +245,9 @@ final class BudgetSession {
         return formatter.string(from: NSDecimalNumber(decimal: money.decimalValue)) ?? "—"
     }
     static func input(_ money: Money) -> String {
-        let converted = CurrencyDisplay.shared.activeQuote.flatMap { try? $0.fromRubles(money) } ?? money
-        return NSDecimalNumber(decimal: converted.decimalValue).stringValue
+        NSDecimalNumber(decimal: money.decimalValue).stringValue
     }
-    static func parse(_ text: String, preserving original: Money? = nil) throws -> Money {
-        let display = CurrencyDisplay.shared
-        let entered = try Money(parsing: text, currency: display.currency)
-        return try display.activeQuote?.toRubles(entered, preserving: original) ?? entered
+    static func parse(_ text: String) throws -> Money {
+        try Money(parsing: text)
     }
 }

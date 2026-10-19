@@ -14,6 +14,12 @@ public struct ProtectedReserve: Equatable, Sendable, Identifiable {
 
 public enum TransactionKind: Equatable, Sendable {
     case expense, refund, income, reserveAllocation, reserveRelease
+    /// Money moved from a member's personal budget into the family budget.
+    /// Recorded twice with one shared link: out of the personal budget, into the family one.
+    /// Neither side is spending.
+    case contributionOut, contributionIn
+
+    public var isContribution: Bool { self == .contributionOut || self == .contributionIn }
 }
 
 public enum BudgetFunding: Equatable, Sendable {

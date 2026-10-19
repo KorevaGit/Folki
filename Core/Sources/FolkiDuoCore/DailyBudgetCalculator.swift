@@ -81,8 +81,8 @@ public enum DailyBudgetCalculator {
     private static func reserveOrder(_ entry: TransactionSnapshot) -> Int {
         guard case .reserve = entry.funding else { return 1 }
         switch entry.kind {
-        case .income, .refund, .reserveAllocation: return 0
-        case .expense, .reserveRelease: return 2
+        case .income, .refund, .reserveAllocation, .contributionIn: return 0
+        case .expense, .reserveRelease, .contributionOut: return 2
         }
     }
 }
@@ -130,6 +130,9 @@ private struct Ledger {
         case .reserveAllocation, .reserveRelease:
             guard case .reserve(let id) = entry.funding else { throw BudgetError.invalidTransaction }
             try changeReserve(id, by: entry.amount, increasing: entry.kind == .reserveAllocation)
+        case .contributionOut, .contributionIn:
+            guard entry.funding == .flexible else { throw BudgetError.invalidTransaction }
+            funds = try entry.kind == .contributionIn ? funds.adding(entry.amount) : funds.subtracting(entry.amount)
         }
     }
 

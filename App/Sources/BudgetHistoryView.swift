@@ -29,7 +29,9 @@ struct BudgetHistoryView: View {
                     }
                 }
                 .swipeActions {
-                    if !session.isEditable(record) {
+                    if session.canCancelContribution(record) {
+                        Button("Отменить взнос", role: .destructive) { cancelContribution(record) }
+                    } else if !session.isEditable(record) {
                         EmptyView()
                     } else if record.transaction.isDeleted {
                         Button("Восстановить") { setDeleted(false, record: record) }
@@ -65,6 +67,11 @@ struct BudgetHistoryView: View {
         .alert("Запись не изменена", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("Готово") { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
+    }
+
+    private func cancelContribution(_ record: LedgerRecord) {
+        do { try session.cancelContribution(record) }
+        catch { errorMessage = "Не удалось отменить взнос. Обновите историю и повторите." }
     }
 
     private func setDeleted(_ deleted: Bool, record: LedgerRecord) {

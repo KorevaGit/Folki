@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24400" systemVersion="25A" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="3">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24400" systemVersion="25A" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="1">
   <entity name="Household" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="scope" optional="YES" attributeType="String" defaultValueString="family" />
     <attribute name="id" optional="YES" attributeType="UUID" />
@@ -9,12 +9,9 @@
     <relationship name="members" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Member" inverseName="household" inverseEntity="Member" />
     <relationship name="budgetPeriods" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="BudgetPeriod" inverseName="household" inverseEntity="BudgetPeriod" />
     <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Transaction" inverseName="household" inverseEntity="Transaction" />
-    <relationship name="obligations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Obligation" inverseName="household" inverseEntity="Obligation" />
     <relationship name="reserves" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reserve" inverseName="household" inverseEntity="Reserve" />
     <relationship name="goals" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Goal" inverseName="household" inverseEntity="Goal" />
     <relationship name="goalContributions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GoalContribution" inverseName="household" inverseEntity="GoalContribution" />
-    <relationship name="expectedIncomes" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="ExpectedIncome" inverseName="household" inverseEntity="ExpectedIncome" />
-    <relationship name="categoryLimits" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CategoryLimit" inverseName="household" inverseEntity="CategoryLimit" />
   </entity>
   <entity name="Member" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="inactive" optional="YES" attributeType="Boolean" defaultValueString="NO" />
@@ -32,7 +29,6 @@
     <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="budgetPeriods" inverseEntity="Household" />
     <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Transaction" inverseName="period" inverseEntity="Transaction" />
     <relationship name="reserves" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reserve" inverseName="period" inverseEntity="Reserve" />
-    <relationship name="obligations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Obligation" inverseName="period" inverseEntity="Obligation" />
   </entity>
   <entity name="Transaction" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="id" optional="YES" attributeType="UUID" />
@@ -48,27 +44,9 @@
     <attribute name="tombstone" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="NO" />
     <attribute name="revision" optional="YES" attributeType="UUID" />
     <attribute name="updatedAt" optional="YES" attributeType="Date" />
+    <attribute name="linkID" optional="YES" attributeType="UUID" />
     <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="transactions" inverseEntity="Household" />
     <relationship name="period" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="BudgetPeriod" inverseName="transactions" inverseEntity="BudgetPeriod" />
-  </entity>
-  <entity name="Obligation" representedClassName="NSManagedObject" syncable="YES">
-    <attribute name="reservedAt" optional="YES" attributeType="Date" />
-    <attribute name="recurrenceAnchor" optional="YES" attributeType="Date" />
-    <attribute name="id" optional="YES" attributeType="UUID" />
-    <attribute name="name" optional="YES" attributeType="String" />
-    <attribute name="amount" optional="YES" attributeType="Integer 64" usesScalarValueType="NO" />
-    <attribute name="dueDate" optional="YES" attributeType="Date" />
-    <attribute name="reserveID" optional="YES" attributeType="UUID" />
-    <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="obligations" inverseEntity="Household" />
-    <relationship name="period" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="BudgetPeriod" inverseName="obligations" inverseEntity="BudgetPeriod" />
-    <attribute name="recurrence" optional="YES" attributeType="String" />
-    <attribute name="category" optional="YES" attributeType="String" />
-    <attribute name="paidAt" optional="YES" attributeType="Date" />
-    <attribute name="cancelledAt" optional="YES" attributeType="Date" />
-    <attribute name="allocationID" optional="YES" attributeType="UUID" />
-    <attribute name="paymentID" optional="YES" attributeType="UUID" />
-    <attribute name="releaseID" optional="YES" attributeType="UUID" />
-    <attribute name="revision" optional="YES" attributeType="UUID" />
   </entity>
   <entity name="Reserve" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="id" optional="YES" attributeType="UUID" />
@@ -82,10 +60,6 @@
     <attribute name="name" optional="YES" attributeType="String" />
     <attribute name="target" optional="YES" attributeType="Integer 64" usesScalarValueType="NO" />
     <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="goals" inverseEntity="Household" />
-    <attribute name="deadline" optional="YES" attributeType="Date" />
-    <attribute name="monthlyContribution" optional="YES" attributeType="Integer 64" />
-    <attribute name="purpose" optional="YES" attributeType="String" />
-    <attribute name="revision" optional="YES" attributeType="UUID" />
   </entity>
   <entity name="GoalContribution" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="id" optional="YES" attributeType="UUID" />
@@ -95,25 +69,5 @@
     <attribute name="direction" optional="YES" attributeType="String" />
     <attribute name="date" optional="YES" attributeType="Date" />
     <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="goalContributions" inverseEntity="Household" />
-  </entity>
-  <entity name="ExpectedIncome" representedClassName="NSManagedObject" syncable="YES">
-    <attribute name="recurrenceAnchor" optional="YES" attributeType="Date" />
-    <attribute name="id" optional="YES" attributeType="UUID" />
-    <attribute name="name" optional="YES" attributeType="String" />
-    <attribute name="amount" optional="YES" attributeType="Integer 64" />
-    <attribute name="dueDate" optional="YES" attributeType="Date" />
-    <attribute name="recurrence" optional="YES" attributeType="String" />
-    <attribute name="receivedAt" optional="YES" attributeType="Date" />
-    <attribute name="transactionID" optional="YES" attributeType="UUID" />
-    <attribute name="revision" optional="YES" attributeType="UUID" />
-    <attribute name="cancelledAt" optional="YES" attributeType="Date" />
-    <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="expectedIncomes" inverseEntity="Household" />
-  </entity>
-  <entity name="CategoryLimit" representedClassName="NSManagedObject" syncable="YES">
-    <attribute name="id" optional="YES" attributeType="UUID" />
-    <attribute name="category" optional="YES" attributeType="String" />
-    <attribute name="amount" optional="YES" attributeType="Integer 64" />
-    <attribute name="revision" optional="YES" attributeType="UUID" />
-    <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="categoryLimits" inverseEntity="Household" />
   </entity>
 </model>

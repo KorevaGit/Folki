@@ -25,6 +25,5 @@ __pycache__/
 .swiftpm/
 
 # Generated from project.yml
-FolkiDuo.xcodeproj/
 
 Folki.xcodeproj/

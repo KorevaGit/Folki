@@ -25,12 +25,12 @@ struct BudgetSetupView: View {
                 Section {
                     TextField("План на месяц", text: $monthly).keyboardType(.decimalPad)
                     TextField("Всего денег, включая накопления", text: $available).keyboardType(.decimalPad)
-                } header: { Text("Свободный бюджет, \(CurrencyDisplay.shared.symbol)") } footer: {
+                } header: { Text("Свободный бюджет, \(MoneyText.symbol)") } footer: {
                     Text("Укажите все деньги выбранного бюджета, включая накопления. Накопления и резерв будут исключены из свободного остатка. Уже созданный месяц нельзя заменить: исправляйте отдельные операции.")
                 }
                 Section("Защищённый резерв · необязательно") {
                     TextField("Например, аренда", text: $reserveName)
-                    TextField("Сумма резерва, \(CurrencyDisplay.shared.symbol)", text: $reserveAmount).keyboardType(.decimalPad)
+                    TextField("Сумма резерва, \(MoneyText.symbol)", text: $reserveAmount).keyboardType(.decimalPad)
                     Text("При оплате из резерва свободные деньги не уменьшатся повторно.").font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
@@ -85,8 +85,7 @@ struct ExpenseEditorView: View {
         else { _reserveID = State(initialValue: nil) }
     }
     private var draft: LedgerRecord? {
-        // Keep the exact original amount when only editing text/category/date.
-        guard let money = try? MoneyText.parse(amount, preserving: editing?.transaction.amount),
+        guard let money = try? MoneyText.parse(amount),
               money.minorUnits > 0 else { return nil }
         let type: TransactionKind = kind == "refund" ? .refund : kind == "income" ? .income : .expense
         let funding: BudgetFunding = type == .income ? (assignIncome ? .flexible : .unallocated)
@@ -107,7 +106,7 @@ struct ExpenseEditorView: View {
                     Picker("Операция", selection: $kind) {
                         Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Поступление").tag("income")
                     }
-                    TextField("Сумма, \(CurrencyDisplay.shared.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
+                    TextField("Сумма, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
                     TextField("Описание", text: $title)
                     Picker("Категория", selection: $category) {
                         ForEach(ExpenseCategory.allCases, id: \.self) { Text($0.title).tag($0) }

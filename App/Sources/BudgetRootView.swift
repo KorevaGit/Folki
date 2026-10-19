@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, expense, details, settings, limits
+    case setup, expense, contribution, details, settings, limits
     var id: String { rawValue }
 }
 
@@ -51,9 +51,6 @@ struct BudgetRootView: View {
                         ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented)
                     BudgetAnalyticsSection(session: session, date: date).id("analytics")
-                    NavigationLink { BudgetPlansView(session: session) } label: {
-                        destinationRow("Платежи и доходы", symbol: "calendar.badge.clock").budgetCard()
-                    }.buttonStyle(.plain)
                     if let result = overview.result {
                         if selectedDay == nil { forecast(result) }
                         recentRecords(overview.records)
@@ -89,12 +86,12 @@ struct BudgetRootView: View {
             }
             }
         }
-        .alert("Лимит категории", isPresented: Binding(get: { session.categoryNotice != nil }, set: { if !$0 { session.categoryNotice = nil } })) { Button("Готово") { session.categoryNotice = nil } } message: { Text(session.categoryNotice ?? "") }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .setup: BudgetSetupView(session: session)
             case .expense: ExpenseEditorView(session: session, initialKind: entryKind)
+            case .contribution: ContributionView(personal: personal, family: family)
             case .limits: SpendingLimitsView(personal: personal, family: family, scope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
@@ -152,6 +149,8 @@ struct BudgetRootView: View {
             Menu {
                 Button("В личный бюджет", systemImage: "person") { openEntry(.personal, kind: .income) }
                 Button("В семейный бюджет", systemImage: "person.2") { openEntry(.family, kind: .income) }
+                Divider()
+                Button("Из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
             } label: {
                 Label("Внести", systemImage: "plus.circle").frame(maxWidth: .infinity)
             }.buttonStyle(.bordered)
@@ -164,6 +163,13 @@ struct BudgetRootView: View {
         entryKind = kind
         let destination = scope == .personal ? personal : family
         sheet = destination.result == nil ? .setup : .expense
+    }
+
+    private func openContribution() {
+        selectedDay = nil
+        if personal.result == nil { selectedScope = .personal; sheet = .setup }
+        else if family.result == nil { selectedScope = .family; sheet = .setup }
+        else { sheet = .contribution }
     }
 
     private func recentRecords(_ records: [LedgerRecord]) -> some View {
@@ -197,10 +203,6 @@ struct BudgetRootView: View {
         VStack(spacing: 0) {
             NavigationLink { BudgetHistoryView(session: session).toolbar(.visible, for: .navigationBar) } label: {
                 destinationRow("История операций", symbol: "clock.arrow.circlepath")
-            }
-            Divider().padding(.leading, 36)
-            NavigationLink { BudgetAwardsView().toolbar(.visible, for: .navigationBar) } label: {
-                destinationRow("Награды", symbol: "medal")
             }
         }.buttonStyle(.plain).budgetCard()
     }
@@ -268,18 +270,6 @@ private struct BudgetCalculationView: View {
     }
 }
 
-struct BudgetAwardsView: View {
-    var body: some View {
-        #if FOLKI_DEMO
-        DemoAwardsView()
-        #else
-        ContentUnavailableView("Ваш прогресс вместе", systemImage: "medal",
-            description: Text("Здесь появятся достижения за совместное планирование бюджета."))
-            .navigationTitle("Награды")
-        #endif
-    }
-}
-
 struct LedgerRow: View {
     let record: LedgerRecord
     let payer: String
@@ -287,8 +277,8 @@ struct LedgerRow: View {
         switch record.transaction.kind {
         case .expense: "−"
         case .refund, .income: "+"
-        case .reserveAllocation: "↗ "
-        case .reserveRelease: "↙ "
+        case .reserveAllocation, .contributionOut: "↗ "
+        case .reserveRelease, .contributionIn: "↙ "
         }
     }
     var body: some View {

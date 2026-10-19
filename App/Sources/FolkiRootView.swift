@@ -43,20 +43,7 @@ private struct FolkiSummaryView: View {
                         Button(action: openBudget) { budgetFavorite(personal: personalDay.result, family: familyDay.result) }.buttonStyle(.plain)
                             .accessibilityHint("Открыть вкладку «Бюджет»")
                     }
-                    SummaryPlanningSection(personal: personal, family: family)
-                    SpendingReviewCard(session: personal, date: date)
-                    SpendingReviewCard(session: family, date: date)
                     familyInvitation
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Дальше в Folki").font(.title2.bold())
-                        VStack(spacing: 0) {
-                            plannedModule("Задачи", subtitle: "Общие дела и планы", symbol: "checklist", color: .teal)
-                            Divider().padding(.leading, 48)
-                            plannedModule("Продуктовая корзина", subtitle: "Покупки для дома", symbol: "basket.fill", color: .green)
-                        }.budgetCard()
-                        Text("Будущие разделы появятся рядом с бюджетом. Здесь соберём главное из каждого.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
                 }.padding(20).padding(.bottom, 24)
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -110,17 +97,5 @@ private struct FolkiSummaryView: View {
             Button("Добавить члена семьи", systemImage: "person.badge.plus") { showingFamily = true }
                 .buttonStyle(.bordered).controlSize(.large)
         }.budgetCard()
-    }
-
-    private func plannedModule(_ title: String, subtitle: String, symbol: String, color: Color) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: symbol).font(.title3).foregroundStyle(color).frame(width: 28)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline)
-                Text(subtitle).font(.footnote).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 4)
-            Text("В планах").font(.caption).foregroundStyle(.secondary)
-        }.padding(.vertical, 10)
     }
 }

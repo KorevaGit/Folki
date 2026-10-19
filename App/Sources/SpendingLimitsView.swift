@@ -20,7 +20,7 @@ struct SpendingLimitsView: View {
         _expected = State(initialValue: session.storedBudget)
     }
     private var limit: Money? {
-        guard let amount = try? MoneyText.parse(amount, preserving: expected?.snapshot.monthlyFreePlan), amount.minorUnits > 0 else { return nil }
+        guard let amount = try? MoneyText.parse(amount), amount.minorUnits > 0 else { return nil }
         return amount
     }
     var body: some View {
@@ -31,7 +31,7 @@ struct SpendingLimitsView: View {
                 }.pickerStyle(.segmented)
                 if let expected, expected.snapshot.period.contains(session.referenceDate) {
                     Section {
-                        TextField("Лимит, \(CurrencyDisplay.shared.symbol)", text: $amount).keyboardType(.decimalPad)
+                        TextField("Лимит, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad)
                         if let stats = try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month,
                             anchor: session.referenceDate, asOf: session.referenceDate, calendar: session.calendar) {
                             LabeledContent("Свободные траты за месяц", value: MoneyText.string(stats.flexibleNetSpending))
@@ -50,7 +50,6 @@ struct SpendingLimitsView: View {
                         Button("Создать план") { settingUp = true }
                     }
                 }
-                NavigationLink("Мягкие лимиты категорий") { CategoryLimitsView(session: session) }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
             .navigationTitle("Лимиты").navigationBarTitleDisplayMode(.inline)
