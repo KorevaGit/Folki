@@ -144,11 +144,11 @@ private struct Ledger {
 }
 
 extension DailyBudgetSnapshot {
-    /// How the daily amount for the rest of the month changes against the guide the day started with
-    /// (`before`): spending 500 over the guide with 10 days left gives −50. Nil on the last day.
+    /// What one operation costs the rest of the month: the daily amount after it minus the daily amount
+    /// before it (`before`). A 500 purchase with 10 days left gives −50. Nil on the last day.
     public func nextDaysChange(since before: DailyBudgetSnapshot) throws -> Money? {
-        guard let futureAllocation else { return nil }
-        return try futureAllocation.firstDayAmount.subtracting(before.todayGuide)
+        guard let futureAllocation, let previous = before.futureAllocation else { return nil }
+        return try futureAllocation.firstDayAmount.subtracting(previous.firstDayAmount)
     }
 }
 

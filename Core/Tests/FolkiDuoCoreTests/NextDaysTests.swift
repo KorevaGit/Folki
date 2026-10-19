@@ -16,19 +16,21 @@ struct NextDaysTests {
         TransactionSnapshot(amount: rub(amount), kind: kind, funding: .flexible, date: now, authorID: author, payerID: author)
     }
 
-    @Test func overspendingTodayLowersEveryRemainingDay() throws {
+    @Test func aPurchaseCostsItsAmountSpreadOverTheRemainingDays() throws {
+        // Before: 11 000 over the 10 days after today if nothing more is spent today.
         let before = try snapshot([])
-        let after = try snapshot([entry(1500)])
-        // 500 over the guide spread over the 10 days that are left.
+        #expect(before.futureAllocation?.firstDayAmount == rub(1100))
+        let after = try snapshot([entry(500)])
         #expect(try after.nextDaysChange(since: before) == rub(-50))
-        #expect(after.futureAllocation?.firstDayAmount == rub(950))
+        #expect(after.futureAllocation?.firstDayAmount == rub(1050))
     }
 
-    @Test func spendingLessOrReceivingIncomeRaisesThem() throws {
-        let before = try snapshot([])
-        #expect(try snapshot([entry(800)]).nextDaysChange(since: before) == rub(20))
-        #expect(try snapshot([entry(1000)]).nextDaysChange(since: before) == rub(0))
-        #expect(try snapshot([entry(1100, .income)]).nextDaysChange(since: before) == rub(210))
+    @Test func eachPurchaseIsMeasuredFromTheForecastBeforeIt() throws {
+        // Already over today's guide: the next purchase still costs only its own share.
+        let before = try snapshot([entry(1500)])
+        #expect(try snapshot([entry(1500), entry(500)]).nextDaysChange(since: before) == rub(-50))
+        #expect(try snapshot([entry(1500), entry(1100, .income)]).nextDaysChange(since: before) == rub(110))
+        #expect(try before.nextDaysChange(since: before) == rub(0))
     }
 
     @Test func roundingDownNeverOverstatesWhatIsLeft() {
