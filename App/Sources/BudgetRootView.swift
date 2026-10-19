@@ -15,7 +15,6 @@ struct BudgetRootView: View {
     @State private var editingRecord: LedgerRecord?
     @Binding var selectedDay: Date?
     @State private var entryKind: TransactionKind = .expense
-    @State private var analyticsJump = UUID()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -29,9 +28,7 @@ struct BudgetRootView: View {
         let date = selectedDay ?? session.referenceDate
         let personalDay = personal.overview(on: date)
         let familyDay = family.overview(on: date)
-        let overview = selectedScope == .personal ? personalDay : familyDay
         NavigationStack {
-            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar) { day in
@@ -46,28 +43,7 @@ struct BudgetRootView: View {
                         Text("Итоги дня по текущим записям")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
-                    Picker("Бюджет", selection: $selectedScope) {
-                        ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
-                    }.pickerStyle(.segmented)
-                    BudgetAnalyticsSection(session: session, date: date).id("analytics")
-                    if let result = overview.result {
-                        if selectedDay == nil { forecast(result) }
-                        recentRecords(overview.records)
-                    } else {
-                        ContentUnavailableView {
-                            Label(selectedDay == nil ? session.scope.title + " бюджет" : "Нет плана на эту дату", systemImage: "wallet.bifold")
-                        } description: {
-                            Text(overview.errorMessage ?? (selectedDay != nil ? "Выберите другой день или вернитесь к сегодняшнему бюджету." : selectedScope == .personal ? "Личные расходы и накопления видите только вы. Укажите свой план месяца." : "Здесь общий план пары. Личные деньги участников остаются отдельно."))
-                        } actions: {
-                            if selectedDay == nil {
-                                Button("Настроить бюджет") { sheet = .setup }.buttonStyle(.borderedProminent)
-                            } else {
-                                Button("Сегодня") { selectedDay = nil }.buttonStyle(.borderedProminent)
-                            }
-                        }.frame(minHeight: 230)
-                    }
-                    if selectedDay == nil { SavingsSection(session: session).id(selectedScope) }
-                    budgetLinks
+                    SummaryCards(personal: personal, family: family, date: date).padding(.top, 8)
                     Text(session.isDemo ? "Демонстрационные данные · 17 октября" : (session.repository?.statusText ?? "Хранилище недоступно"))
                         .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
                 }.padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 40)
@@ -80,10 +56,6 @@ struct BudgetRootView: View {
             .navigationTitle("Бюджет")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
-            .onChange(of: analyticsJump) {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { proxy.scrollTo("analytics", anchor: .top) }
-            }
-            }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
@@ -119,7 +91,9 @@ struct BudgetRootView: View {
     }
     private var headerActions: some View {
         HStack(spacing: 4) {
-            Button { analyticsJump = UUID() } label: {
+            NavigationLink {
+                ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: selectedDay ?? personal.referenceDate) }
+            } label: {
                 Image(systemName: "chart.bar.xaxis").frame(width: 44, height: 44)
             }.accessibilityLabel("Аналитика")
             Button { sheet = .settings } label: {
@@ -169,41 +143,6 @@ struct BudgetRootView: View {
         else { sheet = .contribution }
     }
 
-    private func recentRecords(_ records: [LedgerRecord]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Записи за день").font(.title2.bold())
-                Spacer()
-                NavigationLink("Все") { BudgetHistoryView(session: session).toolbar(.visible, for: .navigationBar) }.font(.subheadline)
-            }
-            if records.isEmpty {
-                Text("В этот день записей нет.")
-                    .font(.subheadline).foregroundStyle(.secondary).budgetCard()
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(records.reversed()) { record in
-                        if session.isEditable(record) {
-                            Button { editingRecord = record } label: {
-                                LedgerRow(record: record, session: session)
-                            }.buttonStyle(.plain)
-                        } else {
-                            LedgerRow(record: record, session: session)
-                        }
-                        if record.id != records.first?.id { Divider() }
-                    }
-                }.budgetCard()
-            }
-        }
-    }
-
-    private var budgetLinks: some View {
-        VStack(spacing: 0) {
-            NavigationLink { BudgetHistoryView(session: session).toolbar(.visible, for: .navigationBar) } label: {
-                destinationRow("История операций", symbol: "clock.arrow.circlepath")
-            }
-        }.buttonStyle(.plain).budgetCard()
-    }
-
     private func destinationRow(_ title: String, symbol: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: symbol).foregroundStyle(Color.folkiAccent).frame(width: 24)
@@ -213,25 +152,6 @@ struct BudgetRootView: View {
         }.padding(.vertical, 10)
     }
 
-    private func forecast(_ result: DailyBudgetSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Следующие дни", systemImage: "calendar").font(.headline).foregroundStyle(Color.folkiAccent)
-            if result.monthlyRemaining.minorUnits < 0 {
-                Text("Свободный бюджет закончился").font(.title3.bold())
-                Text("Пересмотрите расходы или план.").font(.subheadline).foregroundStyle(.secondary)
-            } else if let future = result.futureAllocation {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("≈\(MoneyText.string(future.firstDayAmount))").font(.system(.title, design: .rounded, weight: .bold))
-                    Text("в день").font(.subheadline).foregroundStyle(.secondary)
-                }.monospacedDigit()
-                Text("Если сегодня больше не тратить · \(future.days) дн.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            } else {
-                Text("Последний день периода").font(.title3.bold())
-                Text("Сегодня доступен оставшийся бюджет.").font(.subheadline).foregroundStyle(.secondary)
-            }
-        }.budgetCard()
-    }
 }
 
 private struct BudgetCalculationView: View {

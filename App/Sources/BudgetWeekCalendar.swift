@@ -109,8 +109,8 @@ struct BudgetWeekCalendar: View {
             .lineLimit(1).minimumScaleFactor(0.7)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
-            .foregroundStyle(isSelected ? Color.folkiBackground : Color.folkiInk)
-            .background(isSelected ? Color.folkiInk : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .foregroundStyle(isSelected ? Color.white : Color.folkiInk)
+            .background(isSelected ? Color.folkiAccent : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(isFuture ? 0.4 : 1)
         }
         .buttonStyle(.plain).frame(maxWidth: .infinity).disabled(isFuture)
