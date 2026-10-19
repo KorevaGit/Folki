@@ -50,6 +50,7 @@ struct SpendingLimitsView: View {
                         Button("Создать план") { settingUp = true }
                     }
                 }
+                NavigationLink("Мягкие лимиты категорий") { CategoryLimitsView(session: session) }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
             .navigationTitle("Лимиты").navigationBarTitleDisplayMode(.inline)

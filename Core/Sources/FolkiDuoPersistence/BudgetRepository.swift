@@ -170,6 +170,7 @@ public final class BudgetRepository {
         guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
         guard let household = households.first else { return nil }
         try validateGoalTransfers(household: household, asOf: date)
+        try validatePlanningLinks(household: household, asOf: date)
         let householdID: UUID = try household.required("id")
         let zone: String = try household.required("timeZone")
         let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
@@ -181,9 +182,9 @@ public final class BudgetRepository {
         let periodObject = selected.0
         let periodID: UUID = try periodObject.required("id")
         let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household)).map {
-            Member(id: try $0.required("id"), name: try $0.required("name"))
+            Member(id: try $0.required("id"), name: try $0.required("name"), isActive: $0.value(forKey: "inactive") as? Bool != true)
         }.sorted { $0.id.uuidString < $1.id.uuidString }
-        guard members.count == (scope == .personal ? 1 : 2) else { throw LedgerError.corruptStore }
+        guard scope == .personal ? members.count == 1 : (1...5).contains(members.filter(\.isActive).count) else { throw LedgerError.corruptStore }
         let reserves = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", periodObject)).map {
             ProtectedReserve(id: try $0.required("id"), name: try $0.required("name"),
                              openingAmount: Money(minorUnits: try $0.required("openingAmount")))
@@ -242,7 +243,10 @@ public final class BudgetRepository {
             let goalReserves = try goals(scope: scope, asOf: now).map {
                 ProtectedReserve(id: $0.id, name: $0.name, openingAmount: $0.balance)
             }
-            let allReserves = reserves + goalReserves
+            let billReserves = try obligations(scope: scope, asOf: now).filter { $0.isPending && $0.reserved.minorUnits > 0 }.map {
+                ProtectedReserve(id: $0.id, name: $0.name, openingAmount: $0.reserved)
+            }
+            let allReserves = reserves + goalReserves + billReserves
             _ = try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period,
                 monthlyFreePlan: monthlyPlan, openingFunds: available, reserves: allReserves), asOf: now)
             let existing = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@ AND month == %@", household, period.start as NSDate))
@@ -288,16 +292,17 @@ public final class BudgetRepository {
     public func save(_ record: LedgerRecord, in budget: StoredBudget, expectedRevision: UUID?, asOf now: Date) throws {
         try writable()
         guard [.expense, .refund, .income].contains(record.transaction.kind) else { throw BudgetError.invalidTransaction }
+        guard try !isPlanningRecord(record.id) else { throw BudgetError.invalidTransaction }
         _ = try LedgerRules.replacing(record, in: budget, asOf: now)
         do {
             if expectedRevision == nil {
-                guard record.transaction.authorID == (try authorID(in: budget)) else { throw LedgerError.invalidMember }
+                guard record.transaction.authorID == (try authorID(in: budget)), budget.members.contains(where: { $0.id == record.transaction.payerID && $0.isActive }) else { throw LedgerError.invalidMember }
             }
             let period = try object("BudgetPeriod", id: budget.periodID)
             guard let household = period.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
             try validateScope(budget, household: household)
             if case .reserve(let reserveID) = record.transaction.funding,
-               try goals(scope: budget.scope, asOf: now).contains(where: { $0.id == reserveID }) {
+               try goals(scope: budget.scope, asOf: now).contains(where: { $0.id == reserveID }) || obligations(scope: budget.scope, asOf: now).contains(where: { $0.id == reserveID }) {
                 throw BudgetError.invalidTransaction // Savings move only through paired contribution events.
             }
             let matches = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", record.id as NSUUID))
@@ -321,6 +326,10 @@ public final class BudgetRepository {
             encode(record, into: object, updatedAt: now)
             // Re-read the whole period, including imports, before accepting a write.
             guard let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.conflict }
+            if expectedRevision == nil {
+                guard current.members.contains(where: { $0.id == record.transaction.payerID && $0.isActive }),
+                      record.transaction.authorID == (try authorID(in: current)) else { throw LedgerError.invalidMember }
+            }
             _ = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
             try commit()
         } catch { context.rollback(); throw error }
@@ -345,11 +354,13 @@ public final class BudgetRepository {
             guard balance.minorUnits >= 0 else { throw LedgerError.corruptStore }
             let target = Money(minorUnits: try goal.required("target"))
             guard target.minorUnits > 0 else { throw LedgerError.corruptStore }
-            return SavingsGoalSnapshot(id: id, name: try goal.required("name"), target: target, balance: balance)
+            return SavingsGoalSnapshot(id: id, name: try goal.required("name"), target: target, balance: balance,
+                deadline: goal.value(forKey: "deadline") as? Date, monthlyContribution: (goal.value(forKey: "monthlyContribution") as? Int64).map { Money(minorUnits: $0) },
+                purpose: SavingsPurpose(rawValue: goal.value(forKey: "purpose") as? String ?? "goal") ?? .goal, revision: goal.value(forKey: "revision") as? UUID)
         }.sorted { $0.id.uuidString < $1.id.uuidString }
     }
 
-    public func createGoal(name: String, target: Money, in budget: StoredBudget, asOf now: Date) throws {
+    public func createGoal(name: String, target: Money, deadline: Date? = nil, monthlyContribution: Money? = nil, purpose: SavingsPurpose = .goal, in budget: StoredBudget, asOf now: Date) throws {
         try writable()
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, target.currency == .rub, target.minorUnits > 0,
@@ -364,6 +375,7 @@ public final class BudgetRepository {
             let goal = insert("Goal", id: id, household: household)
             goal.setValue(name, forKey: "name")
             goal.setValue(target.minorUnits, forKey: "target")
+            try setGoalPlan(goal, deadline: deadline, monthlyContribution: monthlyContribution, purpose: purpose)
             let reserve = insert("Reserve", id: id, household: household)
             reserve.setValue(name, forKey: "name")
             reserve.setValue(Int64(0), forKey: "openingAmount")
@@ -447,22 +459,311 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
+    private func validatePlanningLinks(household: NSManagedObject, asOf now: Date) throws {
+        let transactions = try fetch("Transaction", predicate: NSPredicate(format: "household == %@ AND date <= %@", household, now as NSDate))
+        var ids = Set<UUID>()
+        for entity in ["Obligation", "ExpectedIncome"] {
+            for item in try fetch(entity, predicate: NSPredicate(format: "household == %@", household)) {
+                if entity == "Obligation", let allocation = item.value(forKey: "allocationID") as? UUID {
+                    let reservedAt = item.value(forKey: "reservedAt") as? Date
+                    let cancelledAt = item.value(forKey: "cancelledAt") as? Date
+                    for (operationID, timestamp, kind) in [(allocation, reservedAt, "reserveAllocation"),
+                        (item.value(forKey: "releaseID") as? UUID ?? UUID(), reservedAt == nil ? nil : cancelledAt, "reserveRelease")] {
+                        guard ids.insert(operationID).inserted else { throw LedgerError.corruptStore }
+                        let matching = transactions.filter { $0.value(forKey: "id") as? UUID == operationID }
+                        if let timestamp, timestamp <= now {
+                            guard matching.count == 1, let transaction = matching.first,
+                                  transaction.value(forKey: "kind") as? String == kind,
+                                  transaction.value(forKey: "reserveID") as? UUID == item.value(forKey: "id") as? UUID,
+                                  transaction.value(forKey: "amount") as? Int64 == item.value(forKey: "amount") as? Int64,
+                                  transaction.value(forKey: "date") as? Date == timestamp,
+                                  transaction.value(forKey: "tombstone") as? Bool == false else { throw LedgerError.corruptStore }
+                        } else if !matching.isEmpty { throw LedgerError.corruptStore }
+                    }
+                }
+                let idKey = entity == "Obligation" ? "paymentID" : "transactionID"
+                guard let id = item.value(forKey: idKey) as? UUID else { continue } // Unused V2 obligations have no operation.
+                guard ids.insert(id).inserted else { throw LedgerError.corruptStore }
+                let matches = transactions.filter { $0.value(forKey: "id") as? UUID == id }
+                let completed = item.value(forKey: entity == "Obligation" ? "paidAt" : "receivedAt") as? Date
+                if let completed, completed <= now {
+                    guard matches.count == 1, let record = matches.first,
+                          record.value(forKey: "date") as? Date == completed,
+                          record.value(forKey: "amount") as? Int64 == item.value(forKey: "amount") as? Int64,
+                          record.value(forKey: "kind") as? String == (entity == "Obligation" ? "expense" : "income"),
+                          record.value(forKey: "tombstone") as? Bool == false else { throw LedgerError.corruptStore }
+                    if entity == "Obligation" {
+                        guard record.value(forKey: "reserveID") as? UUID == item.value(forKey: "id") as? UUID,
+                              record.value(forKey: "funding") as? String == "reserve" else { throw LedgerError.corruptStore }
+                    } else if record.value(forKey: "funding") as? String != "flexible" { throw LedgerError.corruptStore }
+                } else if !matches.isEmpty { throw LedgerError.corruptStore }
+            }
+        }
+    }
+    private func planningRoot(_ budget: StoredBudget, now: Date) throws -> NSManagedObject {
+        try writable()
+        let root = try object("Household", id: budget.snapshot.id)
+        try validateScope(budget, household: root)
+        let period = try object("BudgetPeriod", id: budget.periodID)
+        guard period.value(forKey: "household") as? NSManagedObject == root,
+              budget.snapshot.period.contains(now), let store = root.objectID.persistentStore,
+              container.canModifyManagedObjects(in: store), container.canUpdateRecord(forManagedObjectWith: period.objectID),
+              let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.accessDenied }
+        _ = try authorID(in: current)
+        return root
+    }
+    private func reserveBalance(_ id: UUID, household: NSManagedObject, now: Date) throws -> Money {
+        var balance = Money(minorUnits: 0)
+        for item in try fetch("Transaction", predicate: NSPredicate(format: "household == %@ AND reserveID == %@ AND date <= %@", household, id as NSUUID, now as NSDate)) {
+            let entry = try decode(item).transaction
+            guard !entry.isDeleted else { continue }
+            switch entry.kind {
+            case .income, .refund, .reserveAllocation: balance = try balance.adding(entry.amount)
+            case .expense, .reserveRelease: balance = try balance.subtracting(entry.amount)
+            }
+        }
+        guard balance.minorUnits >= 0 else { throw LedgerError.corruptStore }
+        return balance
+    }
+    public func obligations(scope: BudgetScope = .family, asOf now: Date = .now) throws -> [ObligationSnapshot] {
+        guard let root = try households(in: scope).first else { return [] }
+        return try fetch("Obligation", predicate: NSPredicate(format: "household == %@", root)).map { item in
+            let id: UUID = try item.required("id")
+            return ObligationSnapshot(id: id, name: try item.required("name"), amount: Money(minorUnits: try item.required("amount")),
+                dueDate: try item.required("dueDate"), recurrence: PaymentRecurrence(rawValue: item.value(forKey: "recurrence") as? String ?? "once") ?? .once,
+                category: ExpenseCategory(rawValue: item.value(forKey: "category") as? String ?? "home") ?? .home,
+                reserved: try reserveBalance(id, household: root, now: now), paidAt: item.value(forKey: "paidAt") as? Date,
+                cancelledAt: item.value(forKey: "cancelledAt") as? Date, revision: item.value(forKey: "revision") as? UUID ?? id)
+        }.sorted { $0.dueDate < $1.dueDate }
+    }
+    public func expectedIncomes(scope: BudgetScope = .family) throws -> [ExpectedIncomeSnapshot] {
+        guard let root = try households(in: scope).first else { return [] }
+        return try fetch("ExpectedIncome", predicate: NSPredicate(format: "household == %@", root)).map { item in
+            ExpectedIncomeSnapshot(id: try item.required("id"), name: try item.required("name"), amount: Money(minorUnits: try item.required("amount")),
+                dueDate: try item.required("dueDate"), recurrence: PaymentRecurrence(rawValue: try item.required("recurrence")) ?? .once,
+                receivedAt: item.value(forKey: "receivedAt") as? Date, cancelledAt: item.value(forKey: "cancelledAt") as? Date,
+                revision: try item.required("revision"))
+        }.sorted { $0.dueDate < $1.dueDate }
+    }
+    private func scheduledItem(_ entity: String, id: UUID, name: String, amount: Money, due: Date,
+                               recurrence: PaymentRecurrence, root: NSManagedObject) throws -> NSManagedObject {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+        let item = insert(entity, id: id, household: root)
+        item.setValue(name.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "name")
+        item.setValue(amount.minorUnits, forKey: "amount"); item.setValue(due, forKey: "dueDate")
+        item.setValue(due, forKey: "recurrenceAnchor")
+        item.setValue(recurrence.rawValue, forKey: "recurrence"); item.setValue(UUID(), forKey: "revision")
+        item.setValue(UUID(), forKey: entity == "Obligation" ? "paymentID" : "transactionID")
+        return item
+    }
+    public func createObligation(name: String, amount: Money, due: Date, recurrence: PaymentRecurrence, category: ExpenseCategory,
+                                 reserveNow: Bool, in budget: StoredBudget, asOf now: Date, id: UUID = UUID()) throws {
+        do {
+            let root = try planningRoot(budget, now: now)
+            guard try fetch("Obligation", predicate: NSPredicate(format: "id == %@", id as NSUUID)).isEmpty else { throw LedgerError.conflict }
+            let item = try scheduledItem("Obligation", id: id, name: name, amount: amount, due: due, recurrence: recurrence, root: root)
+            item.setValue(id, forKey: "reserveID"); item.setValue(category.rawValue, forKey: "category")
+            item.setValue(UUID(), forKey: "allocationID"); item.setValue(UUID(), forKey: "releaseID")
+            item.setValue(try object("BudgetPeriod", id: budget.periodID), forKey: "period")
+            if reserveNow { try allocateBill(item, budget: budget, now: now) }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    private func appendPlanningRecord(_ record: LedgerRecord, budget: StoredBudget, root: NSManagedObject, now: Date) throws {
+        guard let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.conflict }
+        _ = try LedgerRules.replacing(record, in: current, asOf: now)
+        let item = insert("Transaction", id: record.id, household: root)
+        item.setValue(try object("BudgetPeriod", id: budget.periodID), forKey: "period")
+        encode(record, into: item, updatedAt: now)
+    }
+    private func allocateBill(_ item: NSManagedObject, budget: StoredBudget, now: Date) throws {
+        let id: UUID = try item.required("id"), amount = Money(minorUnits: try item.required("amount"))
+        let root = try object("Household", id: budget.snapshot.id)
+        let balance = try reserveBalance(id, household: root, now: now)
+        if balance == amount { return }
+        guard balance.minorUnits == 0, let current = try load(asOf: now, scope: budget.scope),
+              amount.minorUnits <= (try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)).monthlyRemaining.minorUnits else { throw BudgetError.insufficientReserve }
+        let period = try object("BudgetPeriod", id: budget.periodID)
+        let reserves = try fetch("Reserve", predicate: NSPredicate(format: "period == %@ AND id == %@", period, id as NSUUID))
+        if reserves.isEmpty {
+            let reserve = insert("Reserve", id: id, household: root)
+            reserve.setValue(period, forKey: "period"); reserve.setValue(try item.required("name") as String, forKey: "name")
+            reserve.setValue(Int64(0), forKey: "openingAmount")
+        }
+        let author = try authorID(in: budget)
+        let transactionID: UUID = try item.required("allocationID")
+        let record = LedgerRecord(transaction: TransactionSnapshot(id: transactionID, amount: amount, kind: .reserveAllocation,
+            funding: .reserve(id), date: now, authorID: author, payerID: author), title: "На платёж: \(try item.required("name") as String)")
+        try appendPlanningRecord(record, budget: budget, root: root, now: now)
+        item.setValue(now, forKey: "reservedAt")
+    }
+    public func reserveObligation(_ bill: ObligationSnapshot, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try planningRoot(budget, now: now)
+            let item = try planningItem("Obligation", id: bill.id, budget: budget)
+            guard item.value(forKey: "paidAt") == nil, item.value(forKey: "cancelledAt") == nil else { throw LedgerError.conflict }
+            try allocateBill(item, budget: budget, now: now); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    private func planningItem(_ entity: String, id: UUID, budget: StoredBudget) throws -> NSManagedObject {
+        let item = try object(entity, id: id)
+        guard let root = item.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
+        try validateScope(budget, household: root)
+        guard container.canUpdateRecord(forManagedObjectWith: item.objectID) else { throw LedgerError.accessDenied }
+        return item
+    }
+    public func payObligation(_ bill: ObligationSnapshot, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now)
+            let item = try planningItem("Obligation", id: bill.id, budget: budget)
+            if item.value(forKey: "paidAt") != nil { return }
+            guard item.value(forKey: "cancelledAt") == nil,
+                  item.value(forKey: "revision") as? UUID == bill.revision else { throw LedgerError.conflict }
+            let amount = Money(minorUnits: try item.required("amount")), id: UUID = try item.required("id")
+            guard try reserveBalance(id, household: root, now: now) == amount else { throw BudgetError.insufficientReserve }
+            let author = try authorID(in: budget)
+            let record = LedgerRecord(transaction: TransactionSnapshot(id: try item.required("paymentID"), amount: amount, kind: .expense,
+                funding: .reserve(id), date: now, authorID: author, payerID: author), title: bill.name, category: bill.category)
+            try appendPlanningRecord(record, budget: budget, root: root, now: now)
+            item.setValue(now, forKey: "paidAt"); item.setValue(UUID(), forKey: "revision")
+            if let next = bill.recurrence.next(after: bill.dueDate, calendar: budget.snapshot.period.calendar, anchor: item.value(forKey: "recurrenceAnchor") as? Date) {
+                let new = try scheduledItem("Obligation", id: UUID(), name: bill.name, amount: amount, due: next, recurrence: bill.recurrence, root: root)
+                let nextID: UUID = try new.required("id")
+                new.setValue(item.value(forKey: "recurrenceAnchor"), forKey: "recurrenceAnchor")
+                new.setValue(nextID, forKey: "reserveID"); new.setValue(UUID(), forKey: "allocationID"); new.setValue(UUID(), forKey: "releaseID")
+                new.setValue(bill.category.rawValue, forKey: "category")
+                new.setValue(try object("BudgetPeriod", id: budget.periodID), forKey: "period")
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func cancelObligation(_ bill: ObligationSnapshot, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now), item = try planningItem("Obligation", id: bill.id, budget: budget)
+            if item.value(forKey: "cancelledAt") != nil { return }
+            guard item.value(forKey: "paidAt") == nil, item.value(forKey: "revision") as? UUID == bill.revision else { throw LedgerError.conflict }
+            let balance = try reserveBalance(bill.id, household: root, now: now)
+            if balance.minorUnits > 0 {
+                let author = try authorID(in: budget)
+                let record = LedgerRecord(transaction: TransactionSnapshot(id: try item.required("releaseID"), amount: balance,
+                    kind: .reserveRelease, funding: .reserve(bill.id), date: now, authorID: author, payerID: author), title: "Отмена платежа: \(bill.name)")
+                try appendPlanningRecord(record, budget: budget, root: root, now: now)
+            }
+            item.setValue(now, forKey: "cancelledAt"); item.setValue(UUID(), forKey: "revision"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func createExpectedIncome(name: String, amount: Money, due: Date, recurrence: PaymentRecurrence,
+                                     in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now)
+            _ = try scheduledItem("ExpectedIncome", id: UUID(), name: name, amount: amount, due: due, recurrence: recurrence, root: root)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func receiveIncome(_ income: ExpectedIncomeSnapshot, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now), item = try planningItem("ExpectedIncome", id: income.id, budget: budget)
+            if item.value(forKey: "receivedAt") != nil { return }
+            guard item.value(forKey: "cancelledAt") == nil, item.value(forKey: "revision") as? UUID == income.revision else { throw LedgerError.conflict }
+            let author = try authorID(in: budget), amount = Money(minorUnits: try item.required("amount"))
+            let record = LedgerRecord(transaction: TransactionSnapshot(id: try item.required("transactionID"), amount: amount,
+                kind: .income, funding: .flexible, date: now, authorID: author, payerID: author), title: income.name)
+            try appendPlanningRecord(record, budget: budget, root: root, now: now)
+            item.setValue(now, forKey: "receivedAt"); item.setValue(UUID(), forKey: "revision")
+            if let next = income.recurrence.next(after: income.dueDate, calendar: budget.snapshot.period.calendar, anchor: item.value(forKey: "recurrenceAnchor") as? Date) {
+                let following = try scheduledItem("ExpectedIncome", id: UUID(), name: income.name, amount: amount, due: next, recurrence: income.recurrence, root: root)
+                following.setValue(item.value(forKey: "recurrenceAnchor"), forKey: "recurrenceAnchor")
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func cancelExpectedIncome(_ income: ExpectedIncomeSnapshot, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try planningRoot(budget, now: now)
+            let item = try planningItem("ExpectedIncome", id: income.id, budget: budget)
+            guard item.value(forKey: "receivedAt") == nil, item.value(forKey: "revision") as? UUID == income.revision else { throw LedgerError.conflict }
+            item.setValue(now, forKey: "cancelledAt"); item.setValue(UUID(), forKey: "revision"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func isPlanningRecord(_ id: UUID) throws -> Bool {
+        try !fetch("Obligation", predicate: NSPredicate(format: "paymentID == %@", id as NSUUID)).isEmpty
+            || !fetch("ExpectedIncome", predicate: NSPredicate(format: "transactionID == %@", id as NSUUID)).isEmpty
+    }
+    public func updateGoal(_ goal: SavingsGoalSnapshot, deadline: Date?, monthlyContribution: Money?, purpose: SavingsPurpose,
+                            in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try planningRoot(budget, now: now)
+            let item = try planningItem("Goal", id: goal.id, budget: budget)
+            guard item.value(forKey: "revision") as? UUID == goal.revision else { throw LedgerError.conflict }
+            try setGoalPlan(item, deadline: deadline, monthlyContribution: monthlyContribution, purpose: purpose)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    private func setGoalPlan(_ item: NSManagedObject, deadline: Date?, monthlyContribution: Money?, purpose: SavingsPurpose) throws {
+        guard monthlyContribution == nil || (monthlyContribution!.currency == .rub && monthlyContribution!.minorUnits > 0) else { throw BudgetError.invalidAmount }
+        item.setValue(deadline, forKey: "deadline"); item.setValue(monthlyContribution?.minorUnits, forKey: "monthlyContribution")
+        item.setValue(purpose.rawValue, forKey: "purpose"); item.setValue(UUID(), forKey: "revision")
+    }
+    public func categoryLimits(scope: BudgetScope) throws -> [CategoryLimitSnapshot] {
+        guard let root = try households(in: scope).first else { return [] }
+        let items = try fetch("CategoryLimit", predicate: NSPredicate(format: "household == %@", root))
+        let result = try items.map { item -> CategoryLimitSnapshot in
+            guard let category = ExpenseCategory(rawValue: try item.required("category")) else { throw LedgerError.corruptStore }
+            return CategoryLimitSnapshot(id: try item.required("id"), category: category, amount: Money(minorUnits: try item.required("amount")), revision: try item.required("revision"))
+        }
+        guard Set(result.map(\.category)).count == result.count else { throw LedgerError.corruptStore }
+        return result.sorted { $0.category.rawValue < $1.category.rawValue }
+    }
+    public func setCategoryLimit(category: ExpenseCategory, amount: Money?, expected: CategoryLimitSnapshot?, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now)
+            guard amount == nil || (amount!.currency == .rub && amount!.minorUnits > 0) else { throw BudgetError.invalidAmount }
+            let items = try fetch("CategoryLimit", predicate: NSPredicate(format: "household == %@ AND category == %@", root, category.rawValue))
+            guard items.count <= 1, items.first?.value(forKey: "revision") as? UUID == expected?.revision else { throw LedgerError.conflict }
+            if let amount {
+                let item = items.first ?? insert("CategoryLimit", household: root)
+                item.setValue(category.rawValue, forKey: "category"); item.setValue(amount.minorUnits, forKey: "amount")
+                item.setValue(UUID(), forKey: "revision")
+            } else if let item = items.first { context.delete(item) }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func addFamilyMember(name: String, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try planningRoot(budget, now: now)
+            guard budget.scope == .family, cloudIdentifier == nil else { throw LedgerError.accessDenied }
+            guard try fetch("Member", predicate: NSPredicate(format: "household == %@", root)).filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+            let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { throw LedgerError.invalidMember }
+            let item = insert("Member", household: root); item.setValue(name, forKey: "name"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func renameMember(_ member: Member, name: String, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try planningRoot(budget, now: now)
+            let item = try planningItem("Member", id: member.id, budget: budget), clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { throw LedgerError.invalidMember }
+            item.setValue(clean, forKey: "name"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     public func authorID(in budget: StoredBudget) throws -> UUID {
         if cloudIdentifier == nil {
-            guard budget.members.contains(where: { $0.id == localMemberID }) else { throw LedgerError.invalidMember }
+            guard budget.members.contains(where: { $0.id == localMemberID && $0.isActive }) else { throw LedgerError.invalidMember }
             return localMemberID
         }
         if cloudIdentity == nil, !accountLocked,
-           budget.members.contains(where: { $0.id == localMemberID }) { return localMemberID }
+           budget.members.contains(where: { $0.id == localMemberID && $0.isActive }) { return localMemberID }
         guard let cloudIdentity, !accountLocked else { throw LedgerError.accessDenied }
         let household = try object("Household", id: budget.snapshot.id)
         let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
         if let own = members.first(where: { $0.value(forKey: "cloudIdentity") as? String == cloudIdentity }) {
+            guard own.value(forKey: "inactive") as? Bool != true else { throw LedgerError.accessDenied }
             return try own.required("id")
         }
         // A locally created budget keeps its author when iCloud is first enabled.
         let candidate = members.first(where: { $0.value(forKey: "id") as? UUID == localMemberID })
-            ?? (household.objectID.persistentStore == sharedStore ? members.first(where: { $0.value(forKey: "cloudIdentity") == nil }) : nil)
+
         guard let candidate else { throw LedgerError.invalidMember }
         candidate.setValue(cloudIdentity, forKey: "cloudIdentity")
         try commit()
@@ -640,7 +941,61 @@ public final class BudgetRepository {
         try await persist(share: share, store: household.objectID.persistentStore!)
         return share
     }
+    /// Only the owner invites named Apple IDs; pending invitations also consume a seat.
+    public func inviteFamilyMember(email: String, name: String, in budget: StoredBudget, asOf now: Date) async throws -> URL {
+        try writable()
+        guard budget.scope == .family, let identifier = cloudIdentifier, cloudIdentity != nil,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LedgerError.accessDenied }
+        _ = try planningRoot(budget, now: now)
+        let share = try await share(householdID: budget.snapshot.id)
+        guard share.currentUserParticipant?.role == .owner else { throw LedgerError.accessDenied }
+        let participant = try await CKContainer(identifier: identifier).shareParticipant(forEmailAddress: email.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard let identity = participant.userIdentity.userRecordID?.recordName, identity != cloudIdentity else { throw LedgerError.invalidMember }
+        let alreadyInvited = share.participants.contains { $0.userIdentity.userRecordID?.recordName == identity }
+        guard alreadyInvited || share.participants.count < 5 else { throw LedgerError.familyFull }
+        let root = try planningRoot(budget, now: now)
+        let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", root))
+        let existing = members.first { $0.value(forKey: "cloudIdentity") as? String == identity }
+        let empty = members.first { $0.value(forKey: "inactive") as? Bool != true && $0.value(forKey: "cloudIdentity") == nil && $0.value(forKey: "id") as? UUID != localMemberID }
+        guard existing?.value(forKey: "inactive") as? Bool == false || (existing != nil && existing?.value(forKey: "inactive") == nil) || empty != nil || members.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+        if !alreadyInvited { participant.permission = .readWrite; share.addParticipant(participant) }
+        share.publicPermission = .none
+        try await persist(share: share, store: root.objectID.persistentStore!)
+        // Revalidate after suspension. Bind the slot before the recipient can author ledger entries.
+        do {
+            _ = try planningRoot(budget, now: now)
+            let current = try fetch("Member", predicate: NSPredicate(format: "household == %@", root))
+            let bound = current.first { $0.value(forKey: "cloudIdentity") as? String == identity }
+            let free = current.first { $0.value(forKey: "inactive") as? Bool != true && $0.value(forKey: "cloudIdentity") == nil && $0.value(forKey: "id") as? UUID != localMemberID }
+            guard bound?.value(forKey: "inactive") as? Bool == false || (bound != nil && bound?.value(forKey: "inactive") == nil) || free != nil || current.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+            let member = bound ?? free ?? insert("Member", household: root)
+            member.setValue(false, forKey: "inactive"); member.setValue(identity, forKey: "cloudIdentity"); member.setValue(name.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "name")
+            try commit()
+        } catch { context.rollback(); throw error }
+        guard let url = share.url else { throw LedgerError.unavailable }
+        return url
+    }
+
+    public func removeFamilyMember(_ member: Member, in budget: StoredBudget, asOf now: Date) async throws {
+        do {
+            _ = try planningRoot(budget, now: now)
+            guard budget.scope == .family, member.id != (try authorID(in: budget)) else { throw LedgerError.accessDenied }
+            let item = try planningItem("Member", id: member.id, budget: budget)
+            if cloudIdentifier != nil {
+                let share = try await share(householdID: budget.snapshot.id)
+                guard share.currentUserParticipant?.role == .owner else { throw LedgerError.accessDenied }
+                if let identity = item.value(forKey: "cloudIdentity") as? String,
+                   let participant = share.participants.first(where: { $0.userIdentity.userRecordID?.recordName == identity }) {
+                    share.removeParticipant(participant)
+                    try await persist(share: share, store: item.objectID.persistentStore!)
+                }
+            }
+            _ = try planningRoot(budget, now: now)
+            item.setValue(true, forKey: "inactive"); try commit()
+        } catch { context.rollback(); throw error }
+    }
     public func persist(share: CKShare, store: NSPersistentStore) async throws {
+        guard share.participants.count <= 5, share.publicPermission == .none else { throw LedgerError.familyFull }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             container.persistUpdatedShare(share, in: store) { _, error in
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
@@ -652,6 +1007,7 @@ public final class BudgetRepository {
         try writable()
         guard metadata.containerIdentifier == cloudIdentifier, cloudIdentity != nil,
               let sharedStore else { throw LedgerError.cloudNotConfigured }
+        guard metadata.share.participants.count <= 5, metadata.share.publicPermission == .none else { throw LedgerError.familyFull }
         // Do not silently replace a budget with an invitation to a different household.
         let households = try households(in: .family)
         if let household = households.first {

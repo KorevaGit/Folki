@@ -13,6 +13,7 @@ struct SavingsSection: View {
                 Button("Добавить цель", systemImage: "plus.circle") { creating = true }
                     .labelStyle(.iconOnly).disabled(session.result == nil || session.isDemo)
             }
+            if session.incomeJustReceived { IncomeSavingsSuggestions(session: session).budgetCard() }
             if session.goals.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(session.scope == .personal ? "На то, что важно вам" : "На ваши общие планы", systemImage: "flag")
@@ -36,6 +37,11 @@ struct SavingsSection: View {
                                 Text(MoneyText.string(goal.balance)).font(.title2.bold()).monospacedDigit()
                                 Text("из \(MoneyText.string(goal.target))").font(.caption).foregroundStyle(.secondary)
                             }
+                            Text(goal.purpose.title).font(.caption).foregroundStyle(.secondary)
+                            if let deadline = goal.deadline { Text("Срок: \(deadline.formatted(date: .abbreviated, time: .omitted))").font(.caption) }
+                            if let amount = try? BudgetPlanning.suggestedContribution(goal: goal, asOf: session.referenceDate, calendar: session.calendar) {
+                                Text("Взнос в месяц: \(MoneyText.string(amount))").font(.subheadline).foregroundStyle(.secondary)
+                            }
                             ProgressView(value: goal.fraction).tint(RingPalette.all[session.scope == .personal ? 0 : 1].color(at: 0.5))
                         }.budgetCard()
                     }.buttonStyle(.plain).disabled(session.result == nil)
@@ -52,6 +58,10 @@ private struct GoalSetupView: View {
     let session: BudgetSession
     @State private var name = ""
     @State private var target = ""
+    @State private var hasDeadline = false
+    @State private var deadline = Date.now
+    @State private var contribution = ""
+    @State private var purpose = SavingsPurpose.goal
     @State private var errorMessage: String?
     private var money: Money? {
         guard let money = try? MoneyText.parse(target), money.minorUnits > 0 else { return nil }
@@ -63,6 +73,10 @@ private struct GoalSetupView: View {
                 Section(session.scope.savingsTitle) {
                     TextField("На что копим", text: $name)
                     TextField("Цель, \(CurrencyDisplay.shared.symbol)", text: $target).keyboardType(.decimalPad)
+                    Picker("Назначение", selection: $purpose) { ForEach(SavingsPurpose.allCases) { Text($0.title).tag($0) } }
+                    Toggle("Указать срок", isOn: $hasDeadline)
+                    if hasDeadline { DatePicker("Накопить до", selection: $deadline, in: session.referenceDate..., displayedComponents: .date) }
+                    TextField("Желаемый взнос в месяц (необязательно)", text: $contribution).keyboardType(.decimalPad)
                     Text(session.scope == .personal ? "Эту цель видите только вы." : "Эта цель относится к семейному бюджету.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -74,7 +88,7 @@ private struct GoalSetupView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Создать") {
                         guard let money else { return }
-                        do { try session.createGoal(name: name, target: money); dismiss() }
+                        do { try session.createGoal(name: name, target: money, deadline: hasDeadline ? deadline : nil, monthlyContribution: contribution.isEmpty ? nil : MoneyText.parse(contribution), purpose: purpose); dismiss() }
                         catch { errorMessage = "Не удалось создать цель. Данные формы сохранены здесь." }
                     }.disabled(money == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -83,13 +97,19 @@ private struct GoalSetupView: View {
     }
 }
 
-private struct GoalTransferView: View {
+struct GoalTransferView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
     let goal: SavingsGoalSnapshot
     @State private var operationID = UUID()
     @State private var amount = ""
     @State private var withdrawal = false
+    @State private var editingPlan = false
+    init(session: BudgetSession, goal: SavingsGoalSnapshot, initialAmount: Money? = nil) {
+        self.session = session; self.goal = goal
+        let cap = max(0, session.result?.monthlyRemaining.minorUnits ?? 0)
+        _amount = State(initialValue: initialAmount.map { MoneyText.input(Money(minorUnits: min($0.minorUnits, cap))) } ?? "")
+    }
     @State private var errorMessage: String?
     private var money: Money? {
         guard let money = try? MoneyText.parse(amount), money.minorUnits > 0,
@@ -102,6 +122,7 @@ private struct GoalTransferView: View {
                 Section(goal.name) {
                     LabeledContent("Накоплено", value: MoneyText.string(goal.balance))
                     LabeledContent("Цель", value: MoneyText.string(goal.target))
+                    Button("Срок и план взносов") { editingPlan = true }
                 }
                 Section(session.scope.title + " бюджет") {
                     Picker("Действие", selection: $withdrawal) {
@@ -121,6 +142,7 @@ private struct GoalTransferView: View {
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
             .navigationTitle("Накопления").navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $editingPlan) { GoalPlanView(session: session, goal: session.goals.first { $0.id == goal.id } ?? goal) }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -129,6 +151,47 @@ private struct GoalTransferView: View {
                         do { try session.transfer(goal: goal, amount: money, withdrawal: withdrawal, operationID: operationID); dismiss() }
                         catch { errorMessage = "Не удалось перевести деньги. Проверьте остаток и повторите." }
                     }.disabled(money == nil)
+                }
+            }
+        }
+    }
+}
+
+private struct GoalPlanView: View {
+    @Environment(\.dismiss) private var dismiss
+    let session: BudgetSession
+    let goal: SavingsGoalSnapshot
+    @State private var hasDeadline: Bool
+    @State private var deadline: Date
+    @State private var contribution: String
+    @State private var purpose: SavingsPurpose
+    @State private var errorMessage: String?
+    init(session: BudgetSession, goal: SavingsGoalSnapshot) {
+        self.session = session; self.goal = goal
+        _hasDeadline = State(initialValue: goal.deadline != nil)
+        _deadline = State(initialValue: goal.deadline ?? session.referenceDate)
+        _contribution = State(initialValue: goal.monthlyContribution.map(MoneyText.input) ?? "")
+        _purpose = State(initialValue: goal.purpose)
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(goal.name) {
+                    Picker("Назначение", selection: $purpose) { ForEach(SavingsPurpose.allCases) { Text($0.title).tag($0) } }
+                    Toggle("Указать срок", isOn: $hasDeadline)
+                    if hasDeadline { DatePicker("Накопить до", selection: $deadline, displayedComponents: .date) }
+                    TextField("Взнос в месяц (необязательно)", text: $contribution).keyboardType(.decimalPad)
+                    Text("Пустой взнос рассчитывается из остатка цели и срока. Деньги переводятся только после отдельного подтверждения.").font(.footnote).foregroundStyle(.secondary)
+                }
+                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+            }.navigationTitle("План цели").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Сохранить") {
+                        do { try session.updateGoal(goal, deadline: hasDeadline ? deadline : nil, contribution: contribution.isEmpty ? nil : MoneyText.parse(contribution, preserving: goal.monthlyContribution), purpose: purpose); dismiss() }
+                        catch { errorMessage = "План не сохранён. Проверьте взнос или откройте форму заново." }
+                    }
                 }
             }
         }

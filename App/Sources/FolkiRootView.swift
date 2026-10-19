@@ -43,6 +43,9 @@ private struct FolkiSummaryView: View {
                         Button(action: openBudget) { budgetFavorite(personal: personalDay.result, family: familyDay.result) }.buttonStyle(.plain)
                             .accessibilityHint("Открыть вкладку «Бюджет»")
                     }
+                    SummaryPlanningSection(personal: personal, family: family)
+                    SpendingReviewCard(session: personal, date: date)
+                    SpendingReviewCard(session: family, date: date)
                     familyInvitation
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Дальше в Folki").font(.title2.bold())
@@ -102,7 +105,7 @@ private struct FolkiSummaryView: View {
     private var familyInvitation: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Семья", systemImage: "person.2.fill").font(.title2.bold())
-            Text("Пригласите близкого человека, чтобы вести общие расходы и накопления. Личные деньги остаются отдельно.")
+            Text("Семья до пяти человек: общие расходы и накопления, отдельные личные деньги.")
                 .font(.subheadline).foregroundStyle(.secondary)
             Button("Добавить члена семьи", systemImage: "person.badge.plus") { showingFamily = true }
                 .buttonStyle(.bordered).controlSize(.large)

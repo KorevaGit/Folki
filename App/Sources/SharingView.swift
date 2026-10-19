@@ -1,102 +1,96 @@
 import SwiftUI
-import CloudKit
-import CoreData
-import FolkiDuoPersistence
+import FolkiDuoCore
 
 struct SharingView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
-    @State private var share: CKShare?
+    @State private var name = ""
+    @State private var email = ""
     @State private var preparing = false
-    @State private var showingController = false
+    @State private var invitationURL: URL?
     @State private var errorMessage: String?
     @State private var creatingBudget = false
+    @State private var editingMember: Member?
+    @State private var editedName = ""
+    @State private var removingMember: Member?
     var body: some View {
         NavigationStack {
             Form {
                 Section("Хранение") {
                     Text(session.repository?.statusText ?? "Демонстрационный режим")
                     if let repository = session.repository, repository.cloudIdentifier != nil {
-                        Button("Проверить iCloud") {
-                            Task { await repository.verifyAccount(); session.refresh() }
+                        Button("Проверить iCloud") { Task { await repository.verifyAccount(); session.refresh() } }
+                    }
+                }
+                Section("Семья · \(session.members.filter(\.isActive).count) из 5") {
+                    ForEach(session.members.filter(\.isActive)) { member in
+                        Button {
+                            editingMember = member; editedName = session.memberName(member.id)
+                        } label: { HStack { Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(.secondary) } }
+                        if member.id != session.authorID {
+                            Button("Убрать \(member.name) из семьи", role: .destructive) {
+                                removingMember = member
+                            }.font(.caption)
                         }
                     }
-                    if let last = session.repository?.lastCloudUpdate {
-                        LabeledContent("Последний обмен") { Text(last, format: .dateTime.day().month().hour().minute()) }
-                    }
-                    Text("Экспорт в iCloud не подтверждает, что партнёр уже открыл запись.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text("До пяти участников вместе с владельцем. Личные бюджеты не входят в общий доступ. Имена можно изменить. При удалении участника его прежние операции и имя сохраняются в истории.").font(.footnote).foregroundStyle(.secondary)
                 }
-                Section("Общий бюджет") {
-                    if session.household == nil {
-                        Text("Сначала создайте семейный план. Личный бюджет сохранится отдельно.")
+                if session.household == nil {
+                    Section {
+                        Text("Сначала создайте семейный план. Личные данные сохранятся отдельно.")
                         Button("Создать семейный бюджет") { creatingBudget = true }
                     }
-                    if let repository = session.repository, repository.cloudIdentifier != nil {
-                        Text("Пригласите одного партнёра с правом изменения. Доступ по приглашению; публичная ссылка выключена.")
-                        Button(preparing ? "Подготовка…" : "Пригласить или настроить доступ") {
-                            guard let household = session.household else { return }
-                            preparing = true
-                            Task {
-                                defer { preparing = false }
-                                do {
-                                    share = try await repository.share(householdID: household.id)
-                                    showingController = true
-                                } catch {
-                                    errorMessage = "Не удалось подготовить приглашение. Проверьте iCloud и повторите после обмена."
+                } else {
+                    Section(session.repository?.cloudIdentifier == nil ? "Добавить участника" : "Пригласить по Apple ID") {
+                        TextField("Имя", text: $name)
+                        if session.repository?.cloudIdentifier != nil {
+                            TextField("Email Apple ID", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
+                            Button(preparing ? "Подготовка…" : "Подготовить приглашение") {
+                                guard let repository = session.repository, let budget = session.storedBudget else { return }
+                                preparing = true; invitationURL = nil
+                                Task {
+                                    defer { preparing = false }
+                                    do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
+                                    catch { errorMessage = "Приглашение не подготовлено. Проверьте Apple ID, права владельца и свободное место. После ошибки обмена повторите для того же Apple ID." }
                                 }
-                            }
-                        }.disabled(preparing || session.household == nil)
-                    } else {
-                        Text("Сейчас включено локальное хранение. Для обмена нужна сборка с iCloud и подписью вашей команды Apple Developer.")
+                            }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
+                            if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
+                            Text("Приглашает владелец. Учитываются также ожидающие приглашения; публичный доступ отключён. После подготовки отправьте ссылку указанному человеку. Принимающему не нужно создавать отдельный семейный бюджет.").font(.footnote).foregroundStyle(.secondary)
+                        } else {
+                            Button("Добавить для учёта") {
+                                do { try session.addMember(name: name); name = "" }
+                                catch { errorMessage = "Не удалось добавить участника. В семье может быть не больше пяти человек." }
+                            }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
+                            Text("Это участник локального учёта, без доступа с другого устройства. Обмен доступен в сборке iCloud.").font(.footnote).foregroundStyle(.secondary)
+                        }
                     }
-                    if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
                 }
-            }
-            .sheet(isPresented: $showingController) {
-                if let share, let repository = session.repository, let identifier = repository.cloudIdentifier {
-                    CloudSharingController(share: share, identifier: identifier, repository: repository)
-                }
+                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
             .navigationTitle("Семья и доступ").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
             .sheet(isPresented: $creatingBudget) { BudgetSetupView(session: session) }
-        }
-    }
-}
-
-private struct CloudSharingController: UIViewControllerRepresentable {
-    let share: CKShare
-    let identifier: String
-    let repository: BudgetRepository
-    func makeCoordinator() -> Coordinator { Coordinator(repository: repository) }
-    func makeUIViewController(context: Context) -> UICloudSharingController {
-        let controller = UICloudSharingController(share: share, container: CKContainer(identifier: identifier))
-        controller.availablePermissions = [.allowPrivate, .allowReadWrite]
-        controller.delegate = context.coordinator
-        return controller
-    }
-    func updateUIViewController(_ controller: UICloudSharingController, context: Context) {}
-    final class Coordinator: NSObject, UICloudSharingControllerDelegate {
-        let repository: BudgetRepository
-        init(repository: BudgetRepository) { self.repository = repository }
-        func itemTitle(for csc: UICloudSharingController) -> String? { "Общий бюджет Folki" }
-        func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
-            repository.reportSharingError()
-        }
-        func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {
-            guard let share = csc.share else { return }
-            Task {
-                do {
-                    let store = share.currentUserParticipant?.role == .owner ? repository.privateStore : repository.sharedStore
-                    guard let store else { return }
-                    try await repository.persist(share: share, store: store)
-                } catch { repository.reportSharingError() }
+            .confirmationDialog("Убрать участника? Его записи сохранятся, облачный доступ будет отозван.", isPresented: Binding(get: { removingMember != nil }, set: { if !$0 { removingMember = nil } }), titleVisibility: .visible) {
+                if let member = removingMember {
+                    Button("Убрать \(member.name)", role: .destructive) {
+                        guard let repository = session.repository, let budget = session.storedBudget else { return }
+                        Task {
+                            do { try await repository.removeFamilyMember(member, in: budget, asOf: session.referenceDate); session.refresh() }
+                            catch { errorMessage = "Не удалось убрать участника. Для отзыва облачного доступа нужны права владельца и сеть." }
+                        }
+                    }
+                }
             }
-        }
-        func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
-            // Core Data handles the shared-zone removal; remote notifications reload snapshots.
-            repository.sharingStopped()
+            .alert("Имя участника", isPresented: Binding(get: { editingMember != nil }, set: { if !$0 { editingMember = nil } })) {
+                TextField("Имя", text: $editedName)
+                Button("Сохранить") {
+                    guard let member = editingMember else { return }
+                    do { try session.renameMember(member, name: editedName) }
+                    catch { errorMessage = "Имя не сохранено." }
+                    editingMember = nil
+                }
+                Button("Отмена", role: .cancel) { editingMember = nil }
+            }
         }
     }
 }

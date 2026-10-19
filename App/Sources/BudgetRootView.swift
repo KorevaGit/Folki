@@ -51,6 +51,9 @@ struct BudgetRootView: View {
                         ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented)
                     BudgetAnalyticsSection(session: session, date: date).id("analytics")
+                    NavigationLink { BudgetPlansView(session: session) } label: {
+                        destinationRow("Платежи и доходы", symbol: "calendar.badge.clock").budgetCard()
+                    }.buttonStyle(.plain)
                     if let result = overview.result {
                         if selectedDay == nil { forecast(result) }
                         recentRecords(overview.records)
@@ -86,6 +89,7 @@ struct BudgetRootView: View {
             }
             }
         }
+        .alert("Лимит категории", isPresented: Binding(get: { session.categoryNotice != nil }, set: { if !$0 { session.categoryNotice = nil } })) { Button("Готово") { session.categoryNotice = nil } } message: { Text(session.categoryNotice ?? "") }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
             switch destination {
