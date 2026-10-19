@@ -23,7 +23,7 @@ struct BudgetWeekCalendar: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 6) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 4) {
@@ -39,14 +39,14 @@ struct BudgetWeekCalendar: View {
                     }
                 }
             }.foregroundStyle(.secondary)
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 ForEach(0..<7, id: \.self) { offset in
                     if let date = calendar.date(byAdding: .day, value: offset, to: weekStart) {
                         day(date)
                     }
                 }
             }
-            .gesture(DragGesture(minimumDistance: 30).onEnded { value in
+            .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 if value.translation.width > 0 { moveWeek(-1) }
                 else if !isCurrentWeek { moveWeek(1) }
@@ -97,19 +97,20 @@ struct BudgetWeekCalendar: View {
         let isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: today)
         let weekday = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"][calendar.component(.weekday, from: date) - 1]
         return Button { select(date) } label: {
-            VStack(spacing: 7) {
+            VStack(spacing: 4) {
                 Text("\(calendar.component(.day, from: date))")
                     .font(.system(.body, design: .rounded, weight: .bold)).monospacedDigit()
                 Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
             }
             .lineLimit(1).minimumScaleFactor(0.7)
-            .frame(maxWidth: .infinity).frame(minHeight: 64)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity).frame(minHeight: 56)
             .foregroundStyle(isSelected ? Color(uiColor: .systemBackground) : .primary)
             .background(isSelected ? Color.primary : Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5),
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .opacity(isFuture ? 0.25 : (isSelected ? 1 : 0.65))
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .opacity(isFuture ? 0.38 : (isSelected ? 1 : 0.75))
         }
-        .buttonStyle(.plain).disabled(isFuture)
+        .buttonStyle(.plain).frame(maxWidth: .infinity).disabled(isFuture)
         .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

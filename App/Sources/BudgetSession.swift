@@ -178,13 +178,32 @@ final class BudgetSession {
     }
 }
 
-enum MoneyText {
+@MainActor enum MoneyText {
     static func string(_ money: Money) -> String {
+        string(money, quote: CurrencyDisplay.shared.activeQuote)
+    }
+    static func string(_ money: Money, quote: CurrencyQuote?) -> String {
+        let displayed: Money
+        if let quote {
+            guard let converted = try? quote.fromRubles(money) else { return "—" }
+            displayed = converted
+        } else { displayed = money }
+        return formatted(displayed)
+    }
+    private static func formatted(_ money: Money) -> String {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "ru_RU"); formatter.numberStyle = .currency
         formatter.currencyCode = money.currency.code
         formatter.minimumFractionDigits = 0; formatter.maximumFractionDigits = money.currency.fractionDigits
         return formatter.string(from: NSDecimalNumber(decimal: money.decimalValue)) ?? "—"
     }
-    static func input(_ money: Money) -> String { NSDecimalNumber(decimal: money.decimalValue).stringValue }
+    static func input(_ money: Money) -> String {
+        let converted = CurrencyDisplay.shared.activeQuote.flatMap { try? $0.fromRubles(money) } ?? money
+        return NSDecimalNumber(decimal: converted.decimalValue).stringValue
+    }
+    static func parse(_ text: String, preserving original: Money? = nil) throws -> Money {
+        let display = CurrencyDisplay.shared
+        let entered = try Money(parsing: text, currency: display.currency)
+        return try display.activeQuote?.toRubles(entered, preserving: original) ?? entered
+    }
 }

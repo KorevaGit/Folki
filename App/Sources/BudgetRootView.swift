@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, expense, details, sharing
+    case setup, expense, details, sharing, settings
     var id: String { rawValue }
 }
 
@@ -28,7 +28,7 @@ struct BudgetRootView: View {
         let overview = selectedScope == .personal ? personalDay : familyDay
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 18) {
                     BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar)
                     Button { sheet = .details } label: {
                         BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil)
@@ -77,6 +77,7 @@ struct BudgetRootView: View {
             case .setup: BudgetSetupView(session: session)
             case .expense: ExpenseEditorView(session: session)
             case .sharing: SharingView(session: family)
+            case .settings: BudgetSettingsView(personal: personal, family: family)
             case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
             }
         }
@@ -105,6 +106,9 @@ struct BudgetRootView: View {
             Button { sheet = .sharing } label: {
                 Image(systemName: "person.2").frame(width: 44, height: 44)
             }.accessibilityLabel("Бюджет и пара")
+            Button { sheet = .settings } label: {
+                Image(systemName: "gearshape").frame(width: 44, height: 44)
+            }.accessibilityLabel("Настройки бюджета")
             Menu {
                 Button("Личная запись", systemImage: "person") { openEntry(.personal) }
                 Button("Семейная запись", systemImage: "person.2") { openEntry(.family) }
@@ -112,7 +116,7 @@ struct BudgetRootView: View {
                 Image(systemName: "plus").frame(width: 44, height: 44)
             }.accessibilityLabel("Добавить запись")
         }
-        .font(.system(size: 22)).foregroundStyle(.orange).buttonStyle(.plain)
+        .font(.system(size: 22)).foregroundStyle(Color.folkiAccent).buttonStyle(.plain)
         .padding(.horizontal, 6).padding(.vertical, 2)
         .glassEffect(.regular, in: .capsule)
     }
@@ -165,7 +169,7 @@ struct BudgetRootView: View {
 
     private func destinationRow(_ title: String, symbol: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol).foregroundStyle(.orange).frame(width: 24)
+            Image(systemName: symbol).foregroundStyle(Color.folkiAccent).frame(width: 24)
             Text(title).font(.body)
             Spacer()
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
@@ -174,7 +178,7 @@ struct BudgetRootView: View {
 
     private func forecast(_ result: DailyBudgetSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Следующие дни", systemImage: "calendar").font(.headline).foregroundStyle(.orange)
+            Label("Следующие дни", systemImage: "calendar").font(.headline).foregroundStyle(Color.folkiAccent)
             if result.monthlyRemaining.minorUnits < 0 {
                 Text("Свободный бюджет закончился").font(.title3.bold())
                 Text("Пересмотрите расходы или план.").font(.subheadline).foregroundStyle(.secondary)

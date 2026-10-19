@@ -7,11 +7,11 @@ struct DemoHighlightsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Накопления").font(.title2.bold()).padding(.top, 14)
             VStack(alignment: .leading, spacing: 12) {
-                Label("Общая цель", systemImage: "flag.fill").font(.subheadline).foregroundStyle(.orange)
+                Label("Общая цель", systemImage: "flag.fill").font(.subheadline).foregroundStyle(Color.folkiAccent)
                 Text("Путешествие").font(.headline)
                 Text("48 000 ₽").font(.title2.bold())
                 Text("из 80 000 ₽ · демонстрация").font(.caption).foregroundStyle(.secondary)
-                ProgressView(value: 0.6).tint(.orange)
+                ProgressView(value: 0.6).tint(Color.folkiAccent)
             }.budgetCard()
             HStack {
                 Text("Награды").font(.title2.bold())
@@ -20,7 +20,7 @@ struct DemoHighlightsView: View {
             }.padding(.top, 14)
             Button(action: showAwards) {
                 HStack(spacing: 14) {
-                    Image(systemName: "person.2.fill").font(.title2).foregroundStyle(.orange)
+                    Image(systemName: "person.2.fill").font(.title2).foregroundStyle(Color.folkiAccent)
                         .frame(width: 50, height: 50).background(.quaternary, in: Circle())
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Планируем вдвоём").font(.headline)
@@ -46,11 +46,11 @@ struct DemoAwardsView: View {
                         Button { selected = award } label: {
                             VStack(spacing: 12) {
                                 Image(systemName: award.symbol).font(.title2)
-                                    .foregroundStyle(award.locked ? .secondary : Color.orange)
+                                    .foregroundStyle(award.locked ? .secondary : Color.folkiAccent)
                                     .frame(width: 62, height: 62).background(.quaternary, in: Circle())
                                 Text(award.name).font(.subheadline.weight(.semibold))
                                 Text(award.subtitle).font(.caption).foregroundStyle(.secondary)
-                                if award.locked { ProgressView(value: 5, total: 7).tint(.orange) }
+                                if award.locked { ProgressView(value: 5, total: 7).tint(Color.folkiAccent) }
                                 Spacer(minLength: 0)
                             }.multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 170).budgetCard()
                         }.buttonStyle(.plain)

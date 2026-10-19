@@ -54,7 +54,7 @@ private struct GoalSetupView: View {
     @State private var target = ""
     @State private var errorMessage: String?
     private var money: Money? {
-        guard let money = try? Money(parsing: target), money.minorUnits > 0 else { return nil }
+        guard let money = try? MoneyText.parse(target), money.minorUnits > 0 else { return nil }
         return money
     }
     var body: some View {
@@ -62,7 +62,7 @@ private struct GoalSetupView: View {
             Form {
                 Section(session.scope.savingsTitle) {
                     TextField("На что копим", text: $name)
-                    TextField("Цель, ₽", text: $target).keyboardType(.decimalPad)
+                    TextField("Цель, \(CurrencyDisplay.shared.symbol)", text: $target).keyboardType(.decimalPad)
                     Text(session.scope == .personal ? "Эту цель видите только вы." : "Эта цель относится к семейному бюджету.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -92,7 +92,7 @@ private struct GoalTransferView: View {
     @State private var withdrawal = false
     @State private var errorMessage: String?
     private var money: Money? {
-        guard let money = try? Money(parsing: amount), money.minorUnits > 0,
+        guard let money = try? MoneyText.parse(amount), money.minorUnits > 0,
               money.minorUnits <= (withdrawal ? goal.balance.minorUnits : session.result?.monthlyRemaining.minorUnits ?? 0) else { return nil }
         return money
     }
@@ -108,7 +108,7 @@ private struct GoalTransferView: View {
                         Text("Пополнить").tag(false)
                         Text("Вернуть в бюджет").tag(true)
                     }
-                    TextField("Сумма, ₽", text: $amount).keyboardType(.decimalPad)
+                    TextField("Сумма, \(CurrencyDisplay.shared.symbol)", text: $amount).keyboardType(.decimalPad)
                     if let money, let available = session.result?.monthlyRemaining,
                        let free = try? (withdrawal ? available.adding(money) : available.subtracting(money)),
                        let saved = try? (withdrawal ? goal.balance.subtracting(money) : goal.balance.adding(money)) {

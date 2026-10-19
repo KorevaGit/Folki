@@ -9,13 +9,13 @@ struct BudgetSetupView: View {
     @State private var reserveName = ""
     @State private var reserveAmount = ""
     private var reserve: ProtectedReserve? {
-        guard let amount = try? Money(parsing: reserveAmount), amount.minorUnits > 0, !reserveName.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        guard let amount = try? MoneyText.parse(reserveAmount), amount.minorUnits > 0, !reserveName.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
         return ProtectedReserve(name: reserveName, openingAmount: amount)
     }
     @State private var errorMessage: String?
     private var validated: (Money, Money)? {
-        guard let plan = try? Money(parsing: monthly), plan.minorUnits > 0,
-              let funds = try? Money(parsing: available), funds.minorUnits >= 0,
+        guard let plan = try? MoneyText.parse(monthly), plan.minorUnits > 0,
+              let funds = try? MoneyText.parse(available), funds.minorUnits >= 0,
               reserveAmount.isEmpty || (reserve != nil && reserve!.openingAmount.minorUnits <= funds.minorUnits) else { return nil }
         return (plan, funds)
     }
@@ -25,12 +25,12 @@ struct BudgetSetupView: View {
                 Section {
                     TextField("План на месяц", text: $monthly).keyboardType(.decimalPad)
                     TextField("Всего денег, включая накопления", text: $available).keyboardType(.decimalPad)
-                } header: { Text("Свободный бюджет, ₽") } footer: {
+                } header: { Text("Свободный бюджет, \(CurrencyDisplay.shared.symbol)") } footer: {
                     Text("Укажите все деньги выбранного бюджета, включая накопления. Накопления и резерв будут исключены из свободного остатка. Уже созданный месяц нельзя заменить: исправляйте отдельные операции.")
                 }
                 Section("Защищённый резерв · необязательно") {
                     TextField("Например, аренда", text: $reserveName)
-                    TextField("Сумма резерва, ₽", text: $reserveAmount).keyboardType(.decimalPad)
+                    TextField("Сумма резерва, \(CurrencyDisplay.shared.symbol)", text: $reserveAmount).keyboardType(.decimalPad)
                     Text("При оплате из резерва свободные деньги не уменьшатся повторно.").font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
@@ -83,7 +83,9 @@ struct ExpenseEditorView: View {
         else { _reserveID = State(initialValue: nil) }
     }
     private var draft: LedgerRecord? {
-        guard let money = try? Money(parsing: amount), money.minorUnits > 0 else { return nil }
+        // Keep the exact original amount when only editing text/category/date.
+        guard let money = try? MoneyText.parse(amount, preserving: editing?.transaction.amount),
+              money.minorUnits > 0 else { return nil }
         let type: TransactionKind = kind == "refund" ? .refund : kind == "income" ? .income : .expense
         let funding: BudgetFunding = type == .income ? (assignIncome ? .flexible : .unallocated)
             : reserveID.map { .reserve($0) } ?? .flexible
@@ -103,7 +105,7 @@ struct ExpenseEditorView: View {
                     Picker("Операция", selection: $kind) {
                         Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Поступление").tag("income")
                     }
-                    TextField("Сумма, ₽", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
+                    TextField("Сумма, \(CurrencyDisplay.shared.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
                     TextField("Описание", text: $title)
                     Picker("Категория", selection: $category) {
                         ForEach(ExpenseCategory.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -142,7 +144,7 @@ struct ExpenseEditorView: View {
                 }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
-            .navigationTitle(editing == nil ? "Новая запись" : "Изменить запись").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(editing == nil ? "Новая запись" : "Запись").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

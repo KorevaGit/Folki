@@ -17,7 +17,7 @@ struct FolkiRootView: View {
                 BudgetRootView(personal: personal, family: family)
             }
         }
-        .tint(.orange)
+        .tint(Color.folkiAccent)
     }
 }
 
@@ -57,7 +57,7 @@ private struct FolkiSummaryView: View {
     private var budgetFavorite: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label("Бюджет", systemImage: "wallet.bifold.fill").foregroundStyle(.orange)
+                Label("Бюджет", systemImage: "wallet.bifold.fill").foregroundStyle(Color.folkiAccent)
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
             }.font(.headline)

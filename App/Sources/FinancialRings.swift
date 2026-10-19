@@ -32,10 +32,10 @@ struct RingPalette {
     let start: (Double, Double, Double)
     let end: (Double, Double, Double)
     static let all = [
-        RingPalette(start: (0.94, 0.06, 0.24), end: (1, 0.30, 0.42)),
-        RingPalette(start: (0.48, 0.85, 0.03), end: (0.77, 1, 0.10)),
-        RingPalette(start: (0.02, 0.65, 0.90), end: (0.27, 0.95, 1)),
-        RingPalette(start: (0.43, 0.25, 0.95), end: (0.78, 0.53, 1))
+        RingPalette(start: (1, 0.40, 0.03), end: (1, 0.69, 0.16)),
+        RingPalette(start: (0.02, 0.58, 0.57), end: (0.15, 0.85, 0.73)),
+        RingPalette(start: (0.43, 0.28, 0.91), end: (0.74, 0.48, 1)),
+        RingPalette(start: (0.12, 0.37, 0.88), end: (0.35, 0.67, 1))
     ]
     func color(at fraction: Double) -> Color {
         Color(red: start.0 + (end.0 - start.0) * fraction,
@@ -85,12 +85,6 @@ private struct FinancialRing: View, Animatable {
                         .frame(width: lineWidth, height: lineWidth)
                         .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.12), radius: 2, x: 0, y: 1)
                         .position(x: size / 2 + cos(angle) * radius, y: size / 2 + sin(angle) * radius)
-                    if lineWidth >= 10 && progress > 0.08 {
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: lineWidth * 0.58, weight: .heavy))
-                            .foregroundStyle(.black.opacity(0.7))
-                            .position(x: size / 2, y: lineWidth / 2)
-                    }
                 }
             }
             .frame(width: size, height: size)
@@ -107,12 +101,7 @@ struct BudgetRingsCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 34
     var body: some View {
-        VStack(spacing: 20) {
-            HStack {
-                Text("Личное и общее").foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.tertiary).font(.caption.bold())
-            }.font(.title2.bold())
+        VStack(spacing: 16) {
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
                 ZStack {
@@ -122,7 +111,7 @@ struct BudgetRingsCard: View {
                         centralAmounts(large: false, width: size * 0.50)
                     }.frame(width: size * 0.50, height: size * 0.48)
                 }
-            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 344)
+            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 304)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 18) {
                 metric("Личный · день", index: 0, remaining: personal?.todayRemaining, plan: personal?.todayGuide)
                 metric("Семейный · день", index: 1, remaining: family?.todayRemaining, plan: family?.todayGuide)
