@@ -233,6 +233,40 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
     static func prepare() { selector.prepare(); soft.prepare(); light.prepare() }
 }
 
+/// Quiet controls: a soft tint of the text color, no outline, no glass shine. Visible on the page and inside cards.
+extension Color {
+    static let folkiSoft = Color.primary.opacity(0.07)
+}
+
+/// Secondary buttons: soft fill, accent text, gives under the finger.
+struct FolkiSoftButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+            .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 44)
+            .background(Color.folkiSoft, in: Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)
+    }
+}
+
+/// The main action of a screen: solid accent, white text.
+struct FolkiPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(.title3, design: .rounded, weight: .bold)).foregroundStyle(.white)
+            .padding(.horizontal, 20).frame(minHeight: 56)
+            .background(Color.folkiAccent.opacity(isEnabled ? 1 : 0.35), in: Capsule())
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)
+    }
+}
+
 /// Buttons that give a little under the finger.
 struct FolkiPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

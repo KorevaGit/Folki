@@ -100,9 +100,8 @@ struct QuickSpendView: View {
         NavigationStack {
             FolkiEntryLayout(hidesKeypad: descriptionFocused) { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
-                    FolkiDateHeader(date: date).padding(.horizontal, FolkiSpacing.page)
                     FolkiSegmentedPicker(title: "Бюджет", selection: scopeSelection,
-                        options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 64)
+                        options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
                     .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; recordID = UUID() }
                     if let before = session.result {
@@ -115,7 +114,7 @@ struct QuickSpendView: View {
                             .contentTransition(reduceMotion ? .identity : .numericText()).animation(reduceMotion ? nil : .snappy, value: amount)
                             .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
                         ImpactLines(before: before, after: after)
-                            .padding(FolkiSpacing.card).frame(maxWidth: .infinity)
+                            .padding(.vertical, 12).padding(.horizontal, FolkiSpacing.card).frame(maxWidth: .infinity)
                             .folkiGlass(RoundedRectangle(cornerRadius: 18))
                             .padding(.horizontal, FolkiSpacing.page)
                         if !isIncome { categoryChips.frame(height: chipHeight + 12) }
@@ -126,7 +125,7 @@ struct QuickSpendView: View {
                         TextField("Описание · необязательно", text: $title)
                             .focused($descriptionFocused).submitLabel(.done)
                             .onSubmit { descriptionFocused = false }
-                            .padding(FolkiSpacing.card).folkiGlass(RoundedRectangle(cornerRadius: 18))
+                            .padding(FolkiSpacing.card).background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .padding(.horizontal, FolkiSpacing.page)
                         if let errorMessage {
                             FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page)
@@ -137,7 +136,7 @@ struct QuickSpendView: View {
                         } description: {
                             Text("Укажи план на месяц, и Folki посчитает, сколько можно тратить в день.")
                         } actions: {
-                            Button("Настроить") { settingUp = true }.buttonStyle(.glassProminent)
+                            Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
                         }
                     }
                 }
@@ -149,8 +148,8 @@ struct QuickSpendView: View {
                             Text(isIncome ? "Внести деньги" : "Записать").font(.system(.title3, design: .rounded, weight: .bold))
                                 .frame(maxWidth: .infinity).frame(minHeight: 60)
                                 .foregroundStyle(.white)
-                                .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: .capsule)
-                        }.buttonStyle(.plain).disabled(after == nil)
+                                .background(Color.folkiAccent.opacity(after == nil ? 0.35 : 1), in: Capsule())
+                        }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
                     }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
                 }
             }
@@ -162,7 +161,7 @@ struct QuickSpendView: View {
                     Button("Готово") { descriptionFocused = false }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть", systemImage: "xmark") { dismiss() }
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
                 }
             }
             .sheet(isPresented: $showingAllCategories) { CategoryPickerView(session: session, selection: $categoryID) }
@@ -185,13 +184,13 @@ struct QuickSpendView: View {
                             Text(category.name).font(.subheadline).lineLimit(1)
                         }
                         .padding(.horizontal, FolkiSpacing.card).frame(minHeight: chipHeight)
-                        .glassEffect(.regular.tint(isSelected ? category.color.color.opacity(0.3) : .clear).interactive(), in: .capsule)
+                        .background(isSelected ? category.color.color.opacity(0.22) : Color.folkiSoft, in: Capsule())
                     }
                     .buttonStyle(FolkiPressStyle()).accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
                 Button("Ещё") { showingAllCategories = true }
                     .font(.subheadline.weight(.medium)).padding(.horizontal, 18).frame(minHeight: chipHeight)
-                    .glassEffect(.regular.interactive(), in: .capsule).buttonStyle(.plain)
+                    .background(Color.folkiSoft, in: Capsule()).buttonStyle(FolkiPressStyle())
             }.padding(.horizontal, FolkiSpacing.page)
         }
     }
@@ -224,7 +223,7 @@ struct AmountKeypad: View {
                     }
                     .font(.system(.title2, design: .rounded, weight: .medium))
                     .frame(maxWidth: .infinity, minHeight: keyHeight)
-                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
+                    .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.92))
                 .accessibilityLabel(key == "⌫" ? "Стереть" : key == "," ? "Запятая" : key)

@@ -145,7 +145,7 @@ struct BudgetRootView: View {
     private var spendButton: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
-        return GlassEffectContainer(spacing: 12) {
+        return Group {
         layout {
             Button {
                 FolkiFeedback.tap()
@@ -155,7 +155,7 @@ struct BudgetRootView: View {
             } label: {
                 Text("− Потратить").frame(maxWidth: .infinity).frame(minHeight: 70)
                     .foregroundStyle(.white)
-                    .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: .capsule)
+                    .background(Color.folkiAccent, in: Capsule())
             }
             .buttonStyle(FolkiPressStyle())
             .frame(minWidth: 104, maxWidth: .infinity)
@@ -165,7 +165,7 @@ struct BudgetRootView: View {
                 Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
             } label: {
                 Text("+ Внести").frame(maxWidth: .infinity, minHeight: 70)
-                    .glassEffect(.regular.interactive(), in: .capsule).foregroundStyle(Color.folkiInk)
+                    .background(Color.folkiSoft, in: Capsule()).foregroundStyle(Color.folkiInk)
             }
             .menuStyle(.button).buttonStyle(.plain)
                 .simultaneousGesture(TapGesture().onEnded { FolkiFeedback.tap(); returnToToday() })

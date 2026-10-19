@@ -127,9 +127,9 @@ struct FamilyMembersCard: View {
                 }
             }
             Button(action: manage) {
-                Label("Пригласить и управлять доступом", systemImage: "person.badge.plus")
+                Label("Пригласить", systemImage: "person.badge.plus")
                     .frame(maxWidth: .infinity, minHeight: 44)
-            }.buttonStyle(.glass)
+            }.buttonStyle(FolkiSoftButtonStyle())
         }.budgetCard()
     }
 }
@@ -142,9 +142,9 @@ struct MemberAvatar: View {
         return letters.isEmpty ? "?" : String(letters).uppercased()
     }
     var body: some View {
-        Text(initials).font(.system(.title3, design: .rounded, weight: .semibold))
+        Text(initials).font(.system(.body, design: .rounded, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: 48, height: 48)
+            .frame(width: 40, height: 40)
             .background(LinearGradient(colors: [Color.gray.opacity(0.65), Color.gray], startPoint: .top, endPoint: .bottom), in: Circle())
             .accessibilityHidden(true)
     }

@@ -18,7 +18,7 @@ struct BudgetSettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Какой бюджет настроим?").font(.headline)
                         FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
-                            options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 64)
+                            options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 52)
                         Text(scope == .personal ? "Личные суммы и категории видишь только ты." : "Семейный план и категории общие для участников семьи.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
@@ -32,7 +32,7 @@ struct BudgetSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Семья и доступ").font(.system(.title2, design: .rounded, weight: .bold))
                         FamilyMembersCard(family: family) { showingFamily = true }
-                        Text("До пяти человек. Семейный бюджет общий, личные бюджеты друг другу не видны.")
+                        Text("Личные бюджеты друг другу не видны.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }.folkiPagePadding()
@@ -42,7 +42,7 @@ struct BudgetSettingsView: View {
             .navigationTitle("Настройки").toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть", systemImage: "xmark") { dismiss() }
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
                 }
             }
             .sheet(item: $setupScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family) }
@@ -67,9 +67,9 @@ struct BudgetSettingsView: View {
                     Button { limitsScope = scope } label: {
                         Label("Изменить месячный план", systemImage: "slider.horizontal.3")
                             .frame(maxWidth: .infinity, minHeight: 44)
-                    }.buttonStyle(.glass)
+                    }.buttonStyle(FolkiSoftButtonStyle())
                 }.budgetCard()
-                Text("План — ориентир расходов. Его изменение не пополняет бюджет. Новые деньги добавляются через «Внести». Ориентир дня считается из свободного остатка, а не из плана.")
+                Text("Чтобы добавить деньги, используй «Внести».")
                     .font(.footnote).foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -77,7 +77,7 @@ struct BudgetSettingsView: View {
                     Text("Укажи план расходов и сколько денег уже есть. После этого появится ориентир на день.")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Button("Создать план месяца", systemImage: "plus") { setupScope = scope }
-                        .buttonStyle(.glass).controlSize(.large)
+                        .buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
                 }.budgetCard()
             }
         }

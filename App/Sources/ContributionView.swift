@@ -51,7 +51,7 @@ struct ContributionView: View {
                     Button(action: transfer) {
                         Text("Перевести в семейный").font(.headline)
                             .frame(maxWidth: .infinity).frame(minHeight: 60).foregroundStyle(.white)
-                            .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: .capsule)
+                            .background(Color.folkiAccent, in: Capsule())
                     }.buttonStyle(.plain).disabled(money == nil)
                 }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
             }
@@ -59,7 +59,7 @@ struct ContributionView: View {
             .navigationTitle("Взнос").toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть", systemImage: "xmark") { dismiss() }
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
                 }
             }
         }.tint(Color.folkiAccent)

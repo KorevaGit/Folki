@@ -56,10 +56,10 @@ struct SpendingLimitsView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                         Button(action: save) {
                             Text("Сохранить план").font(.headline).frame(maxWidth: .infinity, minHeight: 52)
-                        }.buttonStyle(.glassProminent).disabled(limit == nil)
+                        }.buttonStyle(FolkiPrimaryButtonStyle()).disabled(limit == nil)
                     } else {
                         Text("На текущий месяц ещё нет плана.").font(.headline)
-                        Button("Создать план месяца") { settingUp = true }.buttonStyle(.glass).controlSize(.large)
+                        Button("Создать план месяца") { settingUp = true }.buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
                     }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.folkiPagePadding()
@@ -68,7 +68,7 @@ struct SpendingLimitsView: View {
             .navigationTitle("План").toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть", systemImage: "xmark") { dismiss() }
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
                 }
             }
             .sheet(isPresented: $settingUp, onDismiss: reload) { BudgetSetupView(session: session) }

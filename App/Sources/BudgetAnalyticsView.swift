@@ -52,7 +52,7 @@ struct BudgetAnalyticsSection: View {
                 } label: {
                     Label("Все операции этого бюджета", systemImage: "clock.arrow.circlepath")
                         .frame(maxWidth: .infinity, minHeight: 44)
-                }.buttonStyle(.glass)
+                }.buttonStyle(FolkiSoftButtonStyle())
             } else {
                 ContentUnavailableView("Не удалось посчитать", systemImage: "chart.bar.xaxis",
                     description: Text("Открой историю и проверь записи, затем попробуй снова."))
@@ -64,7 +64,7 @@ struct BudgetAnalyticsSection: View {
     private func periodNavigation(_ result: BudgetAnalyticsSnapshot) -> some View {
         HStack(spacing: 12) {
             Button { move(-1) } label: { Image(systemName: "chevron.left").frame(width: 24, height: 24) }
-                .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("Предыдущий период")
+                .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).accessibilityLabel("Предыдущий период")
             VStack(spacing: 4) {
                 if period == .day {
                     Text(result.interval.start, format: .dateTime.day().month(.wide).year())
@@ -74,7 +74,7 @@ struct BudgetAnalyticsSection: View {
                 Text("\(session.scope.title) бюджет").font(.caption).foregroundStyle(.secondary)
             }.font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).multilineTextAlignment(.center)
             Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
-                .buttonStyle(.glass).buttonBorderShape(.circle).disabled(!canGoForward)
+                .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).disabled(!canGoForward)
                 .accessibilityLabel("Следующий период")
         }
     }
