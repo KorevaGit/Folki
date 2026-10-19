@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, expense, details, sharing, settings
+    case setup, expense, details, settings, limits
     var id: String { rawValue }
 }
 
@@ -13,7 +13,11 @@ struct BudgetRootView: View {
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
     @State private var editingRecord: LedgerRecord?
-    @State private var selectedDay: Date?
+    @Binding var selectedDay: Date?
+    @State private var entryKind: TransactionKind = .expense
+    @State private var analyticsJump = UUID()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var calendar: Calendar {
         var calendar = family.household?.period.calendar ?? personal.household?.period.calendar ?? .current
@@ -27,11 +31,17 @@ struct BudgetRootView: View {
         let familyDay = family.overview(on: date)
         let overview = selectedScope == .personal ? personalDay : familyDay
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
                     BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar)
                     Button { sheet = .details } label: {
-                        BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil)
+                        BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil, part: .rings)
+                            .frame(maxWidth: .infinity)
+                    }.buttonStyle(.plain)
+                    entryActions
+                    Button { sheet = .details } label: {
+                        BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil, part: .values)
                     }.buttonStyle(.plain)
                     if selectedDay != nil {
                         Text("Итоги дня по текущим записям")
@@ -40,6 +50,7 @@ struct BudgetRootView: View {
                     Picker("Бюджет", selection: $selectedScope) {
                         ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented)
+                    BudgetAnalyticsSection(session: session, date: date).id("analytics")
                     if let result = overview.result {
                         if selectedDay == nil { forecast(result) }
                         recentRecords(overview.records)
@@ -70,13 +81,17 @@ struct BudgetRootView: View {
             .navigationTitle("Бюджет")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
+            .onChange(of: analyticsJump) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { proxy.scrollTo("analytics", anchor: .top) }
+            }
+            }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .setup: BudgetSetupView(session: session)
-            case .expense: ExpenseEditorView(session: session)
-            case .sharing: SharingView(session: family)
+            case .expense: ExpenseEditorView(session: session, initialKind: entryKind)
+            case .limits: SpendingLimitsView(personal: personal, family: family, scope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
             }
@@ -103,27 +118,43 @@ struct BudgetRootView: View {
     }
     private var headerActions: some View {
         HStack(spacing: 4) {
-            Button { sheet = .sharing } label: {
-                Image(systemName: "person.2").frame(width: 44, height: 44)
-            }.accessibilityLabel("Бюджет и пара")
+            Button { analyticsJump = UUID() } label: {
+                Image(systemName: "chart.bar.xaxis").frame(width: 44, height: 44)
+            }.accessibilityLabel("Аналитика бюджета")
             Button { sheet = .settings } label: {
                 Image(systemName: "gearshape").frame(width: 44, height: 44)
             }.accessibilityLabel("Настройки бюджета")
-            Menu {
-                Button("Личная запись", systemImage: "person") { openEntry(.personal) }
-                Button("Семейная запись", systemImage: "person.2") { openEntry(.family) }
-            } label: {
-                Image(systemName: "plus").frame(width: 44, height: 44)
-            }.accessibilityLabel("Добавить запись")
+            Button { sheet = .limits } label: {
+                Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
+            }.accessibilityLabel("Лимиты расходов")
         }
         .font(.system(size: 22)).foregroundStyle(Color.folkiAccent).buttonStyle(.plain)
         .padding(.horizontal, 6).padding(.vertical, 2)
         .glassEffect(.regular, in: .capsule)
     }
 
-    private func openEntry(_ scope: BudgetScope) {
+    private var entryActions: some View {
+        HStack(spacing: 12) {
+            Menu {
+                Button("Личные деньги", systemImage: "person") { openEntry(.personal, kind: .expense) }
+                Button("Семейные деньги", systemImage: "person.2") { openEntry(.family, kind: .expense) }
+            } label: {
+                Label("Потратить", systemImage: "minus.circle").frame(maxWidth: .infinity)
+                    .foregroundStyle(colorScheme == .dark ? Color.black : .white)
+            }.buttonStyle(.borderedProminent)
+            Menu {
+                Button("В личный бюджет", systemImage: "person") { openEntry(.personal, kind: .income) }
+                Button("В семейный бюджет", systemImage: "person.2") { openEntry(.family, kind: .income) }
+            } label: {
+                Label("Внести", systemImage: "plus.circle").frame(maxWidth: .infinity)
+            }.buttonStyle(.bordered)
+        }.controlSize(.large).font(.headline)
+    }
+
+    private func openEntry(_ scope: BudgetScope, kind: TransactionKind) {
         selectedDay = nil
         selectedScope = scope
+        entryKind = kind
         let destination = scope == .personal ? personal : family
         sheet = destination.result == nil ? .setup : .expense
     }

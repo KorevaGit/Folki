@@ -93,15 +93,19 @@ private struct FinancialRing: View, Animatable {
     }
 }
 
+enum RingCardPart { case all, rings, values }
+
 struct BudgetRingsCard: View {
     let personal: DailyBudgetSnapshot?
     let family: DailyBudgetSnapshot?
     var isToday = true
+    var part: RingCardPart = .all
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 34
     var body: some View {
         VStack(spacing: 16) {
+            if part != .values {
             GeometryReader { geometry in
                 let size = min(geometry.size.width, geometry.size.height)
                 ZStack {
@@ -111,7 +115,9 @@ struct BudgetRingsCard: View {
                         centralAmounts(large: false, width: size * 0.50)
                     }.frame(width: size * 0.50, height: size * 0.48)
                 }
-            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 304)
+            }.aspectRatio(1, contentMode: .fit).frame(maxWidth: 280)
+            }
+            if part != .rings {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 18) {
                 metric("Личный · день", index: 0, remaining: personal?.todayRemaining, plan: personal?.todayGuide)
                 metric("Семейный · день", index: 1, remaining: family?.todayRemaining, plan: family?.todayGuide)
@@ -119,13 +125,14 @@ struct BudgetRingsCard: View {
                 metric("Семейный · месяц", index: 3, remaining: family?.monthlyRemaining, plan: family?.monthlyPlan)
             }.padding(16)
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 24))
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(isToday ? "Сегодня" : "Выбранный день"). Личный бюджет: \(description(personal)). Семейный бюджет: \(description(family)).")
         .accessibilityHint("Открыть расчёт выбранного бюджета")
     }
     private func centralAmounts(large: Bool, width: CGFloat) -> some View {
-        let personalText = personal.map { MoneyText.string($0.todayRemaining.minorUnits >= 0 ? $0.todayRemaining : $0.todayOverspending) } ?? "—"
+        let personalText = personal.map { MoneyText.string($0.todayRemaining) } ?? "—"
         let desiredSize = amountSize * (large ? 1 : 0.85)
         let measured = (personalText as NSString).size(withAttributes: [.font: roundedFont(size: desiredSize, weight: .bold)]).width
         let fittedSize = min(desiredSize, desiredSize * width / max(1, measured))
@@ -134,11 +141,13 @@ struct BudgetRingsCard: View {
                 .font(large ? .caption : .caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
             Text(personalText)
                 .font(Font(roundedFont(size: fittedSize, weight: .bold)))
+                .foregroundStyle(personal.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
             Text(family.map { $0.todayRemaining.minorUnits < 0 ? "Общий · сверх плана" : "Общий · \(isToday ? "сегодня" : "день")" } ?? "Общий")
                 .font(.caption2).foregroundStyle(.secondary).padding(.top, large ? 3 : 0).lineLimit(1).minimumScaleFactor(0.6)
-            Text(family.map { MoneyText.string($0.todayRemaining.minorUnits >= 0 ? $0.todayRemaining : $0.todayOverspending) } ?? "—")
+            Text(family.map { MoneyText.string($0.todayRemaining) } ?? "—")
                 .font(Font(roundedFont(size: fittedSize * 0.64, weight: .semibold)))
+                .foregroundStyle(family.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
         }
     }
@@ -150,7 +159,7 @@ struct BudgetRingsCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Text(remaining.map(MoneyText.string) ?? "—").font(.title3.bold()).monospacedDigit()
-                .foregroundStyle(RingPalette.all[index].readableColor(in: colorScheme))
+                .foregroundStyle(remaining.map { $0.minorUnits < 0 } == true ? Color.red : RingPalette.all[index].readableColor(in: colorScheme))
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(plan.map { "из \(MoneyText.string($0))" } ?? "Не настроен")
                 .font(.caption2).foregroundStyle(.secondary)

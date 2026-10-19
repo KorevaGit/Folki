@@ -10,6 +10,7 @@ struct SharingView: View {
     @State private var preparing = false
     @State private var showingController = false
     @State private var errorMessage: String?
+    @State private var creatingBudget = false
     var body: some View {
         NavigationStack {
             Form {
@@ -27,6 +28,10 @@ struct SharingView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Общий бюджет") {
+                    if session.household == nil {
+                        Text("Сначала создайте семейный план. Личный бюджет сохранится отдельно.")
+                        Button("Создать семейный бюджет") { creatingBudget = true }
+                    }
                     if let repository = session.repository, repository.cloudIdentifier != nil {
                         Text("Пригласите одного партнёра с правом изменения. Доступ по приглашению; публичная ссылка выключена.")
                         Button(preparing ? "Подготовка…" : "Пригласить или настроить доступ") {
@@ -53,8 +58,9 @@ struct SharingView: View {
                     CloudSharingController(share: share, identifier: identifier, repository: repository)
                 }
             }
-            .navigationTitle("Бюджет и пара").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Семья и доступ").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+            .sheet(isPresented: $creatingBudget) { BudgetSetupView(session: session) }
         }
     }
 }

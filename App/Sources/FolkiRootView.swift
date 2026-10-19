@@ -7,14 +7,15 @@ struct FolkiRootView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var selection: FolkiTab = .summary
+    @State private var selectedDay: Date?
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("Сводка", systemImage: "square.grid.2x2.fill", value: .summary) {
-                FolkiSummaryView(personal: personal, family: family) { selection = .budget }
+                FolkiSummaryView(personal: personal, family: family, selectedDay: $selectedDay) { selection = .budget }
             }
             Tab("Бюджет", systemImage: "wallet.bifold", value: .budget) {
-                BudgetRootView(personal: personal, family: family)
+                BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
             }
         }
         .tint(Color.folkiAccent)
@@ -24,19 +25,24 @@ struct FolkiRootView: View {
 private struct FolkiSummaryView: View {
     let personal: BudgetSession
     let family: BudgetSession
+    @Binding var selectedDay: Date?
     let openBudget: () -> Void
+    @State private var showingFamily = false
 
     var body: some View {
+        let date = selectedDay ?? family.referenceDate
+        let personalDay = personal.overview(on: date)
+        let familyDay = family.overview(on: date)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text(family.referenceDate, format: .dateTime.weekday(.wide).day().month(.wide))
-                        .font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+                    BudgetWeekCalendar(selection: $selectedDay, today: family.referenceDate, calendar: family.calendar)
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Избранное").font(.title2.bold())
-                        Button(action: openBudget) { budgetFavorite }.buttonStyle(.plain)
+                        Button(action: openBudget) { budgetFavorite(personal: personalDay.result, family: familyDay.result) }.buttonStyle(.plain)
                             .accessibilityHint("Открыть вкладку «Бюджет»")
                     }
+                    familyInvitation
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Дальше в Folki").font(.title2.bold())
                         VStack(spacing: 0) {
@@ -52,9 +58,10 @@ private struct FolkiSummaryView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Сводка")
         }
+        .sheet(isPresented: $showingFamily) { SharingView(session: family) }
     }
 
-    private var budgetFavorite: some View {
+    private func budgetFavorite(personal: DailyBudgetSnapshot?, family: DailyBudgetSnapshot?) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Label("Бюджет", systemImage: "wallet.bifold.fill").foregroundStyle(Color.folkiAccent)
@@ -63,22 +70,34 @@ private struct FolkiSummaryView: View {
             }.font(.headline)
             HStack(spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Личный · сегодня").font(.subheadline).foregroundStyle(.secondary)
-                    Text(personal.result.map { MoneyText.string($0.todayRemaining) } ?? "—")
+                    Text(selectedDay == nil ? "Личный · сегодня" : "Личный · выбранный день").font(.subheadline).foregroundStyle(.secondary)
+                    Text(personal.map { MoneyText.string($0.todayRemaining) } ?? "—")
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        .foregroundStyle(personal.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
                     HStack(spacing: 4) {
                         Text("Общий").foregroundStyle(.secondary)
-                        Text(family.result.map { MoneyText.string($0.todayRemaining) } ?? "—").fontWeight(.semibold)
+                        Text(family.map { MoneyText.string($0.todayRemaining) } ?? "—").fontWeight(.semibold)
+                            .foregroundStyle(family.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                     }.font(.subheadline)
                 }
                 Spacer(minLength: 0)
-                FinancialRings(personal: personal.result, family: family.result, compact: true)
+                FinancialRings(personal: personal, family: family, compact: true)
                     .frame(width: 94, height: 94).accessibilityHidden(true)
             }
             Divider()
-            Text(personal.result == nil ? "Настройте личный бюджет — семейные записи останутся отдельно." : "Личные и семейные деньги учитываются отдельно.")
+            Text(personal == nil ? "На эту дату личный план не настроен. Семейные записи остаются отдельно." : "Личные и семейные деньги учитываются отдельно.")
                 .font(.footnote).foregroundStyle(.secondary)
+        }.budgetCard()
+    }
+
+    private var familyInvitation: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Семья", systemImage: "person.2.fill").font(.title2.bold())
+            Text("Пригласите близкого человека, чтобы вести общие расходы и накопления. Личные деньги остаются отдельно.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Button("Добавить члена семьи", systemImage: "person.badge.plus") { showingFamily = true }
+                .buttonStyle(.bordered).controlSize(.large)
         }.budgetCard()
     }
 

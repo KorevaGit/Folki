@@ -26,6 +26,11 @@ final class BudgetSession {
     var records: [LedgerRecord] { allRecords.filter { !$0.transaction.isDeleted } }
     var deletedRecords: [LedgerRecord] { allRecords.filter { $0.transaction.isDeleted } }
     var referenceDate: Date { demoDate ?? .now }
+    var calendar: Calendar {
+        var value = household?.period.calendar ?? Calendar.current
+        value.firstWeekday = 2; value.minimumDaysInFirstWeek = 4
+        return value
+    }
     var isDemo: Bool { demoDate != nil }
     var storedBudget: StoredBudget? {
         guard let household else { return nil }
@@ -115,6 +120,18 @@ final class BudgetSession {
         allRecords = []; refresh()
     }
 
+    func updateSpendingLimit(_ amount: Money, expected budget: StoredBudget) throws {
+        if let repository {
+            try repository.updateSpendingLimit(amount, in: budget, asOf: referenceDate)
+        } else {
+            guard isDemo, let current = household, amount.currency == .rub, amount.minorUnits > 0,
+                  current.id == budget.snapshot.id, current.monthlyFreePlan == budget.snapshot.monthlyFreePlan else { throw LedgerError.conflict }
+            household = HouseholdSnapshot(id: current.id, period: current.period, monthlyFreePlan: amount,
+                openingFunds: current.openingFunds, reserves: current.reserves, transactions: current.transactions)
+        }
+        refresh()
+    }
+
     func draft(amount: Money, title: String, payerID: UUID, date: Date, kind: TransactionKind,
                category: ExpenseCategory, funding: BudgetFunding, editing: LedgerRecord? = nil,
                deleted: Bool = false, newRecordID: UUID = UUID()) throws -> LedgerRecord {
@@ -194,6 +211,7 @@ final class BudgetSession {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "ru_RU"); formatter.numberStyle = .currency
         formatter.currencyCode = money.currency.code
+        formatter.minusSign = "−"
         formatter.minimumFractionDigits = 0; formatter.maximumFractionDigits = money.currency.fractionDigits
         return formatter.string(from: NSDecimalNumber(decimal: money.decimalValue)) ?? "—"
     }

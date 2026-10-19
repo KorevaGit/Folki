@@ -70,15 +70,17 @@ struct ExpenseEditorView: View {
     @State private var reserveID: UUID?
     @State private var errorMessage: String?
 
-    init(session: BudgetSession, editing: LedgerRecord? = nil) {
+    init(session: BudgetSession, editing: LedgerRecord? = nil, initialKind: TransactionKind = .expense) {
         self.session = session; self.editing = editing
         _amount = State(initialValue: editing.map { MoneyText.input($0.transaction.amount) } ?? "")
         _title = State(initialValue: editing?.title ?? "")
         _payerID = State(initialValue: editing?.transaction.payerID ?? session.authorID ?? session.members.first?.id ?? UUID())
         _date = State(initialValue: editing?.transaction.date ?? session.referenceDate)
-        _kind = State(initialValue: editing?.transaction.kind == .refund ? "refund" : editing?.transaction.kind == .income ? "income" : "expense")
+        let type = editing?.transaction.kind ?? initialKind
+        _kind = State(initialValue: type == .refund ? "refund" : type == .income ? "income" : "expense")
         _category = State(initialValue: editing?.category ?? .other)
-        _assignIncome = State(initialValue: editing?.transaction.kind == .income && editing?.transaction.funding == .flexible)
+        _assignIncome = State(initialValue: editing.map { $0.transaction.kind == .income && $0.transaction.funding == .flexible }
+            ?? (initialKind == .income))
         if case .reserve(let id) = editing?.transaction.funding { _reserveID = State(initialValue: id) }
         else { _reserveID = State(initialValue: nil) }
     }
@@ -130,7 +132,9 @@ struct ExpenseEditorView: View {
                 }
                 if let impact {
                     Section("После сохранения") {
-                        LabeledContent("Остаток дня", value: MoneyText.string(impact.todayRemaining))
+                        LabeledContent("Остаток дня") {
+                            Text(MoneyText.string(impact.todayRemaining)).foregroundStyle(impact.todayRemaining.minorUnits < 0 ? Color.red : .primary)
+                        }
                         LabeledContent("Месяц", value: MoneyText.string(impact.monthlyRemaining))
                         if let future = impact.futureAllocation {
                             LabeledContent("Далее в день", value: "≈\(MoneyText.string(future.firstDayAmount))")

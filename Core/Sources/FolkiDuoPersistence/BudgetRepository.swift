@@ -262,6 +262,29 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
+    /// A planning target, not a cash deposit. Keep funds, reserves and ledger entries unchanged.
+    public func updateSpendingLimit(_ limit: Money, in budget: StoredBudget, asOf now: Date) throws {
+        try writable()
+        guard limit.currency == .rub, limit.minorUnits > 0, budget.snapshot.period.contains(now) else {
+            throw BudgetError.invalidPlan
+        }
+        do {
+            let period = try object("BudgetPeriod", id: budget.periodID)
+            guard let household = period.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
+            try validateScope(budget, household: household)
+            guard let store = period.objectID.persistentStore, container.canModifyManagedObjects(in: store),
+                  container.canUpdateRecord(forManagedObjectWith: period.objectID) else { throw LedgerError.accessDenied }
+            let current: Int64 = try period.required("monthlyPlan")
+            guard current == budget.snapshot.monthlyFreePlan.minorUnits else { throw LedgerError.conflict }
+            period.setValue(limit.minorUnits, forKey: "monthlyPlan")
+            guard let updated = try load(asOf: now, scope: budget.scope), updated.periodID == budget.periodID else {
+                throw LedgerError.conflict
+            }
+            _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     public func save(_ record: LedgerRecord, in budget: StoredBudget, expectedRevision: UUID?, asOf now: Date) throws {
         try writable()
         guard [.expense, .refund, .income].contains(record.transaction.kind) else { throw BudgetError.invalidTransaction }
