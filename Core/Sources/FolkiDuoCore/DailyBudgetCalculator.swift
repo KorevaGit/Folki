@@ -41,7 +41,12 @@ public enum DailyBudgetCalculator {
         let entries = snapshot.transactions.filter {
             !$0.isDeleted && snapshot.period.contains($0.date) && $0.date <= now
         }.sorted {
-            $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date
+            if $0.date != $1.date { return $0.date < $1.date }
+            // Simultaneous reserve credits must be available to simultaneous debits,
+            // regardless of UUID order or the order in which devices imported them.
+            let lhs = reserveOrder($0), rhs = reserveOrder($1)
+            if lhs != rhs { return lhs < rhs }
+            return $0.id.uuidString < $1.id.uuidString
         }
 
         for entry in entries {
@@ -71,6 +76,14 @@ public enum DailyBudgetCalculator {
             monthlyPlan: snapshot.monthlyFreePlan,
             futureAllocation: days > 1 ? DailyAllocation(total: free.nonnegative, days: days - 1) : nil
         )
+    }
+
+    private static func reserveOrder(_ entry: TransactionSnapshot) -> Int {
+        guard case .reserve = entry.funding else { return 1 }
+        switch entry.kind {
+        case .income, .refund, .reserveAllocation: return 0
+        case .expense, .reserveRelease: return 2
+        }
     }
 }
 

@@ -4,6 +4,21 @@ import FolkiDuoCore
 
 /// Excluded by conditional compilation from Debug/Release product code.
 enum DemoFixtures {
+    @MainActor static func makePersonalSession() -> BudgetSession {
+        let now = ISO8601DateFormatter().date(from: "2026-10-17T12:00:00Z")!
+        let owner = Member(id: UUID(), name: "Я")
+        let records = [
+            LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 4_000_000), kind: .expense,
+                date: now.addingTimeInterval(-86400), authorID: owner.id, payerID: owner.id), title: "Ранее в месяце", symbol: "calendar"),
+            LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 80_000), kind: .expense,
+                date: now.addingTimeInterval(-60), authorID: owner.id, payerID: owner.id), title: "Обед", category: .groceries)
+        ]
+        let period = try! BudgetPeriod(monthContaining: now, timeZoneIdentifier: "Europe/Moscow")
+        let snapshot = HouseholdSnapshot(period: period, monthlyFreePlan: Money(minorUnits: 6_000_000),
+            openingFunds: Money(minorUnits: 6_000_000), transactions: records.map(\.transaction))
+        return BudgetSession(scope: .personal, household: snapshot, records: records, members: [owner], demoDate: now)
+    }
+
     @MainActor static func makeSession() -> BudgetSession {
         let masha = Member(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "Маша")
         let sasha = Member(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, name: "Саша")
