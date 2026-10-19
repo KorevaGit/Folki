@@ -22,8 +22,7 @@ extension Color {
     }
 }
 
-/// Liquid-glass ground: white or black with large, faint color fields pushed to the edges,
-/// so nothing glows behind the rings. Peach and mint by day, amber and malachite by night.
+/// Plain white by day; by night black with faint amber and malachite fields at the edges.
 struct FolkiBackground: View {
     @Environment(\.colorScheme) private var scheme
     private typealias Field = (color: Color, x: CGFloat, y: CGFloat, size: CGFloat, opacity: Double)
@@ -33,10 +32,7 @@ struct FolkiBackground: View {
                (Color(red: 0.06, green: 0.48, blue: 0.34), 0.65, 0.38, 520, 0.20),
                (Color(red: 0.42, green: 0.25, blue: 0.05), -0.75, 0.70, 520, 0.18),
                (Color(red: 0.05, green: 0.35, blue: 0.26), 0.65, 0.95, 500, 0.20)]
-            : [(Color(red: 1.0, green: 0.79, blue: 0.56), -0.65, -0.16, 520, 0.45),
-               (Color(red: 0.62, green: 0.90, blue: 0.78), 0.62, 0.33, 480, 0.40),
-               (Color(red: 1.0, green: 0.85, blue: 0.69), -0.70, 0.69, 520, 0.35),
-               (Color(red: 0.72, green: 0.93, blue: 0.84), 0.62, 0.93, 480, 0.35)]
+            : [] // Plain white by day: tinted fields on white read as dirt.
     }
     var body: some View {
         GeometryReader { geometry in
@@ -55,10 +51,21 @@ struct FolkiBackground: View {
 }
 
 extension View {
-    /// Frosted glass with a hairline edge: cards, the Add button, the header's icon group.
-    func folkiGlass<S: InsettableShape>(_ shape: S) -> some View {
-        background(.ultraThinMaterial, in: shape)
-            .overlay { shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 1) }
+    /// Cards, the Add button, the month line: a quiet solid tint by day, frosted glass by night. No outlines.
+    func folkiGlass<S: Shape>(_ shape: S) -> some View {
+        modifier(FolkiSurface(shape: shape))
+    }
+}
+
+private struct FolkiSurface<S: Shape>: ViewModifier {
+    let shape: S
+    @Environment(\.colorScheme) private var scheme
+    func body(content: Content) -> some View {
+        if scheme == .dark {
+            content.background(.ultraThinMaterial, in: shape)
+        } else {
+            content.background(Color(red: 0.957, green: 0.949, blue: 0.937), in: shape)
+        }
     }
 }
 

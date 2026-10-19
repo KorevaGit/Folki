@@ -103,7 +103,7 @@ struct BudgetRootView: View {
         }
         .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.folkiInk).buttonStyle(.plain)
         .padding(3)
-        .glassEffect(.regular, in: .capsule)
+        .folkiGlass(Capsule())
     }
 
     private var spendButton: some View {
