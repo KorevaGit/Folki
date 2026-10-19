@@ -12,8 +12,14 @@ public struct SavingsGoalSnapshot: Identifiable, Sendable {
     public let name: String
     public let target: Money
     public let balance: Money
-    public init(id: UUID, name: String, target: Money, balance: Money) {
+    public let deadline: Date?
+    public let monthlyContribution: Money?
+    public let purpose: SavingsPurpose
+    public let revision: UUID?
+    public init(id: UUID, name: String, target: Money, balance: Money, deadline: Date? = nil,
+                monthlyContribution: Money? = nil, purpose: SavingsPurpose = .goal, revision: UUID? = nil) {
         self.id = id; self.name = name; self.target = target; self.balance = balance
+        self.deadline = deadline; self.monthlyContribution = monthlyContribution; self.purpose = purpose; self.revision = revision
     }
     public var fraction: Double {
         guard target.minorUnits > 0 else { return 0 }
@@ -24,7 +30,8 @@ public struct SavingsGoalSnapshot: Identifiable, Sendable {
 public struct Member: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let name: String
-    public init(id: UUID, name: String) { self.id = id; self.name = name }
+    public let isActive: Bool
+    public init(id: UUID, name: String, isActive: Bool = true) { self.id = id; self.name = name; self.isActive = isActive }
 }
 
 public enum ExpenseCategory: String, CaseIterable, Sendable {
@@ -79,7 +86,7 @@ public struct StoredBudget: Sendable {
 
 public enum LedgerError: Error, Equatable {
     case unavailable, corruptStore, conflict, missingRecord, invalidMember, existingPeriod, multipleHouseholds
-    case cloudNotConfigured, accessDenied, accountChanged, privateBudgetCannotBeShared
+    case cloudNotConfigured, accessDenied, accountChanged, privateBudgetCannotBeShared, familyFull
 }
 
 public enum LedgerRules {

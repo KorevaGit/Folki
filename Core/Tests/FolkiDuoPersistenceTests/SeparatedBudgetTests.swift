@@ -146,10 +146,10 @@ struct SeparatedBudgetTests {
         try repo.close()
     }
 
-    @Test func migratingV1KeepsExistingBudgetAsFamilyAndCreatesNoPersonalCopy() async throws {
+    @Test(arguments: ["FolkiDuoV1", "FolkiDuoV2"]) func migratingLegacyModelsKeepsExistingBudgetAsFamilyAndCreatesNoPersonalCopy(version: String) async throws {
         let directory = path(); defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let model = try BudgetRepository.managedObjectModel(version: "FolkiDuoV1")
+        let model = try BudgetRepository.managedObjectModel(version: version)
         let legacy = NSPersistentContainer(name: "Legacy", managedObjectModel: model)
         let description = NSPersistentStoreDescription(url: directory.appendingPathComponent("private.sqlite"))
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)

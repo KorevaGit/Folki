@@ -22,6 +22,9 @@ struct BudgetAnalyticsSection: View {
                 anchor: date, asOf: session.referenceDate, calendar: session.calendar) {
                 Text("\(session.scope.title) бюджет · по \(result.cutoff.formatted(.dateTime.day().month(.wide)))")
                     .font(.footnote).foregroundStyle(.secondary)
+                if period != .day { SpendingReviewCard(session: session, date: date, period: period) }
+                CategoryLimitsStatus(session: session, date: date)
+                NavigationLink("Настроить лимиты категорий") { CategoryLimitsView(session: session).toolbar(.visible, for: .navigationBar) }
                 if result.recordCount == 0 {
                     ContentUnavailableView("За этот период записей нет", systemImage: "chart.bar.xaxis",
                         description: Text("Добавьте расход или поступление, чтобы увидеть динамику."))

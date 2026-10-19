@@ -113,7 +113,7 @@ struct ExpenseEditorView: View {
                         ForEach(ExpenseCategory.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     Picker(kind == "expense" ? "Оплатил" : "Получил", selection: $payerID) {
-                        ForEach(session.members) { Text(session.memberName($0.id)).tag($0.id) }
+                        ForEach(session.members.filter { $0.isActive || $0.id == editing?.transaction.payerID }) { Text(session.memberName($0.id)).tag($0.id) }
                     }
                     if let budget = editingBudget {
                         let period = budget.snapshot.period
