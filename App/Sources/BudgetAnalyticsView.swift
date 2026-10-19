@@ -8,7 +8,13 @@ struct BudgetAnalyticsSection: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var period: AnalyticsPeriod = .month
     @State private var chosenDate: Date?
-    private var anchor: Date { chosenDate ?? date }
+    @State private var showsAllCategories = false
+    /// The whole period up to today: a past month ends on its last day, not on today's day number.
+    private var anchor: Date {
+        let base = chosenDate ?? date
+        guard let interval = analyticsCalendar.dateInterval(of: component, for: base) else { return base }
+        return min(interval.end.addingTimeInterval(-1), session.referenceDate)
+    }
     private var analyticsCalendar: Calendar {
         var calendar = session.calendar
         calendar.firstWeekday = 2; calendar.minimumDaysInFirstWeek = 4
@@ -29,7 +35,11 @@ struct BudgetAnalyticsSection: View {
             if let result = try? BudgetAnalytics.calculate(records: session.historyRecords, period: period,
                 anchor: anchor, asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog) {
                 periodNavigation(result)
-                if period == .month, let plan = session.overview(on: result.cutoff).result {
+                let monthPlan = period == .month ? session.overview(on: result.cutoff).result : nil
+                let insights = PeriodInsights(result: result, records: session.historyRecords, catalog: session.catalog,
+                                              snapshot: monthPlan, isMonth: period == .month)
+                if let tip = insights.tip { InsightTip(text: tip) }
+                if period == .month, let plan = monthPlan {
                     pace(result, plan: plan)
                 } else {
                     overview(result)
@@ -41,7 +51,8 @@ struct BudgetAnalyticsSection: View {
                 }
                 if result.expenses.minorUnits > 0 || result.refunds.minorUnits > 0 {
                     if period == .month { balance(result) }
-                    chart(result).budgetCard()
+                    chart(result, plan: monthPlan).budgetCard()
+                    HabitsCard(insights: insights)
                     categories(result)
                 }
                 if result.contributions.minorUnits > 0 || result.reserveTransfers.minorUnits != 0 {
@@ -212,7 +223,54 @@ struct BudgetAnalyticsSection: View {
         let value: Double
         var id: Date { date }
     }
-    private func chart(_ result: BudgetAnalyticsSnapshot) -> some View {
+    @ViewBuilder private func chart(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot?) -> some View {
+        if period == .month, let plan, plan.monthlyPlan.minorUnits > 0 {
+            monthLine(result, plan: plan)
+        } else {
+            dailyBars(result)
+        }
+    }
+
+    /// Running total against an even spend of the plan: above the dashed line means faster than planned.
+    private func monthLine(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot) -> some View {
+        var running = 0.0
+        let points = result.buckets.filter(\.isObserved).map { bucket -> PlotPoint in
+            running += Double(bucket.expenses.minorUnits - bucket.refunds.minorUnits) / 100
+            return PlotPoint(date: bucket.start, value: running)
+        }
+        let planned = Double(plan.monthlyPlan.minorUnits) / 100
+        let end = result.interval.end
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Траты за месяц").font(.headline)
+            HStack(spacing: 14) {
+                Label("факт", systemImage: "circle.fill").foregroundStyle(Color.folkiAccent)
+                Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(.secondary)
+            }.font(.caption).labelStyle(.titleAndIcon).imageScale(.small)
+            Chart {
+                LineMark(x: .value("Дата", result.interval.start), y: .value("План", 0), series: .value("Ряд", "план"))
+                    .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                LineMark(x: .value("Дата", end), y: .value("План", planned), series: .value("Ряд", "план"))
+                    .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                ForEach(points) { point in
+                    AreaMark(x: .value("Дата", point.date), y: .value("Рубли", point.value))
+                        .foregroundStyle(Color.folkiAccent.opacity(0.12)).interpolationMethod(.monotone)
+                    LineMark(x: .value("Дата", point.date), y: .value("Рубли", point.value), series: .value("Ряд", "факт"))
+                        .foregroundStyle(Color.folkiAccent).lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .interpolationMethod(.monotone)
+                }
+            }
+            .chartXScale(domain: result.interval.start...end)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                    AxisGridLine(); AxisValueLabel(format: .dateTime.day())
+                }
+            }
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 240 : 180)
+            .accessibilityLabel("Траты за месяц нарастающим итогом и ровный темп по плану")
+        }
+    }
+
+    private func dailyBars(_ result: BudgetAnalyticsSnapshot) -> some View {
         let points = result.buckets.filter(\.isObserved).map {
             PlotPoint(date: $0.start, value: Double($0.expenses.minorUnits - $0.refunds.minorUnits) / 100)
         }
@@ -238,8 +296,9 @@ struct BudgetAnalyticsSection: View {
         (try? item.expenses.subtracting(item.refunds)) ?? item.expenses
     }
     private func categories(_ result: BudgetAnalyticsSnapshot) -> some View {
-        let items = result.categories.sorted { net($0).minorUnits > net($1).minorUnits }
-        let positiveTotal = items.reduce(Int64(0)) { $0 + max(0, net($1).minorUnits) }
+        let sorted = result.categories.sorted { net($0).minorUnits > net($1).minorUnits }
+        let positiveTotal = sorted.reduce(Int64(0)) { $0 + max(0, net($1).minorUnits) }
+        let items = showsAllCategories ? sorted : Array(sorted.prefix(5))
         return VStack(alignment: .leading, spacing: 16) {
             Text("На что ушли деньги").font(.headline)
             ForEach(items) { item in
@@ -263,6 +322,11 @@ struct BudgetAnalyticsSection: View {
                         Text("Вернули больше, чем потратили").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+            }
+            if sorted.count > 5 {
+                Button(showsAllCategories ? "Свернуть" : "Все категории (\(sorted.count))") {
+                    withAnimation(.snappy) { showsAllCategories.toggle() }
+                }.buttonStyle(FolkiSoftButtonStyle()).frame(maxWidth: .infinity)
             }
         }.budgetCard()
     }
