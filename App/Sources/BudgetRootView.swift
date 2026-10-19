@@ -286,7 +286,9 @@ struct LedgerRow: View {
             Image(systemName: record.symbol).frame(width: 24).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.title)
-                Text("\(payer) · \(record.category.title) · \(record.transaction.date.formatted(.dateTime.day().month()))").font(.caption).foregroundStyle(.secondary)
+                Text(([payer] + (record.transaction.kind.isContribution ? [] : [record.category.title])
+                    + [record.transaction.date.formatted(.dateTime.day().month())]).joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
             Text("\(prefix)\(MoneyText.string(record.transaction.amount))").monospacedDigit()
