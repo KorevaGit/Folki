@@ -34,7 +34,9 @@ struct BudgetRootView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar)
+                    BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar) { day in
+                        (personal.overview(on: day).result?.dayRingFraction, family.overview(on: day).result?.dayRingFraction)
+                    }
                     BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil) { scope in
                         selectedScope = scope; sheet = .limits
                     }
@@ -70,10 +72,10 @@ struct BudgetRootView: View {
                         .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 4)
                 }.padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 40)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(Color.folkiBackground)
             .safeAreaInset(edge: .top, spacing: 0) {
                 header.padding(.horizontal, 20).padding(.vertical, 8)
-                    .background(Color(uiColor: .systemGroupedBackground))
+                    .background(Color.folkiBackground)
             }
             .navigationTitle("Бюджет")
             .navigationBarTitleDisplayMode(.inline)
@@ -120,13 +122,6 @@ struct BudgetRootView: View {
             Button { analyticsJump = UUID() } label: {
                 Image(systemName: "chart.bar.xaxis").frame(width: 44, height: 44)
             }.accessibilityLabel("Аналитика")
-            Menu {
-                Button("Поступление в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
-                Button("Поступление в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
-                Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
-            } label: {
-                Image(systemName: "plus").frame(width: 44, height: 44)
-            }.accessibilityLabel("Внести деньги")
             Button { sheet = .settings } label: {
                 Image(systemName: "gearshape").frame(width: 44, height: 44)
             }.accessibilityLabel("Настройки")
@@ -137,14 +132,26 @@ struct BudgetRootView: View {
     }
 
     private var spendButton: some View {
-        Button {
-            selectedDay = nil
-            sheet = personal.result == nil && family.result == nil ? .setup : .spend
-        } label: {
-            Label("Потратить", systemImage: "minus.circle.fill")
-                .font(.title3.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 8)
+        HStack(spacing: 10) {
+            Button {
+                selectedDay = nil
+                sheet = personal.result == nil && family.result == nil ? .setup : .spend
+            } label: {
+                Text("− Потратить").frame(maxWidth: .infinity).frame(height: 64)
+                    .background(Color.folkiAccent, in: Capsule()).foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity).layoutPriority(2)
+            Menu {
+                Button("Поступление в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
+                Button("Поступление в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
+                Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
+            } label: {
+                Text("+ Внести").frame(width: 132, height: 64)
+                    .background(Color.folkiSurface, in: Capsule()).foregroundStyle(Color.folkiInk)
+            }
+            .menuStyle(.button).buttonStyle(.plain).fixedSize()
         }
-        .buttonStyle(.borderedProminent).controlSize(.large).tint(Color.folkiAccent)
+        .font(.system(.title3, design: .rounded, weight: .bold)).buttonStyle(.plain)
     }
 
     private func openEntry(_ scope: BudgetScope, kind: TransactionKind) {
@@ -294,6 +301,6 @@ struct LedgerRow: View {
 extension View {
     func budgetCard() -> some View {
         padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+            .background(Color.folkiSurface.opacity(0.6), in: RoundedRectangle(cornerRadius: 20))
     }
 }

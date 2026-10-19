@@ -5,6 +5,8 @@ struct BudgetWeekCalendar: View {
     @Binding var selection: Date?
     let today: Date
     let calendar: Calendar
+    /// Personal and family day-ring fractions for a past or current day; nil where no plan exists.
+    var rings: (Date) -> (Double?, Double?) = { _ in (nil, nil) }
     @State private var showingMonth = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -39,7 +41,7 @@ struct BudgetWeekCalendar: View {
                     }
                 }
             }.foregroundStyle(.secondary)
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 ForEach(0..<7, id: \.self) { offset in
                     if let date = calendar.date(byAdding: .day, value: offset, to: weekStart) {
                         day(date)
@@ -95,20 +97,21 @@ struct BudgetWeekCalendar: View {
     private func day(_ date: Date) -> some View {
         let isSelected = calendar.isDate(date, inSameDayAs: selected)
         let isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: today)
-        let weekday = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"][calendar.component(.weekday, from: date) - 1]
+        let weekday = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"][calendar.component(.weekday, from: date) - 1]
+        let fractions = isFuture ? (nil, nil) : rings(date)
         return Button { select(date) } label: {
             VStack(spacing: 4) {
-                Text("\(calendar.component(.day, from: date))")
-                    .font(.system(.body, design: .rounded, weight: .bold)).monospacedDigit()
                 Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
+                MiniRings(personal: fractions.0, family: fractions.1).frame(width: 30, height: 30)
+                Text("\(calendar.component(.day, from: date))")
+                    .font(.system(.footnote, design: .rounded, weight: .heavy)).monospacedDigit()
             }
             .lineLimit(1).minimumScaleFactor(0.7)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity).frame(minHeight: 56)
-            .foregroundStyle(isSelected ? Color.white : .primary)
-            .background(isSelected ? Color.folkiAccent : Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .opacity(isFuture ? 0.38 : (isSelected ? 1 : 0.75))
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(isSelected ? Color.folkiBackground : Color.folkiInk)
+            .background(isSelected ? Color.folkiInk : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .opacity(isFuture ? 0.4 : 1)
         }
         .buttonStyle(.plain).frame(maxWidth: .infinity).disabled(isFuture)
         .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
@@ -123,5 +126,25 @@ struct BudgetWeekCalendar: View {
     private func moveWeek(_ direction: Int) {
         guard let target = calendar.date(byAdding: .day, value: direction * 7, to: selected) else { return }
         select(min(target, today))
+    }
+}
+
+/// A day's two rings at calendar size: personal outside, family inside.
+private struct MiniRings: View {
+    let personal: Double?
+    let family: Double?
+    var body: some View {
+        ZStack {
+            ring(personal, palette: .personal).padding(0)
+            ring(family, palette: .family).padding(5.5)
+        }
+    }
+    private func ring(_ fraction: Double?, palette: RingPalette) -> some View {
+        ZStack {
+            Circle().stroke(palette.start.opacity(0.22), lineWidth: 3.5)
+            Circle().trim(from: 0, to: max(0, min(1, fraction ?? 0)))
+                .stroke(palette.start, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }.padding(1.75)
     }
 }

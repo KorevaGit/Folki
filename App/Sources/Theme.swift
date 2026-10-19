@@ -8,6 +8,11 @@ extension Color {
     static let folkiAccent = adaptive(light: (0.06, 0.43, 0.34), dark: (0.36, 0.79, 0.65))
 
     static func budget(_ scope: BudgetScope) -> Color { RingPalette.palette(for: scope).text }
+    /// Main screen ground: white in light mode, black in dark.
+    static let folkiBackground = Color(uiColor: .systemBackground)
+    /// Cards and quiet buttons on that ground: warm light gray / dark gray.
+    static let folkiSurface = adaptive(light: (0.945, 0.925, 0.898), dark: (0.11, 0.11, 0.118))
+    static let folkiInk = adaptive(light: (0.118, 0.102, 0.086), dark: (0.96, 0.93, 0.89))
 
     static func adaptive(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
         Color(uiColor: UIColor { traits in
