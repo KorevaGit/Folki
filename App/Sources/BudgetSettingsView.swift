@@ -6,13 +6,22 @@ struct BudgetSettingsView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var setupScope: BudgetScope?
+    @State private var limitsScope: BudgetScope?
+    @State private var showingFamily = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Планы бюджета") {
+                Section("План на месяц") {
                     plan(personal)
                     plan(family)
+                }
+                Section {
+                    Button { showingFamily = true } label: {
+                        Label("Семья и доступ", systemImage: "person.2.fill")
+                    }
+                } footer: {
+                    Text("До пяти человек. Общий бюджет видят все, личные бюджеты остаются у каждого свои.")
                 }
                 Section("Категории") {
                     NavigationLink("Личные категории") { CategoriesView(session: personal) }
@@ -22,23 +31,17 @@ struct BudgetSettingsView: View {
             .navigationTitle("Настройки бюджета").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
             .sheet(item: $setupScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family) }
+            .sheet(item: $limitsScope) { scope in SpendingLimitsView(personal: personal, family: family, scope: scope) }
+            .sheet(isPresented: $showingFamily) { SharingView(session: family) }
         }
     }
     @ViewBuilder private func plan(_ session: BudgetSession) -> some View {
         if let result = session.result {
-            LabeledContent(session.scope.title + " лимит", value: MoneyText.string(result.monthlyPlan))
+            Button { limitsScope = session.scope } label: {
+                LabeledContent(session.scope.title, value: MoneyText.whole(result.monthlyPlan))
+            }.foregroundStyle(.primary)
         } else {
             Button("Настроить \(session.scope == .personal ? "личный" : "семейный") план") { setupScope = session.scope }
         }
-    }
-}
-
-extension Color {
-    static var folkiAccent: Color {
-        Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0.38, green: 0.74, blue: 0.89, alpha: 1)
-                : UIColor(red: 0.16, green: 0.30, blue: 0.55, alpha: 1)
-        })
     }
 }

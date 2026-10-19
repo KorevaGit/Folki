@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, expense, contribution, details, settings, limits
+    case setup, spend, expense, contribution, details, settings, limits
     var id: String { rawValue }
 }
 
@@ -35,14 +35,11 @@ struct BudgetRootView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar)
-                    Button { sheet = .details } label: {
-                        BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil, part: .rings)
-                            .frame(maxWidth: .infinity)
-                    }.buttonStyle(.plain)
-                    entryActions
-                    Button { sheet = .details } label: {
-                        BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil, part: .values)
-                    }.buttonStyle(.plain)
+                    BudgetRingsCard(personal: personalDay.result, family: familyDay.result, isToday: selectedDay == nil) { scope in
+                        selectedScope = scope; sheet = .limits
+                    }
+                    .contentShape(Rectangle()).onTapGesture { sheet = .details }
+                    spendButton
                     if selectedDay != nil {
                         Text("Итоги дня по текущим записям")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -90,6 +87,7 @@ struct BudgetRootView: View {
         .sheet(item: $sheet) { destination in
             switch destination {
             case .setup: BudgetSetupView(session: session)
+            case .spend: QuickSpendView(personal: personal, family: family)
             case .expense: ExpenseEditorView(session: session, initialKind: entryKind)
             case .contribution: ContributionView(personal: personal, family: family)
             case .limits: SpendingLimitsView(personal: personal, family: family, scope: selectedScope)
@@ -121,40 +119,32 @@ struct BudgetRootView: View {
         HStack(spacing: 4) {
             Button { analyticsJump = UUID() } label: {
                 Image(systemName: "chart.bar.xaxis").frame(width: 44, height: 44)
-            }.accessibilityLabel("Аналитика бюджета")
+            }.accessibilityLabel("Аналитика")
+            Menu {
+                Button("Поступление в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
+                Button("Поступление в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
+                Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
+            } label: {
+                Image(systemName: "plus").frame(width: 44, height: 44)
+            }.accessibilityLabel("Внести деньги")
             Button { sheet = .settings } label: {
                 Image(systemName: "gearshape").frame(width: 44, height: 44)
-            }.accessibilityLabel("Настройки бюджета")
-            Button { sheet = .limits } label: {
-                Image(systemName: "slider.horizontal.3").frame(width: 44, height: 44)
-            }.accessibilityLabel("Лимиты расходов")
+            }.accessibilityLabel("Настройки")
         }
-        .font(.system(size: 22)).foregroundStyle(Color.folkiAccent).buttonStyle(.plain)
+        .font(.system(size: 20, weight: .medium)).foregroundStyle(Color.folkiAccent).buttonStyle(.plain)
         .padding(.horizontal, 6).padding(.vertical, 2)
         .glassEffect(.regular, in: .capsule)
     }
 
-    private var entryActions: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
-        return layout {
-            Menu {
-                Button("Личные деньги", systemImage: "person") { openEntry(.personal, kind: .expense) }
-                Button("Семейные деньги", systemImage: "person.2") { openEntry(.family, kind: .expense) }
-            } label: {
-                Label("Потратить", systemImage: "minus.circle").frame(maxWidth: .infinity)
-                    .foregroundStyle(colorScheme == .dark ? Color.black : .white)
-            }.buttonStyle(.borderedProminent)
-            Menu {
-                Button("В личный бюджет", systemImage: "person") { openEntry(.personal, kind: .income) }
-                Button("В семейный бюджет", systemImage: "person.2") { openEntry(.family, kind: .income) }
-                Divider()
-                Button("Из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
-            } label: {
-                Label("Внести", systemImage: "plus.circle").frame(maxWidth: .infinity)
-            }.buttonStyle(.bordered)
-        }.controlSize(.large).font(.headline).lineLimit(1).minimumScaleFactor(0.75)
+    private var spendButton: some View {
+        Button {
+            selectedDay = nil
+            sheet = personal.result == nil && family.result == nil ? .setup : .spend
+        } label: {
+            Label("Потратить", systemImage: "minus.circle.fill")
+                .font(.title3.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 8)
+        }
+        .buttonStyle(.borderedProminent).controlSize(.large).tint(Color.folkiAccent)
     }
 
     private func openEntry(_ scope: BudgetScope, kind: TransactionKind) {
@@ -248,8 +238,8 @@ private struct BudgetCalculationView: View {
                 Section { Text(date, format: .dateTime.day().month(.wide).year()) }
                 calculation(personal, title: "Личный бюджет")
                 calculation(family, title: "Семейный бюджет")
-                Section("Кольца снаружи внутрь") {
-                    Text("Личный остаток дня, семейный остаток дня, личный остаток месячного лимита, семейный остаток месячного лимита.")
+                Section("Кольца") {
+                    Text("Снаружи — личный остаток дня, внутри — семейный. Кольцо пустеет по мере трат и становится пустым при перерасходе.")
                     Text("Резервы и накопления исключены из свободных денег. Прогноз предполагает, что сегодня больше не будет расходов.")
                 }
             }

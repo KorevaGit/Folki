@@ -35,9 +35,9 @@ struct BudgetAnalyticsSection: View {
                    let left = try? budget.snapshot.monthlyFreePlan.subtracting(result.flexibleNetSpending) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("До месячного лимита").font(.headline)
-                        Text(MoneyText.string(left)).font(.title2.bold()).monospacedDigit()
+                        Text(MoneyText.whole(left)).font(.title2.bold()).monospacedDigit()
                             .foregroundStyle(left.minorUnits < 0 ? Color.red : .primary)
-                        Text("Свободные траты за вычетом возвратов. Лимит \(MoneyText.string(budget.snapshot.monthlyFreePlan)).")
+                        Text("Свободные траты за вычетом возвратов. Лимит \(MoneyText.whole(budget.snapshot.monthlyFreePlan)).")
                             .font(.footnote).foregroundStyle(.secondary)
                     }.budgetCard()
                 }
@@ -63,7 +63,7 @@ struct BudgetAnalyticsSection: View {
     private func total(_ title: String, _ amount: Money) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(MoneyText.string(amount)).font(.title3.bold()).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+            Text(MoneyText.whole(amount)).font(.title3.bold()).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
         }
     }
     private struct PlotPoint: Identifiable {
@@ -94,7 +94,7 @@ struct BudgetAnalyticsSection: View {
                 }
                 .environment(\.calendar, session.calendar).environment(\.timeZone, session.calendar.timeZone)
                 .frame(height: 180)
-                .accessibilityLabel("Траты за период: \(MoneyText.string((try? result.netSpending) ?? result.expenses)).")
+                .accessibilityLabel("Траты за период: \(MoneyText.whole((try? result.netSpending) ?? result.expenses)).")
             }
         }
     }
@@ -113,7 +113,7 @@ struct BudgetAnalyticsSection: View {
                         let category = session.catalog.category(for: item.categoryID)
                         Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 22) }
                         Spacer()
-                        Text(MoneyText.string(item.expenses)).monospacedDigit()
+                        Text(MoneyText.whole(item.expenses)).monospacedDigit()
                     }.font(.subheadline)
                     if result.expenses.minorUnits > 0 {
                         ProgressView(value: Double(item.expenses.minorUnits) / Double(result.expenses.minorUnits)).tint(Color.folkiAccent)
@@ -129,7 +129,7 @@ struct BudgetAnalyticsSection: View {
                 HStack {
                     Label(session.memberName(item.memberID), systemImage: "person.fill")
                     Spacer()
-                    Text(MoneyText.string(item.amount)).monospacedDigit()
+                    Text(MoneyText.whole(item.amount)).monospacedDigit()
                 }.font(.subheadline)
             }
         }.budgetCard()

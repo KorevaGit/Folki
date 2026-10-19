@@ -137,20 +137,11 @@ struct ExpenseEditorView: View {
                         }
                     }
                 }
-                if let impact {
+                if let impact, let before = session.result, editing == nil {
                     Section("После сохранения") {
-                        LabeledContent("Остаток дня") {
-                            Text(MoneyText.string(impact.todayRemaining)).foregroundStyle(impact.todayRemaining.minorUnits < 0 ? Color.red : .primary)
-                        }
-                        LabeledContent("Месяц", value: MoneyText.string(impact.monthlyRemaining))
-                        if let future = impact.futureAllocation {
-                            LabeledContent("Далее в день", value: "≈\(MoneyText.string(future.firstDayAmount))")
-                        }
-                        if impact.todayRemaining.minorUnits < 0 {
-                            Text("Дневной ориентир будет превышен.").foregroundStyle(.secondary)
-                        }
+                        ImpactLines(before: before, after: impact).frame(maxWidth: .infinity)
                     }
-                } else if !amount.isEmpty {
+                } else if !amount.isEmpty && impact == nil {
                     Text("Проверьте сумму, описание, дату и доступный резерв.").foregroundStyle(.secondary)
                 }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }

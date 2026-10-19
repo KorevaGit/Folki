@@ -22,16 +22,17 @@ struct ContributionView: View {
                 Section {
                     TextField("Сумма, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
                     if let available {
-                        LabeledContent("Свободно в личном", value: MoneyText.string(available))
+                        LabeledContent("Свободно в личном", value: MoneyText.whole(available))
                     }
                 } footer: {
-                    Text("Деньги уйдут из вашего личного бюджета в семейный. Это не трата: лимиты и аналитика расходов не изменятся. Участники семьи увидят ваш взнос, но не ваш личный бюджет.")
+                    Text("Деньги уйдут из твоего личного бюджета в семейный. Это не трата: лимиты и аналитика расходов не изменятся. Семья увидит взнос, но не твой личный бюджет.")
                 }
-                if let money, let available, let familyMonth = family.result?.monthlyRemaining,
-                   let personalAfter = try? available.subtracting(money), let familyAfter = try? familyMonth.adding(money) {
+                if let money, let personalBefore = personal.result, let familyBefore = family.result,
+                   let personalAfter = personal.previewTransfer(money, kind: .contributionOut),
+                   let familyAfter = family.previewTransfer(money, kind: .contributionIn) {
                     Section("После перевода") {
-                        LabeledContent("Личный · месяц", value: MoneyText.string(personalAfter))
-                        LabeledContent("Семейный · месяц", value: MoneyText.string(familyAfter))
+                        ImpactLines(before: personalBefore, after: personalAfter, label: "Личный").frame(maxWidth: .infinity)
+                        ImpactLines(before: familyBefore, after: familyAfter, label: "Семейный").frame(maxWidth: .infinity)
                     }
                 } else if !amount.isEmpty {
                     Text("Сумма должна быть больше нуля и не больше свободного остатка личного бюджета.").foregroundStyle(.secondary)

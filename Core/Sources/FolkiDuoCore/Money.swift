@@ -78,6 +78,21 @@ public struct Money: Hashable, Sendable {
     }
 
     public var nonnegative: Money { Money(minorUnits: max(0, minorUnits), currency: currency) }
+
+    /// Whole units rounded toward minus infinity: a remainder never looks larger than it is,
+    /// and an overspend never looks smaller (1 923,08 → 1 923; −499,50 → −500).
+    public var roundedDownToWholeUnits: Money {
+        let scale = currency.scale
+        let remainder = minorUnits % scale
+        let floor = remainder < 0 ? minorUnits - remainder - scale : minorUnits - remainder
+        return Money(minorUnits: floor, currency: currency)
+    }
+
+    /// Whole units rounded toward plus infinity, for amounts that must not be understated (an overspend of 3 199,50 → 3 200).
+    public var roundedUpToWholeUnits: Money {
+        let down = roundedDownToWholeUnits
+        return down.minorUnits == minorUnits ? down : Money(minorUnits: down.minorUnits + currency.scale, currency: currency)
+    }
 }
 
 /// Exact distribution: the first extraUnitDays receive one additional minor unit.

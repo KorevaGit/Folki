@@ -36,7 +36,7 @@ struct SavingsSection: View {
                                 Text(MoneyText.string(goal.balance)).font(.title2.bold()).monospacedDigit()
                                 Text("из \(MoneyText.string(goal.target))").font(.caption).foregroundStyle(.secondary)
                             }
-                            ProgressView(value: goal.fraction).tint(RingPalette.all[session.scope == .personal ? 0 : 1].color(at: 0.5))
+                            ProgressView(value: goal.fraction).tint(Color.budget(session.scope))
                         }.budgetCard()
                     }.buttonStyle(.plain).disabled(session.result == nil)
                 }
@@ -112,8 +112,12 @@ struct GoalTransferView: View {
                     if let money, let available = session.result?.monthlyRemaining,
                        let free = try? (withdrawal ? available.adding(money) : available.subtracting(money)),
                        let saved = try? (withdrawal ? goal.balance.subtracting(money) : goal.balance.adding(money)) {
-                        LabeledContent("Останется свободно", value: MoneyText.string(free))
+                        LabeledContent("Останется свободно", value: MoneyText.whole(free))
                         LabeledContent("В накоплениях", value: MoneyText.string(saved))
+                        if let before = session.result,
+                           let after = session.previewTransfer(money, kind: withdrawal ? .reserveRelease : .reserveAllocation, funding: .reserve(goal.id)) {
+                            ImpactLines(before: before, after: after).frame(maxWidth: .infinity)
+                        }
                     }
                     Text("Это перевод между свободными деньгами и накоплениями внутри выбранного бюджета.")
                         .font(.footnote).foregroundStyle(.secondary)

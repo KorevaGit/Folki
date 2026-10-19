@@ -183,6 +183,13 @@ final class BudgetSession {
         try repository.transferToGoal(goal.id, amount: amount, withdrawal: withdrawal, in: budget, asOf: referenceDate, operationID: operationID)
         refresh()
     }
+    /// Today's and the month's numbers after a transfer that is not a ledger form: a contribution side or a savings move.
+    func previewTransfer(_ amount: Money, kind: TransactionKind, funding: BudgetFunding = .flexible) -> DailyBudgetSnapshot? {
+        guard let authorID else { return nil }
+        let record = LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: kind, funding: funding,
+            date: referenceDate, authorID: authorID, payerID: authorID), title: "", linkID: kind.isContribution ? UUID() : nil)
+        return try? preview(record)
+    }
     /// Called on the personal session: moves money from it into the family budget.
     func contribute(_ amount: Money, to family: BudgetSession, linkID: UUID) throws {
         guard scope == .personal, family.scope == .family,
@@ -216,6 +223,20 @@ final class BudgetSession {
     func renameMember(_ member: Member, name: String) throws {
         guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
         try repository.renameMember(member, name: name, in: budget, asOf: referenceDate); refresh()
+    }
+    /// The categories used most often in this budget, padded with everyday defaults.
+    func frequentCategories(limit: Int = 3) -> [SpendingCategory] {
+        let selectable = catalog.selectable
+        var counts: [UUID: Int] = [:]
+        for record in historyRecords where record.transaction.kind == .expense && !record.transaction.isDeleted {
+            counts[record.categoryID, default: 0] += 1
+        }
+        let used = selectable.filter { counts[$0.id] != nil && $0.id != BuiltInCategory.other.id }
+            .sorted { counts[$0.id]! == counts[$1.id]! ? $0.name < $1.name : counts[$0.id]! > counts[$1.id]! }
+        let defaults = [BuiltInCategory.groceries, .cafes, .transport].map(\.category)
+        var result: [SpendingCategory] = []
+        for category in used + defaults where !result.contains(category) && result.count < limit { result.append(category) }
+        return result
     }
     /// Nil for contributions and savings transfers, which have no category.
     func category(for record: LedgerRecord) -> SpendingCategory? {
@@ -257,12 +278,20 @@ final class BudgetSession {
 @MainActor enum MoneyText {
     /// Budgets are kept in rubles; choosing the budget currency comes with localization.
     static let symbol = "₽"
+    /// Exact amount of a record: kopecks only when there are any, and then always two digits (2 307,70 ₽).
     static func string(_ money: Money) -> String {
+        format(money, fractionDigits: money.minorUnits % money.currency.scale == 0 ? 0 : money.currency.fractionDigits)
+    }
+    /// Whole units for remainders, forecasts and analytics. Round the amount first (down for what is left).
+    static func whole(_ money: Money) -> String {
+        format(money.roundedDownToWholeUnits, fractionDigits: 0)
+    }
+    private static func format(_ money: Money, fractionDigits: Int) -> String {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "ru_RU"); formatter.numberStyle = .currency
         formatter.currencyCode = money.currency.code
         formatter.minusSign = "−"
-        formatter.minimumFractionDigits = 0; formatter.maximumFractionDigits = money.currency.fractionDigits
+        formatter.minimumFractionDigits = fractionDigits; formatter.maximumFractionDigits = fractionDigits
         return formatter.string(from: NSDecimalNumber(decimal: money.decimalValue)) ?? "—"
     }
     static func input(_ money: Money) -> String {

@@ -14,7 +14,7 @@ enum DemoFixtures {
         let records = [
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 1_000_000), kind: .contributionOut,
                 date: now.addingTimeInterval(-86400 * 10), authorID: owner.id, payerID: owner.id), title: "В семейный бюджет", linkID: mashaContribution),
-            LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 4_000_000), kind: .expense,
+            LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 2_500_000), kind: .expense,
                 date: now.addingTimeInterval(-86400), authorID: owner.id, payerID: owner.id), title: "Ранее в месяце"),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 80_000), kind: .expense,
                 date: now.addingTimeInterval(-60), authorID: owner.id, payerID: owner.id), title: "Обед", categoryID: BuiltInCategory.cafes.id)

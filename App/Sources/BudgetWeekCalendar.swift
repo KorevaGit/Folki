@@ -105,8 +105,8 @@ struct BudgetWeekCalendar: View {
             .lineLimit(1).minimumScaleFactor(0.7)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity).frame(minHeight: 56)
-            .foregroundStyle(isSelected ? Color(uiColor: .systemBackground) : .primary)
-            .background(isSelected ? Color.primary : Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5),
+            .foregroundStyle(isSelected ? Color.white : .primary)
+            .background(isSelected ? Color.folkiAccent : Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5),
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(isFuture ? 0.38 : (isSelected ? 1 : 0.75))
         }
