@@ -40,6 +40,7 @@ struct BudgetAnalyticsSection: View {
                         description: Text("За этот период нет записей. Выбери другой период или добавь трату через «Потратить»."))
                 }
                 if result.expenses.minorUnits > 0 || result.refunds.minorUnits > 0 {
+                    if period == .month { balance(result) }
                     chart(result).budgetCard()
                     categories(result)
                 }
@@ -263,18 +264,53 @@ struct BudgetAnalyticsSection: View {
                     }
                 }
             }
-            Divider()
-            amountRow("Обязательные", result.essentialSpending)
-            amountRow("Желания", result.wantsSpending)
-            if result.essentialSpending.minorUnits >= 0, result.wantsSpending.minorUnits >= 0 {
-                let total = Double(result.essentialSpending.minorUnits) + Double(result.wantsSpending.minorUnits)
-                if total > 0 {
-                    let essential = Int((Double(result.essentialSpending.minorUnits) / total * 100).rounded())
-                    Text("Обязательные \(essential)% · желания \(100 - essential)%")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiAccent)
-                }
-            }
         }.budgetCard()
+    }
+
+    /// The beginner's 50/30/20 frame: needs, wants and money put aside, as shares of this month's money.
+    /// Counted from what was actually spent and saved, so it works without recording income.
+    @ViewBuilder private func balance(_ result: BudgetAnalyticsSnapshot) -> some View {
+        let needs = max(0, result.essentialSpending.minorUnits)
+        let wants = max(0, result.wantsSpending.minorUnits)
+        let saved = max(0, result.reserveTransfers.minorUnits)
+        let total = needs + wants + saved
+        if total > 0 {
+            let parts: [(String, String, Int64, Int, Color)] = [
+                ("Обязательное", "жильё, еда, транспорт", needs, 50, Color.budget(.family)),
+                ("Желания", "кафе, покупки, развлечения", wants, 30, Color.budget(.personal)),
+                ("Отложено", "в накопления", saved, 20, Color.folkiAccent)]
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Баланс месяца").font(.headline)
+                    Text("Простой ориентир: 50% на обязательное, 30% на желания, 20% отложить.")
+                        .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(parts, id: \.0) { title, hint, amount, target, color in
+                    let share = Int((Double(amount) / Double(total) * 100).rounded())
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(title).font(.subheadline.weight(.semibold))
+                            Text(hint).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text("\(share)%").font(.subheadline.weight(.bold)).monospacedDigit()
+                            Text("/ \(target)%").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        ShareBar(share: Double(share) / 100, target: Double(target) / 100, color: color)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                Text(balanceAdvice(needs: needs, wants: wants, saved: saved, total: total))
+                    .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+            }.budgetCard()
+        }
+    }
+
+    private func balanceAdvice(needs: Int64, wants: Int64, saved: Int64, total: Int64) -> String {
+        let wantsShare = Double(wants) / Double(total), savedShare = Double(saved) / Double(total)
+        if saved == 0 { return "В этом месяце пока ничего не отложено. Начни с малого: даже 5% в накопления — уже привычка." }
+        if wantsShare > 0.35 { return "Желаний больше ориентира. Это не плохо, просто стоит знать, куда уходят деньги." }
+        if savedShare >= 0.2 { return "Откладываешь 20% и больше — отличный темп." }
+        return "Хороший баланс. Если получится, понемногу увеличивай долю накоплений."
     }
 
     private func transfers(_ result: BudgetAnalyticsSnapshot) -> some View {
@@ -321,5 +357,23 @@ private struct PaceBar: View {
         .accessibilityElement()
         .accessibilityLabel("Потрачено \(Int((spent * 100).rounded())) процентов плана")
         .accessibilityValue(expected.map { "К сегодняшнему дню по плану \(Int(($0 * 100).rounded())) процентов" } ?? "")
+    }
+}
+
+/// A share with a mark at the 50/30/20 guide.
+private struct ShareBar: View {
+    let share: Double
+    let target: Double
+    let color: Color
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(color.opacity(0.15))
+                Capsule().fill(color).frame(width: max(8, geo.size.width * min(1, share)))
+                RoundedRectangle(cornerRadius: 1).fill(Color.folkiInk.opacity(0.6))
+                    .frame(width: 2, height: geo.size.height + 6)
+                    .offset(x: geo.size.width * target - 1)
+            }
+        }.frame(height: 8).padding(.vertical, 3).accessibilityHidden(true)
     }
 }

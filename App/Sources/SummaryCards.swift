@@ -11,7 +11,6 @@ struct SummaryCards: View {
         let personalMonth = month(personal), familyMonth = month(family)
         let personalWeek = week(personal)
         VStack(alignment: .leading, spacing: 12) {
-            Text("Сводка").font(.title2.bold())
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                 NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: date) } } label: {
                     tile("Сегодня", symbol: "flame.fill", tint: Color.budget(.personal)) {

@@ -35,7 +35,6 @@ struct FolkiSummaryView: View {
     let family: BudgetSession
     @Binding var selectedDay: Date?
     let openBudget: () -> Void
-    @State private var showingFamily = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -52,7 +51,7 @@ struct FolkiSummaryView: View {
                     VStack(spacing: FolkiSpacing.item) {
                         weekCalendar.padding(.horizontal, FolkiSpacing.page)
                         ScrollView {
-                            summaryContent.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+                            summaryContent.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 90)
                         }.scrollBounceBehavior(.basedOnSize)
                     }.padding(.top, 4)
                         .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
@@ -60,13 +59,7 @@ struct FolkiSummaryView: View {
             }
             .background { FolkiBackground() }
             .navigationTitle("Сводка").toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Семья и доступ", systemImage: "person.2.fill") { showingFamily = true }
-                }
-            }
         }
-        .sheet(isPresented: $showingFamily) { SharingView(session: family) }
     }
 
     private var weekCalendar: some View {
@@ -81,7 +74,7 @@ struct FolkiSummaryView: View {
             Button(action: openBudget) {
                 budgetFavorite(personal: personal.overview(on: date).result, family: family.overview(on: date).result)
             }.buttonStyle(.plain).accessibilityHint("Открыть вкладку «Бюджет»")
-            familyMembers
+            SummaryCards(personal: personal, family: family, date: date)
         }
     }
 
@@ -115,10 +108,14 @@ struct FolkiSummaryView: View {
             }
         }.budgetCard()
     }
+}
 
-    private var familyMembers: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Семья").font(.title2.bold())
+/// Who is in the family, with a way to invite more. Lives in Settings.
+struct FamilyMembersCard: View {
+    let family: BudgetSession
+    let manage: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
             ForEach(family.members.filter(\.isActive)) { member in
                 HStack(spacing: 12) {
                     MemberAvatar(name: member.name)
@@ -129,8 +126,10 @@ struct FolkiSummaryView: View {
                     }
                 }
             }
-            Button("Добавить участника", systemImage: "person.badge.plus") { showingFamily = true }
-                .buttonStyle(.glass).controlSize(.large)
+            Button(action: manage) {
+                Label("Пригласить и управлять доступом", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }.buttonStyle(.glass)
         }.budgetCard()
     }
 }

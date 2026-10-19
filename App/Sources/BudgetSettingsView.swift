@@ -31,9 +31,7 @@ struct BudgetSettingsView: View {
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Семья и доступ").font(.system(.title2, design: .rounded, weight: .bold))
-                        Button { showingFamily = true } label: {
-                            settingsRow("Участники семьи", subtitle: "Приглашения, имена и доступ к общему бюджету", symbol: "person.2.fill")
-                        }.buttonStyle(.plain).budgetCard()
+                        FamilyMembersCard(family: family) { showingFamily = true }
                         Text("До пяти человек. Семейный бюджет общий, личные бюджеты друг другу не видны.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
