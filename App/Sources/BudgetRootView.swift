@@ -51,20 +51,23 @@ struct BudgetRootView: View {
                         }.folkiPagePadding(top: 4)
                     }.scrollBounceBehavior(.basedOnSize)
                 } else {
-                    VStack(spacing: FolkiSpacing.card) {
-                        weekCalendar.padding(.horizontal, FolkiSpacing.page)
-                        ScrollView {
+                    // One scroll for the whole page: no hard edges under the calendar or above the tab bar.
+                    ScrollView {
+                        VStack(spacing: FolkiSpacing.card) {
+                            weekCalendar
                             BudgetDashboardLayout {
                                 interactiveRings(card.rings).padding(.horizontal, -8)
                                 entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                 card.outlook.contentShape(Rectangle()).onTapGesture { sheet = .details }
-                            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 100)
-                        }.scrollBounceBehavior(.basedOnSize)
-                    }.padding(.top, 4)
+                            }
+                        }
+                        .padding(.horizontal, FolkiSpacing.page).padding(.top, 4)
                         .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .contentMargins(.bottom, 24, for: .scrollContent)
                 }
             }
-            .padding(.bottom, FolkiSpacing.card)
             .background { FolkiBackground() }
             .navigationTitle("Бюджет")
             .toolbarTitleDisplayMode(.inlineLarge)

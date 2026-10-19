@@ -53,37 +53,19 @@ struct FolkiSummaryView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { page in
-                if page.size.height < 520 || dynamicTypeSize.isAccessibilitySize {
-                    ScrollView {
-                        VStack(spacing: FolkiSpacing.item) {
-                            weekCalendar
-                            summaryContent
-                        }.folkiPagePadding(top: 4)
-                    }.scrollBounceBehavior(.basedOnSize)
-                } else {
-                    VStack(spacing: FolkiSpacing.item) {
-                        weekCalendar.padding(.horizontal, FolkiSpacing.page)
-                        ScrollView {
-                            summaryContent.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 90)
-                        }.scrollBounceBehavior(.basedOnSize)
-                    }.padding(.top, 4)
-                        .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
-                }
+            ScrollView {
+                summaryContent.folkiPagePadding(top: 4)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .contentMargins(.bottom, 24, for: .scrollContent)
             .background { FolkiBackground() }
             .navigationTitle("Сводка").toolbarTitleDisplayMode(.inlineLarge)
         }
     }
 
-    private var weekCalendar: some View {
-        BudgetWeekCalendar(selection: $selectedDay, today: family.referenceDate, calendar: family.calendar) { day in
-            (personal.overview(on: day).result?.dayRingFraction, family.overview(on: day).result?.dayRingFraction)
-        }
-    }
-
     private var summaryContent: some View {
-        let date = selectedDay ?? family.referenceDate
+        // Summary is always about today; browsing days lives on the Budget tab.
+        let date = family.referenceDate
         return VStack(alignment: .leading, spacing: FolkiSpacing.item) {
             Button(action: openBudget) {
                 budgetFavorite(personal: personal.overview(on: date).result, family: family.overview(on: date).result)
