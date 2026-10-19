@@ -32,7 +32,7 @@ struct BudgetSettingsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Семья и доступ").font(.system(.title2, design: .rounded, weight: .bold))
                         FamilyMembersCard(family: family) { showingFamily = true }
-                        Text("Ты можешь позвать до 4 близких 👨‍👩‍👧‍👦 Личные бюджеты у каждого свои.")
+                        Text("Ты можешь позвать до 4 близких 🏡 Личные бюджеты у каждого свои.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }.folkiPagePadding()

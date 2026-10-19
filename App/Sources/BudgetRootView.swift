@@ -58,7 +58,7 @@ struct BudgetRootView: View {
                                 interactiveRings(card.rings).padding(.horizontal, -8)
                                 entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                 card.outlook.contentShape(Rectangle()).onTapGesture { sheet = .details }
-                            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+                            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 100)
                         }.scrollBounceBehavior(.basedOnSize)
                     }.padding(.top, 4)
                         .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
@@ -352,7 +352,6 @@ private struct BudgetDaySpendingSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-            Text("Траты за \(date.formatted(.dateTime.day().month(.wide)))").font(.headline)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
                                      count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
                       alignment: .leading, spacing: FolkiSpacing.card) {

@@ -48,7 +48,11 @@ final class BudgetSession {
         refresh()
     }
 
+    /// Past days are read from storage; the calendar asks for the same days many times per frame.
+    @ObservationIgnored private var overviewCache: [Date: BudgetDayOverview] = [:]
+
     func refresh() {
+        overviewCache = [:]
         if let repository {
             do {
                 let stored = try repository.load(asOf: referenceDate, scope: scope)
@@ -92,6 +96,13 @@ final class BudgetSession {
         if calendar.isDate(day, inSameDayAs: referenceDate) {
             return BudgetDayOverview(result: result, records: selectedRecords(allRecords), errorMessage: errorMessage)
         }
+        if let cached = overviewCache[start] { return cached }
+        let overview = pastOverview(start: start, cutoff: cutoff, selectedRecords: selectedRecords)
+        if overview.errorMessage == nil { overviewCache[start] = overview }
+        return overview
+    }
+
+    private func pastOverview(start: Date, cutoff: Date, selectedRecords: ([LedgerRecord]) -> [LedgerRecord]) -> BudgetDayOverview {
         do {
             let snapshot: HouseholdSnapshot?
             let records: [LedgerRecord]
@@ -111,6 +122,7 @@ final class BudgetSession {
     }
 
     func createPlan(monthlyPlan: Money, available: Money, reserves: [ProtectedReserve] = []) throws {
+        overviewCache = [:]
         if let repository {
             try repository.createPlan(monthlyPlan: monthlyPlan, available: available, asOf: referenceDate, reserves: reserves, scope: scope)
             refresh()
@@ -156,6 +168,7 @@ final class BudgetSession {
         return try DailyBudgetCalculator.calculate(LedgerRules.replacing(record, in: budget, asOf: date).snapshot, asOf: date)
     }
     func save(_ record: LedgerRecord, editing: LedgerRecord? = nil) throws {
+        overviewCache = [:]
         let budget = try budget(editing: editing)
         let date = calculationDate(in: budget)
         if let repository {
@@ -168,6 +181,7 @@ final class BudgetSession {
         refresh()
     }
     func setDeleted(_ deleted: Bool, record: LedgerRecord) throws {
+        overviewCache = [:]
         let entry = record.transaction
         let draft = try draft(amount: entry.amount, title: record.title, payerID: entry.payerID, date: entry.date,
             kind: entry.kind, categoryID: record.categoryID, funding: entry.funding, editing: record, deleted: deleted)
@@ -179,6 +193,7 @@ final class BudgetSession {
         refresh()
     }
     func transfer(goal: SavingsGoalSnapshot, amount: Money, withdrawal: Bool, operationID: UUID) throws {
+        overviewCache = [:]
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
         try repository.transferToGoal(goal.id, amount: amount, withdrawal: withdrawal, in: budget, asOf: referenceDate, operationID: operationID)
         refresh()
@@ -192,6 +207,7 @@ final class BudgetSession {
     }
     /// Called on the personal session: moves money from it into the family budget.
     func contribute(_ amount: Money, to family: BudgetSession, linkID: UUID) throws {
+        overviewCache = [:]; family.overviewCache = [:]
         guard scope == .personal, family.scope == .family,
               let personalBudget = storedBudget, let familyBudget = family.storedBudget else { throw LedgerError.unavailable }
         if let repository {
@@ -209,6 +225,7 @@ final class BudgetSession {
         refresh(); family.refresh()
     }
     func cancelContribution(_ record: LedgerRecord) throws {
+        overviewCache = [:]
         guard let linkID = record.linkID, let repository else { throw LedgerError.unavailable }
         try repository.cancelContribution(linkID: linkID, asOf: referenceDate)
         refresh()

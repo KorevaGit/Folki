@@ -33,7 +33,7 @@ struct SharingView: View {
                             }.font(.caption)
                         }
                     }
-                    Text("Ты можешь позвать до 4 близких 👨‍👩‍👧‍👦 Личные бюджеты у каждого свои.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Ты можешь позвать до 4 близких 🏡 Личные бюджеты у каждого свои.").font(.footnote).foregroundStyle(.secondary)
                 }
                 if session.household == nil {
                     Section {
