@@ -28,6 +28,7 @@ private struct FolkiSummaryView: View {
     @Binding var selectedDay: Date?
     let openBudget: () -> Void
     @State private var showingFamily = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let date = selectedDay ?? family.referenceDate
@@ -62,26 +63,33 @@ private struct FolkiSummaryView: View {
     }
 
     private func budgetFavorite(personal: DailyBudgetSnapshot?, family: DailyBudgetSnapshot?) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 18))
+            : AnyLayout(HStackLayout(spacing: 18))
+        let familyLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 4))
+        return VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Label("Бюджет", systemImage: "wallet.bifold.fill").foregroundStyle(Color.folkiAccent)
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
             }.font(.headline)
-            HStack(spacing: 18) {
+            layout {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(selectedDay == nil ? "Личный · сегодня" : "Личный · выбранный день").font(.subheadline).foregroundStyle(.secondary)
                     Text(personal.map { MoneyText.string($0.todayRemaining) } ?? "—")
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
                         .foregroundStyle(personal.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-                    HStack(spacing: 4) {
+                    familyLayout {
                         Text("Общий").foregroundStyle(.secondary)
                         Text(family.map { MoneyText.string($0.todayRemaining) } ?? "—").fontWeight(.semibold)
                             .foregroundStyle(family.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
+                            .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
                     }.font(.subheadline)
                 }
-                Spacer(minLength: 0)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
                 FinancialRings(personal: personal, family: family, compact: true)
                     .frame(width: 94, height: 94).accessibilityHidden(true)
             }

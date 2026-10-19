@@ -134,7 +134,10 @@ struct BudgetRootView: View {
     }
 
     private var entryActions: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
             Menu {
                 Button("Личные деньги", systemImage: "person") { openEntry(.personal, kind: .expense) }
                 Button("Семейные деньги", systemImage: "person.2") { openEntry(.family, kind: .expense) }
@@ -148,7 +151,7 @@ struct BudgetRootView: View {
             } label: {
                 Label("Внести", systemImage: "plus.circle").frame(maxWidth: .infinity)
             }.buttonStyle(.bordered)
-        }.controlSize(.large).font(.headline)
+        }.controlSize(.large).font(.headline).lineLimit(1).minimumScaleFactor(0.75)
     }
 
     private func openEntry(_ scope: BudgetScope, kind: TransactionKind) {

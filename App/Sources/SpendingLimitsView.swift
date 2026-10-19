@@ -52,7 +52,7 @@ struct SpendingLimitsView: View {
                 }
                 if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
             }
-            .navigationTitle("Лимиты расходов").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Лимиты").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

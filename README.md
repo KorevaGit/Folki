@@ -77,9 +77,9 @@ Swift Testing проверяет расчёты, SQLite после повтор�
 
 ## Снимки экранов
 
-[Текущий бюджет · тёмная тема](docs/screenshots/budget-calendar-dark.png): центрированные кольца, действия и четыре числовых показателя над плавающим меню.
+[Бюджет · тёмная тема](docs/screenshots/budget-calendar-dark.png) · [светлая тема](docs/screenshots/budget-calendar-light.png) · [сводка с календарём и семьёй](docs/screenshots/summary-current-dark.png) · [месячная аналитика](docs/screenshots/budget-analytics-month.png) · [красный перерасход](docs/screenshots/budget-overspending.png).
 
-Снимки предыдущей проверенной сборки, до быстрых действий и аналитики: [светлая тема](docs/screenshots/budget-calendar-light.png) · [конвертация в USD](docs/screenshots/budget-converted-usd.png) · [сводка](docs/screenshots/summary-current-dark.png).
+Центрированные кольца, действия и четыре числовых показателя помещаются над плавающим меню на iPhone 18 Pro при обычном размере текста. Снимок перерасхода сделан на синтетической проверочной записи; затем запись убрана с восстановлением исходных остатков. [Конвертация в USD](docs/screenshots/budget-converted-usd.png) показана на предыдущей проверенной сборке.
 
 ## Материалы
 
