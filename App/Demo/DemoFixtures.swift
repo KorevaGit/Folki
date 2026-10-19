@@ -15,9 +15,9 @@ enum DemoFixtures {
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 1_000_000), kind: .contributionOut,
                 date: now.addingTimeInterval(-86400 * 10), authorID: owner.id, payerID: owner.id), title: "В семейный бюджет", linkID: mashaContribution),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 4_000_000), kind: .expense,
-                date: now.addingTimeInterval(-86400), authorID: owner.id, payerID: owner.id), title: "Ранее в месяце", symbol: "calendar"),
+                date: now.addingTimeInterval(-86400), authorID: owner.id, payerID: owner.id), title: "Ранее в месяце"),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 80_000), kind: .expense,
-                date: now.addingTimeInterval(-60), authorID: owner.id, payerID: owner.id), title: "Обед", category: .groceries)
+                date: now.addingTimeInterval(-60), authorID: owner.id, payerID: owner.id), title: "Обед", categoryID: BuiltInCategory.cafes.id)
         ]
         let period = try! BudgetPeriod(monthContaining: now, timeZoneIdentifier: "Europe/Moscow")
         let snapshot = HouseholdSnapshot(period: period, monthlyFreePlan: Money(minorUnits: 6_000_000),
@@ -36,11 +36,11 @@ enum DemoFixtures {
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 800_000), kind: .contributionIn,
                 date: now.addingTimeInterval(-86400 * 9), authorID: sasha.id, payerID: sasha.id), title: "Взнос в семейный бюджет", linkID: UUID()),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 7_845_000), kind: .expense,
-                date: previous, authorID: masha.id, payerID: masha.id), title: "Расходы ранее в октябре", symbol: "calendar"),
+                date: previous, authorID: masha.id, payerID: masha.id), title: "Расходы ранее в октябре"),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 105_000), kind: .expense,
-                date: now.addingTimeInterval(-1800), authorID: masha.id, payerID: masha.id), title: "Продукты к ужину", symbol: "basket.fill"),
+                date: now.addingTimeInterval(-1800), authorID: masha.id, payerID: masha.id), title: "Продукты к ужину", categoryID: BuiltInCategory.groceries.id),
             LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: 62_000), kind: .expense,
-                date: now.addingTimeInterval(-900), authorID: sasha.id, payerID: sasha.id), title: "Кофе и прогулка", symbol: "cup.and.saucer.fill")
+                date: now.addingTimeInterval(-900), authorID: sasha.id, payerID: sasha.id), title: "Кофе и прогулка", categoryID: BuiltInCategory.cafes.id)
         ]
         do {
             let snapshot = HouseholdSnapshot(period: try BudgetPeriod(monthContaining: now, timeZoneIdentifier: "Europe/Moscow"),

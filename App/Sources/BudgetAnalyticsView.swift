@@ -19,7 +19,7 @@ struct BudgetAnalyticsSection: View {
                 ForEach(AnalyticsPeriod.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented)
             if let result = try? BudgetAnalytics.calculate(records: session.historyRecords, period: period,
-                anchor: date, asOf: session.referenceDate, calendar: session.calendar) {
+                anchor: date, asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog) {
                 Text("\(session.scope.title) бюджет · по \(result.cutoff.formatted(.dateTime.day().month(.wide)))")
                     .font(.footnote).foregroundStyle(.secondary)
                 if result.recordCount == 0 {
@@ -101,10 +101,17 @@ struct BudgetAnalyticsSection: View {
     private func categories(_ result: BudgetAnalyticsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("По категориям").font(.headline)
+            let net = result.essentialSpending.minorUnits + result.wantsSpending.minorUnits
+            if net > 0 {
+                let essential = Int((Double(result.essentialSpending.minorUnits) / Double(net) * 100).rounded())
+                Text("Обязательные \(essential)% · желания \(100 - essential)%")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
             ForEach(result.categories) { item in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Label(item.category.title, systemImage: item.category.symbol)
+                        let category = session.catalog.category(for: item.categoryID)
+                        Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 22) }
                         Spacer()
                         Text(MoneyText.string(item.expenses)).monospacedDigit()
                     }.font(.subheadline)

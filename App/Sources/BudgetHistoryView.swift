@@ -16,16 +16,16 @@ struct BudgetHistoryView: View {
             ForEach(records) { record in
                 VStack(alignment: .leading) {
                     if record.transaction.isDeleted {
-                        LedgerRow(record: record, payer: session.payerName(for: record))
+                        LedgerRow(record: record, session: session)
                         Button("Восстановить запись", systemImage: "arrow.uturn.backward") {
                             setDeleted(false, record: record)
                         }.buttonStyle(.bordered)
                     } else if session.isEditable(record) {
                         Button { editing = record } label: {
-                            LedgerRow(record: record, payer: session.payerName(for: record))
+                            LedgerRow(record: record, session: session)
                         }.buttonStyle(.plain)
                     } else {
-                        LedgerRow(record: record, payer: session.payerName(for: record))
+                        LedgerRow(record: record, session: session)
                     }
                 }
                 .swipeActions {

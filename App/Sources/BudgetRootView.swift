@@ -187,10 +187,10 @@ struct BudgetRootView: View {
                     ForEach(records.reversed()) { record in
                         if session.isEditable(record) {
                             Button { editingRecord = record } label: {
-                                LedgerRow(record: record, payer: session.payerName(for: record))
+                                LedgerRow(record: record, session: session)
                             }.buttonStyle(.plain)
                         } else {
-                            LedgerRow(record: record, payer: session.payerName(for: record))
+                            LedgerRow(record: record, session: session)
                         }
                         if record.id != records.first?.id { Divider() }
                     }
@@ -272,7 +272,7 @@ private struct BudgetCalculationView: View {
 
 struct LedgerRow: View {
     let record: LedgerRecord
-    let payer: String
+    let session: BudgetSession
     private var prefix: String {
         switch record.transaction.kind {
         case .expense: "−"
@@ -282,11 +282,16 @@ struct LedgerRow: View {
         }
     }
     var body: some View {
+        let category = session.category(for: record)
         HStack(spacing: 12) {
-            Image(systemName: record.symbol).frame(width: 24).foregroundStyle(.secondary)
+            if let category {
+                CategoryIcon(category: category)
+            } else {
+                CategoryIcon(symbol: record.transaction.kind.isContribution ? "person.2.fill" : "arrow.left.arrow.right", color: .secondary)
+            }
             VStack(alignment: .leading, spacing: 4) {
-                Text(record.title)
-                Text(([payer] + (record.transaction.kind.isContribution ? [] : [record.category.title])
+                Text(record.title.isEmpty ? (category?.name ?? "") : record.title)
+                Text(([session.payerName(for: record)] + (category.map { [$0.name] } ?? [])
                     + [record.transaction.date.formatted(.dateTime.day().month())]).joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
             }

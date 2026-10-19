@@ -9,9 +9,9 @@ struct BudgetAnalyticsTests {
         var value = Calendar(identifier: .gregorian); value.timeZone = TimeZone(identifier: "Europe/Moscow")!; return value
     }
     private func record(_ amount: Int64, kind: TransactionKind = .expense, date: Date, deleted: Bool = false,
-                        funding: BudgetFunding = .flexible, category: ExpenseCategory = .groceries) -> LedgerRecord {
+                        funding: BudgetFunding = .flexible, category: BuiltInCategory = .groceries) -> LedgerRecord {
         LedgerRecord(transaction: TransactionSnapshot(amount: Money(minorUnits: amount), kind: kind, funding: funding,
-            date: date, authorID: author, payerID: author, isDeleted: deleted), title: "Запись", category: category)
+            date: date, authorID: author, payerID: author, isDeleted: deleted), title: "Запись", categoryID: category.id)
     }
     @Test func separatesActualExpensesRefundsIncomeAndReserveTransfers() throws {
         let now = date("2026-10-19T12:00:00Z"), reserve = UUID()
@@ -19,7 +19,7 @@ struct BudgetAnalyticsTests {
             record(100000, kind: .income, date: now, funding: .unallocated),
             record(30000, kind: .reserveAllocation, date: now, funding: .reserve(reserve)),
             record(5000, kind: .reserveRelease, date: now, funding: .reserve(reserve)),
-            record(7000, date: now, funding: .reserve(reserve), category: .home)]
+            record(7000, date: now, funding: .reserve(reserve), category: .housing)]
         let result = try BudgetAnalytics.calculate(records: records, period: .day, anchor: now, asOf: now, calendar: calendar)
         #expect(result.expenses.minorUnits == 57000)
         #expect(result.refunds.minorUnits == 20000)

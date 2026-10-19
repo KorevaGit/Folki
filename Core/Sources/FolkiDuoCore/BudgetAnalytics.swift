@@ -15,8 +15,8 @@ public struct AnalyticsBucket: Identifiable, Sendable {
 }
 
 public struct CategorySpending: Identifiable, Sendable {
-    public var id: ExpenseCategory { category }
-    public let category: ExpenseCategory
+    public var id: UUID { categoryID }
+    public let categoryID: UUID
     public let expenses: Money
     public let refunds: Money
 }
@@ -39,6 +39,9 @@ public struct BudgetAnalyticsSnapshot: Sendable {
     /// Family budget only: who contributed how much, largest first.
     public let contributionsByMember: [MemberContribution]
     public let flexibleNetSpending: Money
+    /// Net spending split by the category's needs-versus-wants flag.
+    public let essentialSpending: Money
+    public let wantsSpending: Money
     public let recordCount: Int
     public let buckets: [AnalyticsBucket]
     public let categories: [CategorySpending]
@@ -48,7 +51,8 @@ public struct BudgetAnalyticsSnapshot: Sendable {
 public enum BudgetAnalytics {
     /// Calendar periods, Monday-first weeks, no future/deleted records or transfer double counting.
     public static func calculate(records: [LedgerRecord], period: AnalyticsPeriod, anchor: Date,
-                                 asOf now: Date, calendar: Calendar) throws -> BudgetAnalyticsSnapshot {
+                                 asOf now: Date, calendar: Calendar,
+                                 catalog: CategoryCatalog = CategoryCatalog()) throws -> BudgetAnalyticsSnapshot {
         var calendar = calendar
         calendar.firstWeekday = 2; calendar.minimumDaysInFirstWeek = 4
         let component: Calendar.Component = switch period { case .day: .day; case .week: .weekOfYear; case .month: .month }
@@ -60,7 +64,7 @@ public enum BudgetAnalytics {
         let zero = Money(minorUnits: 0)
         var expenses = zero, refunds = zero, income = zero, transfers = zero, flexible = zero, contributions = zero
         var byMember: [UUID: Money] = [:]
-        var categoryAmounts: [ExpenseCategory: (Money, Money)] = [:]
+        var categoryAmounts: [UUID: (Money, Money)] = [:]
         var expenseBuckets: [Date: Money] = [:], refundBuckets: [Date: Money] = [:]
         var ids = Set<UUID>()
         var count = 0
@@ -76,15 +80,17 @@ public enum BudgetAnalytics {
             count += 1
             switch entry.kind {
             case .expense, .refund:
-                let current = categoryAmounts[record.category] ?? (zero, zero)
+                // A custom category that has not synced yet is shown as «Другое», not as a separate row.
+                let categoryID = catalog.contains(record.categoryID) ? record.categoryID : BuiltInCategory.other.id
+                let current = categoryAmounts[categoryID] ?? (zero, zero)
                 if entry.kind == .expense {
                     expenses = try expenses.adding(entry.amount)
                     expenseBuckets[bucket] = try (expenseBuckets[bucket] ?? zero).adding(entry.amount)
-                    categoryAmounts[record.category] = (try current.0.adding(entry.amount), current.1)
+                    categoryAmounts[categoryID] = (try current.0.adding(entry.amount), current.1)
                 } else {
                     refunds = try refunds.adding(entry.amount)
                     refundBuckets[bucket] = try (refundBuckets[bucket] ?? zero).adding(entry.amount)
-                    categoryAmounts[record.category] = (current.0, try current.1.adding(entry.amount))
+                    categoryAmounts[categoryID] = (current.0, try current.1.adding(entry.amount))
                 }
                 if entry.funding == .flexible {
                     flexible = try entry.kind == .expense ? flexible.adding(entry.amount) : flexible.subtracting(entry.amount)
@@ -109,11 +115,14 @@ public enum BudgetAnalytics {
             cursor = next
         }
         var categories: [CategorySpending] = []
-        for (category, amounts) in categoryAmounts {
-            categories.append(CategorySpending(category: category, expenses: amounts.0, refunds: amounts.1))
+        var essential = zero, wants = zero
+        for (categoryID, amounts) in categoryAmounts {
+            categories.append(CategorySpending(categoryID: categoryID, expenses: amounts.0, refunds: amounts.1))
+            let net = try amounts.0.subtracting(amounts.1)
+            if catalog.category(for: categoryID).isEssential { essential = try essential.adding(net) } else { wants = try wants.adding(net) }
         }
         categories.sort { left, right in
-            if left.expenses.minorUnits == right.expenses.minorUnits { return left.category.rawValue < right.category.rawValue }
+            if left.expenses.minorUnits == right.expenses.minorUnits { return left.categoryID.uuidString < right.categoryID.uuidString }
             return left.expenses.minorUnits > right.expenses.minorUnits
         }
         _ = try expenses.subtracting(refunds)
@@ -123,6 +132,6 @@ public enum BudgetAnalytics {
         }
         return BudgetAnalyticsSnapshot(interval: interval, cutoff: cutoff, expenses: expenses, refunds: refunds, income: income,
             reserveTransfers: transfers, contributions: contributions, contributionsByMember: members,
-            flexibleNetSpending: flexible, recordCount: count, buckets: buckets, categories: categories)
+            flexibleNetSpending: flexible, essentialSpending: essential, wantsSpending: wants, recordCount: count, buckets: buckets, categories: categories)
     }
 }

@@ -11,7 +11,7 @@ struct SeparatedBudgetTests {
     private func path() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("FolkiScopes-\(UUID())") }
     private func entry(_ budget: StoredBudget, author: UUID, amount: Int64) -> LedgerRecord {
         LedgerRecord(transaction: TransactionSnapshot(amount: rub(amount), kind: .expense, date: now,
-            authorID: author, payerID: author), title: "Расход", category: .other)
+            authorID: author, payerID: author), title: "Расход")
     }
     private func create(_ repo: BudgetRepository, scope: BudgetScope, amount: Int64 = 10000) throws -> StoredBudget {
         try repo.createPlan(monthlyPlan: rub(amount), available: rub(amount), asOf: now,

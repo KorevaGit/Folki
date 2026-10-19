@@ -317,6 +317,9 @@ public final class BudgetRepository {
             if expectedRevision != nil {
                 guard object.value(forKey: "authorID") as? UUID == record.transaction.authorID else { throw LedgerError.invalidMember }
             }
+            // An archived category stays on records that already use it but cannot be picked again.
+            let keepsCategory = expectedRevision != nil && object.value(forKey: "categoryID") as? UUID == record.categoryID
+            try validateCategory(record.categoryID, household: household, allowArchived: keepsCategory)
             encode(record, into: object, updatedAt: now)
             // Re-read the whole period, including imports, before accepting a write.
             guard let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.conflict }
@@ -435,7 +438,7 @@ public final class BudgetRepository {
             let record = LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: amount,
                 kind: withdrawal ? .reserveRelease : .reserveAllocation, funding: .reserve(id),
                 date: now, authorID: author, payerID: author),
-                title: withdrawal ? "Из накоплений: \(goal.name)" : "В накопления: \(goal.name)", symbol: "arrow.left.arrow.right")
+                title: withdrawal ? "Из накоплений: \(goal.name)" : "В накопления: \(goal.name)")
             _ = try LedgerRules.replacing(record, in: current, asOf: now)
             let transaction = insert("Transaction", id: record.id, household: household)
             transaction.setValue(period, forKey: "period")
@@ -529,6 +532,86 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
+    /// Custom categories of a budget, archived ones included; built-in ones live in code.
+    public func categories(scope: BudgetScope) throws -> [SpendingCategory] {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let root = roots.first else { return [] }
+        return try customCategories(household: root)
+    }
+    public func catalog(scope: BudgetScope) throws -> CategoryCatalog {
+        CategoryCatalog(custom: try categories(scope: scope))
+    }
+    private func customCategories(household: NSManagedObject) throws -> [SpendingCategory] {
+        try fetch("Category", predicate: NSPredicate(format: "household == %@", household)).map { item in
+            SpendingCategory(id: try item.required("id"), name: try item.required("name"),
+                // Tolerate values written by a newer version of the app.
+                symbol: item.value(forKey: "symbol") as? String ?? "tag.fill",
+                color: CategoryColor(rawValue: item.value(forKey: "color") as? String ?? "") ?? .gray,
+                isEssential: item.value(forKey: "essential") as? Bool == true,
+                isArchived: item.value(forKey: "archived") as? Bool == true,
+                revision: item.value(forKey: "revision") as? UUID)
+        }.sorted { $0.name == $1.name ? $0.id.uuidString < $1.id.uuidString : $0.name < $1.name }
+    }
+    private func validateCategory(_ id: UUID, household: NSManagedObject, allowArchived: Bool) throws {
+        if BuiltInCategory.named(id) != nil { return }
+        guard let category = try customCategories(household: household).first(where: { $0.id == id }) else {
+            throw LedgerError.missingCategory
+        }
+        guard allowArchived || !category.isArchived else { throw LedgerError.missingCategory }
+    }
+    private func validateCategoryFields(name: String, symbol: String, household: NSManagedObject, excluding id: UUID?) throws -> String {
+        guard let clean = SpendingCategory.validName(name), !symbol.isEmpty, symbol.count <= 64 else { throw LedgerError.invalidCategory }
+        let taken = BuiltInCategory.all + (try customCategories(household: household)).filter { !$0.isArchived && $0.id != id }
+        guard !taken.contains(where: { $0.name.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
+            throw LedgerError.duplicateCategory
+        }
+        return clean
+    }
+
+    @discardableResult
+    public func createCategory(name: String, symbol: String, color: CategoryColor, isEssential: Bool,
+                               in budget: StoredBudget, asOf now: Date, id: UUID = UUID()) throws -> UUID {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let clean = try validateCategoryFields(name: name, symbol: symbol, household: root, excluding: nil)
+            guard try fetch("Category", predicate: NSPredicate(format: "id == %@", id as NSUUID)).isEmpty else { throw LedgerError.conflict }
+            let item = insert("Category", id: id, household: root)
+            item.setValue(clean, forKey: "name"); item.setValue(symbol, forKey: "symbol")
+            item.setValue(color.rawValue, forKey: "color"); item.setValue(isEssential, forKey: "essential")
+            item.setValue(false, forKey: "archived"); item.setValue(UUID(), forKey: "revision"); item.setValue(now, forKey: "createdAt")
+            try commit()
+            return id
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Edits a custom category. Records keep its identifier, so history follows the new name.
+    public func updateCategory(_ category: SpendingCategory, name: String, symbol: String, color: CategoryColor,
+                               isEssential: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Category", id: category.id, budget: budget)
+            guard item.value(forKey: "revision") as? UUID == category.revision else { throw LedgerError.conflict }
+            let clean = try validateCategoryFields(name: name, symbol: symbol, household: root, excluding: category.id)
+            item.setValue(clean, forKey: "name"); item.setValue(symbol, forKey: "symbol")
+            item.setValue(color.rawValue, forKey: "color"); item.setValue(isEssential, forKey: "essential")
+            item.setValue(UUID(), forKey: "revision")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Archiving hides a category from new records; history and analytics keep it.
+    public func setCategoryArchived(_ category: SpendingCategory, archived: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Category", id: category.id, budget: budget)
+            guard item.value(forKey: "revision") as? UUID == category.revision else { throw LedgerError.conflict }
+            if !archived { _ = try validateCategoryFields(name: category.name, symbol: category.symbol, household: root, excluding: category.id) }
+            item.setValue(archived, forKey: "archived"); item.setValue(UUID(), forKey: "revision")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     public func addFamilyMember(name: String, in budget: StoredBudget, asOf now: Date) throws {
         do {
             let root = try writableRoot(budget, now: now)
@@ -612,13 +695,11 @@ public final class BudgetRepository {
         case "reserve": funding = .reserve(try object.required("reserveID"))
         default: throw LedgerError.corruptStore
         }
-        let categoryString: String = try object.required("category")
-        guard let category = ExpenseCategory(rawValue: categoryString) else { throw LedgerError.corruptStore }
         return LedgerRecord(transaction: TransactionSnapshot(id: try object.required("id"),
             amount: Money(minorUnits: try object.required("amount")), kind: kind, funding: funding,
             date: try object.required("date"), authorID: try object.required("authorID"),
             payerID: try object.required("payerID"), isDeleted: try object.required("tombstone")),
-            title: try object.required("title"), category: category, revision: try object.required("revision"),
+            title: try object.required("title"), categoryID: try object.required("categoryID"), revision: try object.required("revision"),
             linkID: object.value(forKey: "linkID") as? UUID)
     }
     private func encode(_ record: LedgerRecord, into object: NSManagedObject, updatedAt: Date) {
@@ -637,7 +718,7 @@ public final class BudgetRepository {
         }
         let values: [String: Any] = ["amount": entry.amount.minorUnits, "kind": kind, "funding": funding,
             "date": entry.date, "authorID": entry.authorID, "payerID": entry.payerID,
-            "title": record.title, "category": record.category.rawValue, "tombstone": entry.isDeleted,
+            "title": record.title, "categoryID": record.categoryID, "tombstone": entry.isDeleted,
             "revision": record.revision, "updatedAt": updatedAt]
         values.forEach { object.setValue($0.value, forKey: $0.key) }
         object.setValue(reserveID, forKey: "reserveID")

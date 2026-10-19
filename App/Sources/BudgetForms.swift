@@ -65,7 +65,7 @@ struct ExpenseEditorView: View {
     @State private var payerID: UUID
     @State private var date: Date
     @State private var kind: String
-    @State private var category: ExpenseCategory
+    @State private var categoryID: UUID
     @State private var assignIncome: Bool
     @State private var reserveID: UUID?
     @State private var errorMessage: String?
@@ -78,7 +78,7 @@ struct ExpenseEditorView: View {
         _date = State(initialValue: editing?.transaction.date ?? session.referenceDate)
         let type = editing?.transaction.kind ?? initialKind
         _kind = State(initialValue: type == .refund ? "refund" : type == .income ? "income" : "expense")
-        _category = State(initialValue: editing?.category ?? .other)
+        _categoryID = State(initialValue: editing?.categoryID ?? BuiltInCategory.other.id)
         _assignIncome = State(initialValue: editing.map { $0.transaction.kind == .income && $0.transaction.funding == .flexible }
             ?? (initialKind == .income))
         if case .reserve(let id) = editing?.transaction.funding { _reserveID = State(initialValue: id) }
@@ -91,7 +91,13 @@ struct ExpenseEditorView: View {
         let funding: BudgetFunding = type == .income ? (assignIncome ? .flexible : .unallocated)
             : reserveID.map { .reserve($0) } ?? .flexible
         return try? session.draft(amount: money, title: title, payerID: payerID, date: date,
-            kind: type, category: category, funding: funding, editing: editing, newRecordID: newRecordID)
+            kind: type, categoryID: categoryID, funding: funding, editing: editing, newRecordID: newRecordID)
+    }
+    /// Active categories, plus the archived one an edited record already uses.
+    private var categoryChoices: [SpendingCategory] {
+        var choices = session.catalog.selectable
+        if !choices.contains(where: { $0.id == categoryID }) { choices.append(session.catalog.category(for: categoryID)) }
+        return choices
     }
     private var editingBudget: StoredBudget? { try? session.budget(editing: editing) }
     private var expenseReserves: [ProtectedReserve] {
@@ -107,10 +113,12 @@ struct ExpenseEditorView: View {
                         Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Поступление").tag("income")
                     }
                     TextField("Сумма, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
-                    TextField("Описание", text: $title)
-                    Picker("Категория", selection: $category) {
-                        ForEach(ExpenseCategory.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
+                    TextField("Описание · необязательно", text: $title)
+                    Picker("Категория", selection: $categoryID) {
+                        ForEach(categoryChoices) { category in
+                            Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 22) }.tag(category.id)
+                        }
+                    }.pickerStyle(.navigationLink)
                     Picker(kind == "expense" ? "Оплатил" : "Получил", selection: $payerID) {
                         ForEach(session.members.filter { $0.isActive || $0.id == editing?.transaction.payerID }) { Text(session.memberName($0.id)).tag($0.id) }
                     }

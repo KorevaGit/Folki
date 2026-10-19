@@ -13,6 +13,7 @@ struct BudgetDayOverview {
 final class BudgetSession {
     let scope: BudgetScope
     private(set) var goals: [SavingsGoalSnapshot] = []
+    private(set) var catalog = CategoryCatalog()
     private(set) var household: HouseholdSnapshot?
     private(set) var result: DailyBudgetSnapshot?
     private(set) var allRecords: [LedgerRecord]
@@ -55,6 +56,7 @@ final class BudgetSession {
                 allRecords = stored?.records ?? []
                 historyRecords = try repository.history(scope: scope)
                 goals = try repository.goals(scope: scope, asOf: referenceDate)
+                catalog = try repository.catalog(scope: scope)
                 members = stored?.members ?? []
                 if let stored {
                     periodID = stored.periodID
@@ -133,12 +135,12 @@ final class BudgetSession {
     }
 
     func draft(amount: Money, title: String, payerID: UUID, date: Date, kind: TransactionKind,
-               category: ExpenseCategory, funding: BudgetFunding, editing: LedgerRecord? = nil,
+               categoryID: UUID, funding: BudgetFunding, editing: LedgerRecord? = nil,
                deleted: Bool = false, newRecordID: UUID = UUID()) throws -> LedgerRecord {
         guard let authorID else { throw LedgerError.invalidMember }
         return LedgerRecord(transaction: TransactionSnapshot(id: editing?.id ?? newRecordID, amount: amount, kind: kind,
             funding: funding, date: date, authorID: editing?.transaction.authorID ?? authorID, payerID: payerID,
-            isDeleted: deleted), title: title.trimmingCharacters(in: .whitespacesAndNewlines), category: category)
+            isDeleted: deleted), title: title.trimmingCharacters(in: .whitespacesAndNewlines), categoryID: categoryID)
     }
     func budget(editing record: LedgerRecord?) throws -> StoredBudget {
         if let record, let repository, let stored = try repository.load(asOf: record.transaction.date, scope: scope) { return stored }
@@ -168,7 +170,7 @@ final class BudgetSession {
     func setDeleted(_ deleted: Bool, record: LedgerRecord) throws {
         let entry = record.transaction
         let draft = try draft(amount: entry.amount, title: record.title, payerID: entry.payerID, date: entry.date,
-            kind: entry.kind, category: record.category, funding: entry.funding, editing: record, deleted: deleted)
+            kind: entry.kind, categoryID: record.categoryID, funding: entry.funding, editing: record, deleted: deleted)
         try save(draft, editing: record)
     }
     func createGoal(name: String, target: Money) throws {
@@ -214,6 +216,25 @@ final class BudgetSession {
     func renameMember(_ member: Member, name: String) throws {
         guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
         try repository.renameMember(member, name: name, in: budget, asOf: referenceDate); refresh()
+    }
+    /// Nil for contributions and savings transfers, which have no category.
+    func category(for record: LedgerRecord) -> SpendingCategory? {
+        record.hasCategory ? catalog.category(for: record.categoryID) : nil
+    }
+    func createCategory(name: String, symbol: String, color: CategoryColor, isEssential: Bool) throws {
+        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
+        try repository.createCategory(name: name, symbol: symbol, color: color, isEssential: isEssential, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    func updateCategory(_ category: SpendingCategory, name: String, symbol: String, color: CategoryColor, isEssential: Bool) throws {
+        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
+        try repository.updateCategory(category, name: name, symbol: symbol, color: color, isEssential: isEssential, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    func setCategoryArchived(_ category: SpendingCategory, archived: Bool) throws {
+        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
+        try repository.setCategoryArchived(category, archived: archived, in: budget, asOf: referenceDate)
+        refresh()
     }
     func isEditable(_ record: LedgerRecord) -> Bool {
         [.expense, .refund, .income].contains(record.transaction.kind)

@@ -30,45 +30,22 @@ public struct Member: Identifiable, Equatable, Sendable {
     public init(id: UUID, name: String, isActive: Bool = true) { self.id = id; self.name = name; self.isActive = isActive }
 }
 
-public enum ExpenseCategory: String, CaseIterable, Sendable {
-    case groceries, transport, home, health, leisure, other
-    public var title: String {
-        switch self {
-        case .groceries: "Продукты"
-        case .transport: "Транспорт"
-        case .home: "Дом"
-        case .health: "Здоровье"
-        case .leisure: "Досуг"
-        case .other: "Другое"
-        }
-    }
-    public var symbol: String {
-        switch self {
-        case .groceries: "basket.fill"
-        case .transport: "tram.fill"
-        case .home: "house.fill"
-        case .health: "heart.fill"
-        case .leisure: "sparkles"
-        case .other: "receipt.fill"
-        }
-    }
-}
-
 public struct LedgerRecord: Identifiable, Sendable {
     public let transaction: TransactionSnapshot
     public let title: String
-    public let category: ExpenseCategory
+    public let categoryID: UUID
     public let revision: UUID
-    public let symbol: String
     /// Shared by both sides of a contribution; nil for every other operation.
     public let linkID: UUID?
     public var id: UUID { transaction.id }
-    public init(transaction: TransactionSnapshot, title: String, symbol: String? = nil,
-                category: ExpenseCategory = .other, revision: UUID = UUID(), linkID: UUID? = nil) {
-        self.transaction = transaction; self.title = title; self.category = category
+    public init(transaction: TransactionSnapshot, title: String, categoryID: UUID = BuiltInCategory.other.id,
+                revision: UUID = UUID(), linkID: UUID? = nil) {
+        self.transaction = transaction; self.title = title; self.categoryID = categoryID
         self.revision = revision; self.linkID = linkID
-        self.symbol = symbol ?? (transaction.kind.isContribution ? "person.2.fill"
-            : [.reserveAllocation, .reserveRelease].contains(transaction.kind) ? "arrow.left.arrow.right" : category.symbol)
+    }
+    /// Contributions and savings transfers move money between budgets or reserves and have no category.
+    public var hasCategory: Bool {
+        ![.contributionOut, .contributionIn, .reserveAllocation, .reserveRelease].contains(transaction.kind)
     }
 }
 
@@ -87,14 +64,15 @@ public struct StoredBudget: Sendable {
 public enum LedgerError: Error, Equatable {
     case unavailable, corruptStore, conflict, missingRecord, invalidMember, existingPeriod, multipleHouseholds
     case cloudNotConfigured, accessDenied, accountChanged, privateBudgetCannotBeShared, familyFull
+    case missingCategory, invalidCategory, duplicateCategory
 }
 
 public enum LedgerRules {
     /// Replace the original operation for previews and edits; never add the old amount twice.
     public static func replacing(_ record: LedgerRecord, in budget: StoredBudget, asOf now: Date) throws -> StoredBudget {
         let entry = record.transaction
-        guard !record.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              entry.amount.minorUnits > 0, entry.amount.currency == .rub,
+        // The description is optional: a record without one is shown by its category name.
+        guard entry.amount.minorUnits > 0, entry.amount.currency == .rub,
               budget.snapshot.period.contains(entry.date), entry.date <= now,
               entry.kind.isContribution == (record.linkID != nil),
               !entry.kind.isContribution || entry.kind == budget.scope.contributionKind else { throw BudgetError.invalidTransaction }

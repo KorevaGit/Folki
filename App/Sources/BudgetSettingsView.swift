@@ -14,6 +14,10 @@ struct BudgetSettingsView: View {
                     plan(personal)
                     plan(family)
                 }
+                Section("Категории") {
+                    NavigationLink("Личные категории") { CategoriesView(session: personal) }
+                    NavigationLink("Семейные категории") { CategoriesView(session: family) }
+                }
             }
             .navigationTitle("Настройки бюджета").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }

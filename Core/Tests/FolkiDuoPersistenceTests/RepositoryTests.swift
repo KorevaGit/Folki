@@ -17,7 +17,7 @@ struct RepositoryTests {
                         date: Date? = nil, old: LedgerRecord? = nil, deleted: Bool = false) -> LedgerRecord {
         LedgerRecord(transaction: TransactionSnapshot(id: old?.id ?? UUID(), amount: rub(amount), kind: kind,
             funding: funding, date: date ?? now, authorID: old?.transaction.authorID ?? author,
-            payerID: budget.members.first(where: { $0.id != author })!.id, isDeleted: deleted), title: "Покупка", category: .groceries)
+            payerID: budget.members.first(where: { $0.id != author })!.id, isDeleted: deleted), title: "Покупка", categoryID: BuiltInCategory.groceries.id)
     }
     private func setup(_ repo: BudgetRepository) throws -> StoredBudget {
         try repo.createPlan(monthlyPlan: rub(120000), available: rub(41550), asOf: now, timeZone: "Europe/Moscow")
@@ -39,7 +39,7 @@ struct RepositoryTests {
         #expect(loaded.members == initial.members)
         #expect(try second.authorID(in: loaded) == member)
         #expect(loaded.records.count == 1)
-        #expect(loaded.records[0].category == .groceries)
+        #expect(loaded.records[0].categoryID == BuiltInCategory.groceries.id)
         #expect(loaded.records[0].transaction.payerID != member)
         #expect(try DailyBudgetCalculator.calculate(loaded.snapshot, asOf: now).monthlyRemaining == rub(40550))
         try second.close()
@@ -201,7 +201,7 @@ struct RepositoryTests {
         let path = directory(); defer { try? FileManager.default.removeItem(at: path) }
         let repo = try await open(path, UUID())
         let model = repo.container.managedObjectModel
-        #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Goal", "GoalContribution"])
+        #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Goal", "GoalContribution", "Category"])
         #expect(model.versionIdentifiers.contains(AnyHashable("1")))
         for entity in model.entities {
             #expect(entity.uniquenessConstraints.isEmpty)

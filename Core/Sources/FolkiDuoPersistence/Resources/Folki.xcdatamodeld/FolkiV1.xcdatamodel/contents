@@ -12,6 +12,7 @@
     <relationship name="reserves" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Reserve" inverseName="household" inverseEntity="Reserve" />
     <relationship name="goals" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Goal" inverseName="household" inverseEntity="Goal" />
     <relationship name="goalContributions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GoalContribution" inverseName="household" inverseEntity="GoalContribution" />
+    <relationship name="categories" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Category" inverseName="household" inverseEntity="Category" />
   </entity>
   <entity name="Member" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="inactive" optional="YES" attributeType="Boolean" defaultValueString="NO" />
@@ -40,7 +41,7 @@
     <attribute name="authorID" optional="YES" attributeType="UUID" />
     <attribute name="payerID" optional="YES" attributeType="UUID" />
     <attribute name="title" optional="YES" attributeType="String" />
-    <attribute name="category" optional="YES" attributeType="String" />
+    <attribute name="categoryID" optional="YES" attributeType="UUID" />
     <attribute name="tombstone" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="NO" />
     <attribute name="revision" optional="YES" attributeType="UUID" />
     <attribute name="updatedAt" optional="YES" attributeType="Date" />
@@ -69,5 +70,16 @@
     <attribute name="direction" optional="YES" attributeType="String" />
     <attribute name="date" optional="YES" attributeType="Date" />
     <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="goalContributions" inverseEntity="Household" />
+  </entity>
+  <entity name="Category" representedClassName="NSManagedObject" syncable="YES">
+    <attribute name="id" optional="YES" attributeType="UUID" />
+    <attribute name="name" optional="YES" attributeType="String" />
+    <attribute name="symbol" optional="YES" attributeType="String" />
+    <attribute name="color" optional="YES" attributeType="String" />
+    <attribute name="essential" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="NO" />
+    <attribute name="archived" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="NO" />
+    <attribute name="revision" optional="YES" attributeType="UUID" />
+    <attribute name="createdAt" optional="YES" attributeType="Date" />
+    <relationship name="household" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Household" inverseName="categories" inverseEntity="Household" />
   </entity>
 </model>
