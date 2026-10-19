@@ -26,7 +26,7 @@ struct BudgetSetupView: View {
                     TextField("План на месяц", text: $monthly).keyboardType(.decimalPad)
                     TextField("Всего денег, включая накопления", text: $available).keyboardType(.decimalPad)
                 } header: { Text("Свободный бюджет, \(MoneyText.symbol)") } footer: {
-                    Text("Укажите все деньги выбранного бюджета, включая накопления. Накопления и резерв будут исключены из свободного остатка. Уже созданный месяц нельзя заменить: исправляйте отдельные операции.")
+                    Text("Укажи все деньги выбранного бюджета, включая накопления. Накопления и резерв будут исключены из свободного остатка. Уже созданный месяц нельзя заменить: исправляй отдельные операции.")
                 }
                 Section("Защищённый резерв · необязательно") {
                     TextField("Например, аренда", text: $reserveName)
@@ -34,20 +34,21 @@ struct BudgetSetupView: View {
                     Text("При оплате из резерва свободные деньги не уменьшатся повторно.").font(.caption).foregroundStyle(.secondary)
                 }
                 Section {
-                    Text(session.isDemo ? "Демонстрация: изменения останутся только до закрытия." : session.scope == .personal ? "Личные расходы и накопления видите только вы." : "Семейные расходы и накопления доступны участникам общего пространства.")
+                    Text(session.isDemo ? "Демонстрация: изменения останутся только до закрытия." : session.scope == .personal ? "Личные расходы и накопления видишь только ты." : "Семейные расходы и накопления доступны участникам общего пространства.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
+            .folkiFormLayout()
             .navigationTitle(session.scope.title + " бюджет").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Создать") {
                         guard let values = validated else { return }
-                        do { try session.createPlan(monthlyPlan: values.0, available: values.1, reserves: reserve.map { [$0] } ?? []); dismiss() }
+                        do { try session.createPlan(monthlyPlan: values.0, available: values.1, reserves: reserve.map { [$0] } ?? []); FolkiFeedback.saved(); dismiss() }
                         catch LedgerError.existingPeriod { errorMessage = "План этого месяца уже существует." }
-                        catch { errorMessage = "Не удалось сохранить план. Проверьте суммы и доступ к хранилищу." }
+                        catch { errorMessage = "Не удалось сохранить план. Проверь суммы и доступ к хранилищу." }
                     }.disabled(validated == nil)
                 }
             }
@@ -142,19 +143,21 @@ struct ExpenseEditorView: View {
                         ImpactLines(before: before, after: impact).frame(maxWidth: .infinity)
                     }
                 } else if !amount.isEmpty && impact == nil {
-                    Text("Проверьте сумму, описание, дату и доступный резерв.").foregroundStyle(.secondary)
+                    Text("Проверь сумму, описание, дату и доступный резерв.").foregroundStyle(.secondary)
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
+            .folkiFormLayout()
             .navigationTitle(editing == nil ? "Новая запись" : "Запись").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         guard let draft else { return }
-                        do { try session.save(draft, editing: editing); dismiss() }
-                        catch LedgerError.conflict { errorMessage = "Запись уже изменена. Закройте форму и откройте её заново." }
-                        catch { errorMessage = "Не удалось сохранить. Данные формы остались здесь; попробуйте снова." }
+                        let overspends = kind == "expense" && impact.map { $0.todayRemaining.minorUnits < 0 } == true
+                        do { try session.save(draft, editing: editing); FolkiFeedback.saved(overspending: overspends); dismiss() }
+                        catch LedgerError.conflict { errorMessage = "Запись уже изменена. Закрой форму и открой её заново." }
+                        catch { errorMessage = "Не удалось сохранить. Данные формы остались здесь; попробуй снова." }
                     }.disabled(impact == nil)
                 }
             }

@@ -33,7 +33,7 @@ final class FolkiApplication {
             personalSession = BudgetSession(scope: .personal, repository: repository)
             session = BudgetSession(scope: .family, repository: repository)
             await acceptPendingInvitations()
-        } catch { openingError = "Не удалось открыть хранилище Folki. Данные не удалены. Попробуйте ещё раз." }
+        } catch { openingError = "Не удалось открыть хранилище Folki. Данные не удалены. Попробуй ещё раз." }
         #endif
     }
     func receive(_ metadata: CKShare.Metadata) {

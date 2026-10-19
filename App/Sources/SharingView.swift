@@ -26,7 +26,7 @@ struct SharingView: View {
                     ForEach(session.members.filter(\.isActive)) { member in
                         Button {
                             editingMember = member; editedName = session.memberName(member.id)
-                        } label: { HStack { Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(.secondary) } }
+                        } label: { HStack(spacing: 12) { MemberAvatar(name: member.name); Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(.secondary) } }
                         if member.id != session.authorID {
                             Button("Убрать \(member.name) из семьи", role: .destructive) {
                                 removingMember = member
@@ -37,7 +37,7 @@ struct SharingView: View {
                 }
                 if session.household == nil {
                     Section {
-                        Text("Сначала создайте семейный план. Личные данные сохранятся отдельно.")
+                        Text("Сначала создай семейный план. Личные данные сохранятся отдельно.")
                         Button("Создать семейный бюджет") { creatingBudget = true }
                     }
                 } else {
@@ -51,7 +51,7 @@ struct SharingView: View {
                                 Task {
                                     defer { preparing = false }
                                     do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
-                                    catch { errorMessage = "Приглашение не подготовлено. Проверьте Apple ID, права владельца и свободное место. После ошибки обмена повторите для того же Apple ID." }
+                                    catch { errorMessage = "Приглашение не подготовлено. Проверь Apple ID, права владельца и свободное место. После ошибки обмена повтори для того же Apple ID." }
                                 }
                             }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
                             if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
@@ -65,8 +65,9 @@ struct SharingView: View {
                         }
                     }
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
+            .folkiFormLayout()
             .navigationTitle("Семья и доступ").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
             .sheet(isPresented: $creatingBudget) { BudgetSetupView(session: session) }

@@ -12,7 +12,7 @@ struct SummaryCards: View {
         let personalWeek = week(personal)
         VStack(alignment: .leading, spacing: 12) {
             Text("Сводка").font(.title2.bold())
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
                 NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: date) } } label: {
                     tile("Сегодня", symbol: "flame.fill", tint: Color.budget(.personal)) {
                         value(spentToday(personal)); caption("семья \(spentToday(family))")
@@ -121,8 +121,8 @@ struct HistoryScreen: View {
     var body: some View {
         BudgetHistoryView(session: scope == .personal ? personal : family).id(scope)
             .safeAreaInset(edge: .top) {
-                Picker("Бюджет", selection: $scope) { ForEach(BudgetScope.allCases) { Text($0.title).tag($0) } }
-                    .pickerStyle(.segmented).padding(.horizontal, 20).padding(.vertical, 8).background(.bar)
+                FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
+                    options: BudgetScope.allCases.map { ($0.title, $0) }).padding(.horizontal, FolkiSpacing.page).padding(.vertical, 8).background(.bar)
             }
             .toolbar(.visible, for: .navigationBar)
     }
@@ -141,14 +141,14 @@ struct ScopedScreen<Content: View>: View {
         let current = scope ?? initial
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Бюджет", selection: Binding(get: { current }, set: { scope = $0 })) {
-                    ForEach(BudgetScope.allCases) { Text($0.title).tag($0) }
-                }.pickerStyle(.segmented)
+                FolkiSegmentedPicker(title: "Бюджет", selection: Binding(get: { current }, set: { scope = $0 }),
+                    options: BudgetScope.allCases.map { ($0.title, $0) })
                 content(current == .personal ? personal : family).id(current)
-            }.padding(20)
+            }.folkiPagePadding()
         }
         .background { FolkiBackground() }
-        .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(title).toolbarTitleDisplayMode(.inlineLarge)
+        .safeAreaPadding(.bottom, 80)
         .toolbar(.visible, for: .navigationBar)
     }
 }

@@ -18,39 +18,57 @@ struct ContributionView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("Сумма, \(MoneyText.symbol)", text: $amount).keyboardType(.decimalPad).font(.largeTitle.bold())
+            FolkiEntryLayout { _ in
+                VStack(spacing: 20) {
+                    Label("Из личного в семейный", systemImage: "arrow.right")
+                        .font(.headline).foregroundStyle(Color.folkiAccent)
+                    Text("\(amount.isEmpty ? "0" : amount) ₽")
+                        .font(.system(size: 48, weight: .bold, design: .rounded)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.3).frame(maxWidth: .infinity)
                     if let available {
-                        LabeledContent("Свободно в личном", value: MoneyText.whole(available))
+                        Text("Можно перевести до \(MoneyText.whole(available))")
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
-                } footer: {
-                    Text("Деньги уйдут из твоего личного бюджета в семейный. Это не трата: лимиты и аналитика расходов не изменятся. Семья увидит взнос, но не твой личный бюджет.")
-                }
-                if let money, let personalBefore = personal.result, let familyBefore = family.result,
-                   let personalAfter = personal.previewTransfer(money, kind: .contributionOut),
-                   let familyAfter = family.previewTransfer(money, kind: .contributionIn) {
-                    Section("После перевода") {
-                        ImpactLines(before: personalBefore, after: personalAfter, label: "Личный").frame(maxWidth: .infinity)
-                        ImpactLines(before: familyBefore, after: familyAfter, label: "Семейный").frame(maxWidth: .infinity)
+                    if let money, let personalBefore = personal.result, let familyBefore = family.result,
+                       let personalAfter = personal.previewTransfer(money, kind: .contributionOut),
+                       let familyAfter = family.previewTransfer(money, kind: .contributionIn) {
+                        VStack(spacing: 16) {
+                            ImpactLines(before: personalBefore, after: personalAfter, label: "Личный после перевода")
+                            Divider()
+                            ImpactLines(before: familyBefore, after: familyAfter, label: "Семейный после перевода")
+                        }.budgetCard()
+                    } else if !amount.isEmpty {
+                        Text("Введи сумму в пределах свободного остатка личного бюджета.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                } else if !amount.isEmpty {
-                    Text("Сумма должна быть больше нуля и не больше свободного остатка личного бюджета.").foregroundStyle(.secondary)
-                }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                    Text("Это перевод твоих денег в общий бюджет, а не новый доход или трата. Семья увидит взнос; личные суммы останутся приватными.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    if let errorMessage { FolkiErrorMessage(message: errorMessage) }
+                }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+            } keypad: {
+                VStack(spacing: 12) {
+                    AmountKeypad(text: $amount)
+                    Button(action: transfer) {
+                        Text("Перевести в семейный").font(.headline)
+                            .frame(maxWidth: .infinity).frame(minHeight: 60).foregroundStyle(.white)
+                            .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: .capsule)
+                    }.buttonStyle(.plain).disabled(money == nil)
+                }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
             }
-            .navigationTitle("Взнос в семейный").navigationBarTitleDisplayMode(.inline)
+            .background { FolkiBackground() }
+            .navigationTitle("Взнос").toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Перевести") {
-                        guard let money else { return }
-                        do { try personal.contribute(money, to: family, linkID: linkID); dismiss() }
-                        catch BudgetError.insufficientReserve { errorMessage = "В личном бюджете недостаточно свободных денег." }
-                        catch { errorMessage = "Не удалось перевести. Данные формы остались здесь; попробуйте снова." }
-                    }.disabled(money == nil)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }
                 }
             }
-        }
+        }.tint(Color.folkiAccent)
+    }
+
+    private func transfer() {
+        guard let money else { return }
+        do { try personal.contribute(money, to: family, linkID: linkID); FolkiFeedback.saved(); dismiss() }
+        catch BudgetError.insufficientReserve { errorMessage = "В личном бюджете недостаточно свободных денег." }
+        catch { errorMessage = "Не удалось перевести. Сумма осталась здесь; попробуй снова." }
     }
 }

@@ -3,6 +3,15 @@ import UIKit
 import FolkiDuoCore
 
 extension CategoryColor {
+    var title: String {
+        switch self {
+        case .blue: "Синий"; case .sky: "Голубой"; case .cyan: "Бирюзовый"
+        case .indigo: "Индиго"; case .purple: "Фиолетовый"; case .lavender: "Лавандовый"
+        case .pink: "Розовый"; case .plum: "Сливовый"; case .brown: "Коричневый"
+        case .slate: "Серо-синий"; case .gray: "Серый"
+        }
+    }
+
     var color: Color {
         switch self {
         case .blue: Color(red: 0.22, green: 0.54, blue: 0.87)
@@ -44,6 +53,28 @@ struct CategoryIcon: View {
 }
 
 enum CategorySymbols {
+    static func title(for symbol: String) -> String { titles[symbol] ?? "Значок категории" }
+    private static let titles = [
+        "cart.fill": "Продуктовая тележка", "basket.fill": "Корзина", "fork.knife": "Еда", "cup.and.saucer.fill": "Кофе",
+        "takeoutbag.and.cup.and.straw.fill": "Еда с собой", "birthday.cake.fill": "Торт", "wineglass.fill": "Бокал",
+        "carrot.fill": "Овощи", "fish.fill": "Рыба", "house.fill": "Дом", "sofa.fill": "Мебель", "bed.double.fill": "Кровать",
+        "lightbulb.fill": "Электричество", "drop.fill": "Вода", "flame.fill": "Отопление", "wrench.and.screwdriver.fill": "Ремонт",
+        "washer.fill": "Бытовая техника", "key.fill": "Ключи", "car.fill": "Автомобиль", "bus.fill": "Автобус",
+        "tram.fill": "Трамвай", "bicycle": "Велосипед", "fuelpump.fill": "Топливо", "airplane": "Самолёт", "ferry.fill": "Паром",
+        "parkingsign": "Парковка", "cross.case.fill": "Медицина", "pills.fill": "Лекарства", "heart.fill": "Здоровье",
+        "stethoscope": "Врач", "dumbbell.fill": "Спортзал", "figure.run": "Бег", "figure.yoga": "Йога",
+        "figure.and.child.holdinghands": "Семья", "stroller.fill": "Коляска", "teddybear.fill": "Игрушки",
+        "graduationcap.fill": "Образование", "book.fill": "Книги", "pawprint.fill": "Животные", "gift.fill": "Подарки",
+        "person.2.fill": "Люди", "theatermasks.fill": "Театр", "film.fill": "Кино", "gamecontroller.fill": "Игры",
+        "music.note": "Музыка", "ticket.fill": "Билеты", "beach.umbrella.fill": "Пляж", "tent.fill": "Поход",
+        "camera.fill": "Фото", "paintpalette.fill": "Творчество", "bag.fill": "Покупки", "tshirt.fill": "Одежда",
+        "shoe.fill": "Обувь", "sparkles": "Уход за собой", "scissors": "Парикмахерская", "eyeglasses": "Очки",
+        "laptopcomputer": "Компьютер", "iphone": "Телефон", "headphones": "Наушники", "creditcard.fill": "Банковская карта",
+        "banknote.fill": "Наличные", "building.columns.fill": "Банк", "chart.line.uptrend.xyaxis": "Финансы",
+        "percent": "Проценты", "doc.text.fill": "Документы", "wifi": "Интернет", "tv.fill": "Телевидение",
+        "phone.fill": "Связь", "tag.fill": "Категория", "ellipsis": "Другое"
+    ]
+
     static let groups: [(String, [String])] = [
         ("Еда", ["cart.fill", "basket.fill", "fork.knife", "cup.and.saucer.fill", "takeoutbag.and.cup.and.straw.fill",
                  "birthday.cake.fill", "wineglass.fill", "carrot.fill", "fish.fill"]),
@@ -95,8 +126,9 @@ struct CategoriesView: View {
                     Text("Категории из архива нельзя выбрать для новых записей, но старые записи и аналитика их сохраняют.")
                 }
             }
-            if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+            if let errorMessage { FolkiErrorMessage(message: errorMessage) }
         }
+        .folkiFormLayout()
         .navigationTitle(session.scope == .personal ? "Личные категории" : "Семейные категории")
         .sheet(isPresented: $creating) { CategoryEditorView(session: session, category: nil) }
         .sheet(item: $editing) { CategoryEditorView(session: session, category: $0) }
@@ -108,7 +140,7 @@ struct CategoriesView: View {
             Text(category.name)
             Spacer()
             Text(category.isEssential ? "Обязательная" : "Желание").font(.caption).foregroundStyle(.secondary)
-        }.contentShape(Rectangle())
+        }.frame(minHeight: 52).contentShape(Rectangle())
     }
 
     private func setArchived(_ category: SpendingCategory, _ archived: Bool) {
@@ -149,32 +181,36 @@ struct CategoryEditorView: View {
                     Text("Обязательные — то, без чего не обойтись: жильё, еда, лечение. Остальное — желания. В аналитике видно, как делятся траты.")
                 }
                 Section("Цвет") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
                         ForEach(CategoryColor.allCases) { item in
-                            Circle().fill(item.color).frame(width: 34, height: 34)
-                                .overlay { if item == color { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) } }
-                                .onTapGesture { color = item }
-                                .accessibilityLabel(item.rawValue).accessibilityAddTraits(item == color ? .isSelected : [])
+                            Button { color = item; FolkiFeedback.selection() } label: {
+                                Circle().fill(item.color).frame(width: 44, height: 44)
+                                    .overlay { if item == color { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) } }
+                            }.buttonStyle(.plain)
+                                .accessibilityLabel(item.title).accessibilityAddTraits(item == color ? .isSelected : [])
                         }
                     }.padding(.vertical, 4)
                 }
                 ForEach(CategorySymbols.groups, id: \.0) { group in
                     Section(group.0) {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
                             ForEach(group.1, id: \.self) { item in
-                                Image(systemName: item).font(.title3)
-                                    .foregroundStyle(item == symbol ? .white : .primary)
-                                    .frame(width: 40, height: 40)
-                                    .background(item == symbol ? color.color : Color(uiColor: .tertiarySystemFill), in: Circle())
-                                    .onTapGesture { symbol = item }
-                                    .accessibilityLabel(item).accessibilityAddTraits(item == symbol ? .isSelected : [])
+                                Button { symbol = item; FolkiFeedback.selection() } label: {
+                                    Image(systemName: item).font(.title3)
+                                        .foregroundStyle(item == symbol ? .white : .primary)
+                                        .frame(width: 44, height: 44)
+                                        .background(item == symbol ? color.color : Color(uiColor: .tertiarySystemFill), in: Circle())
+                                }.buttonStyle(.plain)
+                                    .accessibilityLabel(CategorySymbols.title(for: item))
+                                    .accessibilityAddTraits(item == symbol ? .isSelected : [])
                             }
                         }.padding(.vertical, 4)
                     }
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
-            .navigationTitle(category == nil ? "Новая категория" : "Категория").navigationBarTitleDisplayMode(.inline)
+            .folkiFormLayout()
+            .navigationTitle(category == nil ? "Новая категория" : "Категория").toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -191,6 +227,7 @@ struct CategoryEditorView: View {
             } else {
                 try session.createCategory(name: name, symbol: symbol, color: color, isEssential: isEssential)
             }
+            FolkiFeedback.saved()
             dismiss()
         } catch LedgerError.duplicateCategory { errorMessage = "Категория с таким названием уже есть." }
         catch LedgerError.conflict { errorMessage = "Категорию уже изменили на другом устройстве. Закрой и открой её снова." }

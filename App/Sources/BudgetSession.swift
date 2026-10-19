@@ -72,9 +72,9 @@ final class BudgetSession {
             result = try DailyBudgetCalculator.calculate(household, asOf: referenceDate)
             errorMessage = nil
         } catch BudgetError.dateOutsidePeriod {
-            result = nil; errorMessage = "Период закончился. Создайте новый план месяца. История сохранится."
+            result = nil; errorMessage = "Период закончился. Создай новый план месяца. История сохранится."
         } catch {
-            result = nil; errorMessage = "Не удалось рассчитать бюджет. Проверьте суммы и резервы."
+            result = nil; errorMessage = "Не удалось рассчитать бюджет. Проверь суммы и резервы."
         }
     }
 
@@ -106,7 +106,7 @@ final class BudgetSession {
             let result = try snapshot.map { try DailyBudgetCalculator.calculate($0, asOf: cutoff) }
             return BudgetDayOverview(result: result, records: selectedRecords(records), errorMessage: nil)
         } catch {
-            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось прочитать выбранный день. Попробуйте ещё раз.")
+            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не удалось прочитать выбранный день. Попробуй ещё раз.")
         }
     }
 
@@ -278,9 +278,9 @@ final class BudgetSession {
 @MainActor enum MoneyText {
     /// Budgets are kept in rubles; choosing the budget currency comes with localization.
     static let symbol = "₽"
-    /// Exact amount of a record: kopecks only when there are any, and then always two digits (2 307,70 ₽).
+    /// Exact record amount: always show both fractional digits.
     static func string(_ money: Money) -> String {
-        format(money, fractionDigits: money.minorUnits % money.currency.scale == 0 ? 0 : money.currency.fractionDigits)
+        format(money, fractionDigits: money.currency.fractionDigits)
     }
     /// Whole units for remainders, forecasts and analytics. Round the amount first (down for what is left).
     static func whole(_ money: Money) -> String {

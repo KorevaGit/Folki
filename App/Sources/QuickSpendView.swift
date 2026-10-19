@@ -4,6 +4,7 @@ import FolkiDuoCore
 
 /// What an operation does to a budget: today's remainder and the daily amount for the rest of the month.
 struct ImpactLines: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let before: DailyBudgetSnapshot
     /// Nil until an amount is entered.
     let after: DailyBudgetSnapshot?
@@ -17,7 +18,7 @@ struct ImpactLines: View {
             nextDays(result)
         }
         .multilineTextAlignment(.center).monospacedDigit()
-        .animation(.snappy, value: result.todayRemaining)
+        .animation(reduceMotion ? nil : .snappy, value: result.todayRemaining)
     }
 
     @ViewBuilder private func today(_ remaining: Money) -> some View {
@@ -53,27 +54,35 @@ struct ImpactLines: View {
 
 /// Spend in three taps: amount → category (optional) → «Записать».
 struct QuickSpendView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     let personal: BudgetSession
     let family: BudgetSession
+    let entryKind: TransactionKind
+    @State private var incomeScopeRaw: String
     @AppStorage("FolkiLastSpendScope") private var scopeRaw = BudgetScope.personal.rawValue
     @State private var amount = ""
     @State private var categoryID: UUID?
     @State private var title = ""
+    @FocusState private var descriptionFocused: Bool
     @State private var date: Date
     @State private var payerID: UUID?
-    @State private var showingDetails = false
     @State private var showingAllCategories = false
     @State private var settingUp = false
     @State private var recordID = UUID()
     @State private var errorMessage: String?
+    @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 52
 
-    init(personal: BudgetSession, family: BudgetSession) {
-        self.personal = personal; self.family = family
+    init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal) {
+        self.personal = personal; self.family = family; self.entryKind = entryKind
+        _incomeScopeRaw = State(initialValue: initialScope.rawValue)
         _date = State(initialValue: personal.referenceDate)
     }
 
-    private var scope: BudgetScope { BudgetScope(rawValue: scopeRaw) ?? .personal }
+    private var isIncome: Bool { entryKind == .income }
+    private var activeScopeRaw: String { isIncome ? incomeScopeRaw : scopeRaw }
+    private var scopeSelection: Binding<String> { isIncome ? $incomeScopeRaw : $scopeRaw }
+    private var scope: BudgetScope { BudgetScope(rawValue: activeScopeRaw) ?? .personal }
     private var session: BudgetSession { scope == .personal ? personal : family }
     private var money: Money? {
         guard let money = try? Money(parsing: amount.hasSuffix(",") ? String(amount.dropLast()) : amount),
@@ -82,55 +91,84 @@ struct QuickSpendView: View {
     }
     private var draft: LedgerRecord? {
         guard let money, let payer = payerID ?? session.authorID else { return nil }
-        return try? session.draft(amount: money, title: title, payerID: payer, date: date, kind: .expense,
+        return try? session.draft(amount: money, title: title, payerID: payer, date: date, kind: entryKind,
             categoryID: categoryID ?? BuiltInCategory.other.id, funding: .flexible, newRecordID: recordID)
     }
     private var after: DailyBudgetSnapshot? { draft.flatMap { try? session.preview($0) } }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                Picker("Бюджет", selection: $scopeRaw) {
-                    ForEach(BudgetScope.allCases) { Text($0.title).tag($0.rawValue) }
+            FolkiEntryLayout(hidesKeypad: descriptionFocused) { availableHeight in
+                SpendContentLayout(availableHeight: availableHeight) {
+                    FolkiDateHeader(date: date).padding(.horizontal, FolkiSpacing.page)
+                    FolkiSegmentedPicker(title: "Бюджет", selection: scopeSelection,
+                        options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 64)
+                        .padding(.horizontal, FolkiSpacing.page)
+                    .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; recordID = UUID() }
+                    if let before = session.result {
+                        Text("\(amount.isEmpty ? "0" : amount) ₽")
+                            .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                            .foregroundStyle(money == nil ? .tertiary : .primary)
+                            .lineLimit(1).minimumScaleFactor(0.3)
+                            .frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
+                            .padding(.horizontal, FolkiSpacing.page)
+                            .contentTransition(reduceMotion ? .identity : .numericText()).animation(reduceMotion ? nil : .snappy, value: amount)
+                            .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
+                        ImpactLines(before: before, after: after)
+                            .padding(FolkiSpacing.card).frame(maxWidth: .infinity)
+                            .folkiGlass(RoundedRectangle(cornerRadius: 18))
+                            .padding(.horizontal, FolkiSpacing.page)
+                        if !isIncome { categoryChips.frame(height: chipHeight + 12) }
+                        if isIncome {
+                            Text("Поступление увеличит свободные деньги \(scope == .personal ? "личного" : "семейного") бюджета. Это не перевод из другого бюджета.")
+                                .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, FolkiSpacing.page)
+                        }
+                        TextField("Описание · необязательно", text: $title)
+                            .focused($descriptionFocused).submitLabel(.done)
+                            .onSubmit { descriptionFocused = false }
+                            .padding(FolkiSpacing.card).folkiGlass(RoundedRectangle(cornerRadius: 18))
+                            .padding(.horizontal, FolkiSpacing.page)
+                        if let errorMessage {
+                            FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page)
+                        }
+                    } else {
+                        ContentUnavailableView {
+                            Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
+                        } description: {
+                            Text("Укажи план на месяц, и Folki посчитает, сколько можно тратить в день.")
+                        } actions: {
+                            Button("Настроить") { settingUp = true }.buttonStyle(.glassProminent)
+                        }
+                    }
                 }
-                .pickerStyle(.segmented).padding(.horizontal)
-                .onChange(of: scopeRaw) { payerID = nil; categoryID = nil; recordID = UUID() }
-                if let before = session.result {
-                    Text("\(amount.isEmpty ? "0" : amount) ₽")
-                        .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
-                        .foregroundStyle(money == nil ? .tertiary : .primary)
-                        .lineLimit(1).minimumScaleFactor(0.5).padding(.horizontal)
-                        .contentTransition(.numericText()).animation(.snappy, value: amount)
-                        .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
-                    ImpactLines(before: before, after: after)
-                    categoryChips
-                    TextField("Описание · необязательно", text: $title)
-                        .textFieldStyle(.roundedBorder).padding(.horizontal)
-                    detailsLine
-                    Spacer(minLength: 0)
-                    AmountKeypad(text: $amount).padding(.horizontal)
-                    Button(action: save) {
-                        Text("Записать").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
-                    }
-                    .buttonStyle(.borderedProminent).controlSize(.large).padding(.horizontal)
-                    .disabled(after == nil)
-                    if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red).padding(.horizontal) }
-                } else {
-                    ContentUnavailableView {
-                        Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
-                    } description: {
-                        Text("Укажи план на месяц, и Folki посчитает, сколько можно тратить в день.")
-                    } actions: {
-                        Button("Настроить") { settingUp = true }.buttonStyle(.borderedProminent)
-                    }
+            } keypad: {
+                if session.result != nil {
+                    VStack(spacing: 12) {
+                        AmountKeypad(text: $amount)
+                        Button(action: save) {
+                            Text(isIncome ? "Внести деньги" : "Записать").font(.system(.title3, design: .rounded, weight: .bold))
+                                .frame(maxWidth: .infinity).frame(minHeight: 60)
+                                .foregroundStyle(.white)
+                                .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: .capsule)
+                        }.buttonStyle(.plain).disabled(after == nil)
+                    }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
                 }
             }
-            .padding(.top, 8).padding(.bottom, 12)
-            .navigationTitle("Трата").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } } }
+            .background { FolkiBackground() }
+            .navigationTitle(isIncome ? "Внести" : "Потратить").toolbarTitleDisplayMode(.inlineLarge)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Готово") { descriptionFocused = false }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Закрыть", systemImage: "xmark") { dismiss() }
+                }
+            }
             .sheet(isPresented: $showingAllCategories) { CategoryPickerView(session: session, selection: $categoryID) }
             .sheet(isPresented: $settingUp) { BudgetSetupView(session: session) }
         }
+        .tint(Color.folkiAccent)
     }
 
     private var categoryChips: some View {
@@ -141,50 +179,29 @@ struct QuickSpendView: View {
             HStack(spacing: 8) {
                 ForEach(chips) { category in
                     let isSelected = categoryID == category.id
-                    Button { categoryID = isSelected ? nil : category.id } label: {
+                    Button { categoryID = isSelected ? nil : category.id; FolkiFeedback.selection() } label: {
                         HStack(spacing: 6) {
-                            CategoryIcon(category: category, size: 22)
+                            CategoryIcon(category: category, size: 28)
                             Text(category.name).font(.subheadline).lineLimit(1)
                         }
-                        .padding(.leading, 5).padding(.trailing, 12).padding(.vertical, 5)
-                        .background(isSelected ? category.color.color.opacity(0.22) : Color(uiColor: .tertiarySystemFill), in: Capsule())
-                        .overlay { if isSelected { Capsule().stroke(category.color.color, lineWidth: 1.5) } }
+                        .padding(.horizontal, FolkiSpacing.card).frame(minHeight: chipHeight)
+                        .glassEffect(.regular.tint(isSelected ? category.color.color.opacity(0.3) : .clear).interactive(), in: .capsule)
                     }
-                    .buttonStyle(.plain).accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .buttonStyle(FolkiPressStyle()).accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
                 Button("Ещё") { showingAllCategories = true }
-                    .font(.subheadline).padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color(uiColor: .tertiarySystemFill), in: Capsule()).buttonStyle(.plain)
-            }.padding(.horizontal)
-        }
-    }
-
-    @ViewBuilder private var detailsLine: some View {
-        let isToday = session.calendar.isDate(date, inSameDayAs: session.referenceDate)
-        let payer = payerID ?? session.authorID
-        Button { withAnimation(.snappy) { showingDetails.toggle() } } label: {
-            Text("\(isToday ? "Сегодня" : date.formatted(.dateTime.day().month())) · оплатил \(payer.map(session.memberName) ?? "—") · \(showingDetails ? "скрыть" : "изменить")")
-                .font(.footnote).foregroundStyle(.secondary)
-        }.buttonStyle(.plain)
-        if showingDetails, let budget = session.storedBudget {
-            VStack(spacing: 8) {
-                DatePicker("Дата", selection: $date, in: budget.snapshot.period.start...session.calculationDate(in: budget), displayedComponents: .date)
-                if session.members.filter(\.isActive).count > 1 {
-                    Picker("Оплатил", selection: Binding(get: { payerID ?? session.authorID ?? UUID() }, set: { payerID = $0 })) {
-                        ForEach(session.members.filter(\.isActive)) { Text(session.memberName($0.id)).tag($0.id) }
-                    }
-                }
-            }.font(.subheadline).padding(.horizontal)
+                    .font(.subheadline.weight(.medium)).padding(.horizontal, 18).frame(minHeight: chipHeight)
+                    .glassEffect(.regular.interactive(), in: .capsule).buttonStyle(.plain)
+            }.padding(.horizontal, FolkiSpacing.page)
         }
     }
 
     private func save() {
         guard let draft else { return }
-        let overspends = after.map { $0.todayRemaining.minorUnits < 0 } == true
+        let overspends = !isIncome && after.map { $0.todayRemaining.minorUnits < 0 } == true
         do {
             try session.save(draft)
-            if overspends { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
-            else { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+            FolkiFeedback.saved(overspending: overspends)
             dismiss()
         } catch {
             errorMessage = "Не удалось записать. Сумма осталась здесь, попробуй ещё раз."
@@ -195,6 +212,7 @@ struct QuickSpendView: View {
 /// Digits, one comma and up to two decimals; the system keyboard would cover the impact lines.
 struct AmountKeypad: View {
     @Binding var text: String
+    @ScaledMetric(relativeTo: .title2) private var keyHeight: CGFloat = 50
     private let keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "0", "⌫"]
 
     var body: some View {
@@ -205,16 +223,18 @@ struct AmountKeypad: View {
                         if key == "⌫" { Image(systemName: "delete.left") } else { Text(key) }
                     }
                     .font(.system(.title2, design: .rounded, weight: .medium))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity, minHeight: keyHeight)
+                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(FolkiPressStyle(scale: 0.92))
                 .accessibilityLabel(key == "⌫" ? "Стереть" : key == "," ? "Запятая" : key)
             }
         }
     }
 
     private func press(_ key: String) {
+        let previous = text
+        defer { text != previous ? FolkiFeedback.key() : FolkiFeedback.refused() }
         switch key {
         case "⌫": if !text.isEmpty { text.removeLast() }
         case ",":
@@ -246,9 +266,10 @@ struct CategoryPickerView: View {
                         Text(category.name)
                         Spacer()
                         if selection == category.id { Image(systemName: "checkmark").foregroundStyle(Color.folkiAccent) }
-                    }.contentShape(Rectangle())
+                    }.frame(minHeight: 52).contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }
+            .folkiFormLayout()
             .navigationTitle("Категория").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Готово") { dismiss() } }
@@ -257,6 +278,30 @@ struct CategoryPickerView: View {
                         .accessibilityLabel("Настроить категории")
                 }
             }
+        }
+    }
+}
+
+/// Distribute the fields over all space above the keypad, scrolling when they need more room.
+private struct SpendContentLayout: Layout {
+    let availableHeight: CGFloat
+    private func metrics(width: CGFloat, subviews: Subviews) -> (heights: [CGFloat], gap: CGFloat, total: CGFloat) {
+        let heights = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)).height }
+        let count = CGFloat(max(0, subviews.count - 1))
+        let gap = count > 0 ? max(14, (availableHeight - heights.reduce(0, +)) / count) : 0
+        return (heights, gap, max(availableHeight, heights.reduce(0, +) + gap * count))
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 350
+        return CGSize(width: width, height: metrics(width: width, subviews: subviews).total)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = metrics(width: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for (index, view) in subviews.enumerated() {
+            view.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
+                       proposal: ProposedViewSize(width: bounds.width, height: sizes.heights[index]))
+            y += sizes.heights[index] + sizes.gap
         }
     }
 }

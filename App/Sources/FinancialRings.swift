@@ -1,26 +1,44 @@
 import SwiftUI
+import UIKit
 import FolkiDuoCore
 
 /// Two rings: personal day outside, family day inside. Each shows what is left of today's guide.
 struct FinancialRings: View {
+    nonisolated static let aspectRatio: CGFloat = 1
     let personal: DailyBudgetSnapshot?
     let family: DailyBudgetSnapshot?
     var compact = false
+    var showsMonth = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var fractions: [Double] { [personal?.dayRingFraction ?? 0, family?.dayRingFraction ?? 0] }
+    /// Rings fill up once when the screen first appears.
+    @State private var appeared = false
+    private var fractions: [Double] {
+        [personal, family].map { result in
+            guard let result, appeared || reduceMotion else { return 0 }
+            guard showsMonth else { return result.dayRingFraction }
+            guard result.monthlyPlan.minorUnits > 0 else { return 0 }
+            return max(0, min(1, Double(result.monthlyRemaining.minorUnits) / Double(result.monthlyPlan.minorUnits)))
+        }
+    }
 
     var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
-            let width = size * (compact ? 0.09 : 0.085)
-            let gap = size * 0.02
+            let width = size * 0.09
+            let gap = size * 0.018
             ZStack {
                 FinancialRing(fraction: fractions[0], palette: .personal, lineWidth: width)
                 FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width)
                     .padding(width + gap)
             }
+            .frame(width: size, height: size)
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.65), value: fractions)
+        .animation(reduceMotion ? nil : (appeared ? .spring(duration: 0.5, bounce: 0.1) : nil), value: fractions)
+        .onAppear {
+            guard !appeared else { return }
+            withAnimation(reduceMotion ? nil : .spring(duration: 0.9, bounce: 0.15).delay(0.1)) { appeared = true }
+        }
     }
 }
 
@@ -36,17 +54,42 @@ private struct FinancialRing: View, Animatable {
     }
 
     var body: some View {
-        ZStack {
-            Circle().stroke(palette.start.opacity(colorScheme == .dark ? 0.22 : 0.16), lineWidth: lineWidth)
-            if progress > 0 {
-                Circle().trim(from: 0, to: progress)
-                    .stroke(AngularGradient(colors: [palette.start, palette.end], center: .center,
-                                            startAngle: .zero, endAngle: .degrees(360 * max(progress, 0.01))),
-                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
+        GeometryReader { geometry in
+            let diameter = min(geometry.size.width, geometry.size.height)
+            let radius = (diameter - lineWidth) / 2
+            let angle = 2 * Double.pi * progress - Double.pi / 2
+            let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+            let capDistance = 2 * radius * sin(Double.pi * (1 - progress))
+            ZStack {
+                Circle().stroke(palette.start.opacity(colorScheme == .dark ? 0.22 : 0.16), lineWidth: lineWidth)
+                if progress > 0 {
+                    Circle().trim(from: 0, to: progress)
+                        .stroke(palette.start,
+                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        // A round cap otherwise remains a full-size dot until the last
+                        // animation frame. Fade that final short arc as it reaches zero.
+                        .opacity(min(1, 2 * Double.pi * Double(radius) * progress / Double(max(1, lineWidth))))
+                }
+            }
+            .padding(lineWidth / 2)
+            // The arc provides its own round endpoint. Add depth only where the end
+            // overlaps the beginning, keeping the shadow on the ring itself.
+            if progress > 0.5 && capDistance < lineWidth {
+                Circle().fill(palette.start)
+                    .frame(width: lineWidth, height: lineWidth)
+                    .shadow(color: .black.opacity(0.32 * Double(1 - capDistance / lineWidth)),
+                            radius: lineWidth * 0.07,
+                            x: -sin(angle) * lineWidth * 0.08, y: cos(angle) * lineWidth * 0.08)
+                    .position(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+                    .mask {
+                        Circle().stroke(style: StrokeStyle(lineWidth: lineWidth))
+                            .padding(lineWidth / 2)
+                    }
             }
         }
-        .padding(lineWidth / 2)
+        // This view already interpolates fraction. Do not animate its trim a second time.
+        .transaction { $0.animation = nil }
     }
 }
 
@@ -55,41 +98,101 @@ struct BudgetRingsCard: View {
     let personal: DailyBudgetSnapshot?
     let family: DailyBudgetSnapshot?
     var isToday = true
+    var showsMonth = false
+    var togglePeriod: () -> Void = {}
     let reviewPlan: (BudgetScope) -> Void
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 40
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                FinancialRings(personal: personal, family: family)
-                center.padding(48)
-            }
-            .aspectRatio(1, contentMode: .fit).frame(maxWidth: 300)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(isToday ? "Сегодня" : "Выбранный день"). Личный: \(spoken(personal)). Семейный: \(spoken(family)).")
-            .accessibilityHint("Открыть расчёт")
-            notes
-            monthLine
+        VStack(spacing: 12) {
+            rings
+            outlook
         }.frame(maxWidth: .infinity)
     }
 
-    private var center: some View {
-        VStack(spacing: 4) {
-            Text(isToday ? "Личный · сегодня" : "Личный · за день").font(.caption).foregroundStyle(.secondary)
-            amount(personal?.todayRemaining, size: amountSize)
-            Text(isToday ? "Семейный · сегодня" : "Семейный · за день").font(.caption2).foregroundStyle(.secondary).padding(.top, 4)
-            amount(family?.todayRemaining, size: amountSize * 0.55)
+    @ViewBuilder var rings: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: FolkiSpacing.card) {
+                FinancialRings(personal: personal, family: family, showsMonth: showsMonth)
+                    .frame(width: 160, height: 160).accessibilityHidden(true)
+                Button(action: togglePeriod) {
+                    VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+                        accessibleAmount(personal, title: "Личный")
+                        accessibleAmount(family, title: "Семейный")
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.buttonStyle(.plain).accessibilityHint("Переключить остатки дня и месяца")
+            }
+        } else {
+            GeometryReader { geometry in
+                let diameter = min(geometry.size.width, geometry.size.height)
+                ZStack {
+                    FinancialRings(personal: personal, family: family, showsMonth: showsMonth)
+                        .padding(diameter * 0.06)
+                    Button(action: togglePeriod) { center(diameter: diameter) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showsMonth ? "Остатки месяца" : "Остатки дня")
+                        .accessibilityValue("Личный: \(periodValue(personal)). Семейный: \(periodValue(family)).")
+                        .accessibilityHint(showsMonth ? "Показать остатки дня" : "Показать остатки месяца")
+                        .frame(width: diameter * 0.48, height: diameter * 0.42)
+                }.frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .accessibilityElement(children: .contain)
         }
-        .lineLimit(1).minimumScaleFactor(0.5)
     }
 
-    private func amount(_ money: Money?, size: CGFloat) -> some View {
+    private func periodValue(_ result: DailyBudgetSnapshot?) -> String {
+        guard let result else { return "не настроен" }
+        return MoneyText.whole(showsMonth ? result.monthlyRemaining : result.todayRemaining)
+    }
+
+    private func accessibleAmount(_ result: DailyBudgetSnapshot?, title: String) -> some View {
+        let money = showsMonth ? result?.monthlyRemaining : result?.todayRemaining
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("\(title) · \(showsMonth ? "месяц" : "день")").font(.subheadline).foregroundStyle(.secondary)
+            Text(money.map(MoneyText.whole) ?? "Не настроен")
+                .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.4)
+                .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.red : Color.folkiInk)
+        }
+    }
+
+    var outlook: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            monthLine
+            notes
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func center(diameter: CGFloat) -> some View {
+        VStack(spacing: 4) {
+            Text(showsMonth ? "Личный · месяц" : "Личный").font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
+            amount(showsMonth ? personal?.monthlyRemaining : personal?.todayRemaining, size: min(amountSize, diameter * 0.13), width: diameter * 0.48)
+            Text(showsMonth ? "Семейный · месяц" : "Семейный").font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
+            amount(showsMonth ? family?.monthlyRemaining : family?.todayRemaining, size: min(amountSize * 0.65, diameter * 0.085), width: diameter * 0.48)
+        }
+        .lineLimit(1).minimumScaleFactor(0.3)
+    }
+
+    private func amount(_ money: Money?, size: CGFloat, width: CGFloat) -> some View {
         let whole = money?.roundedDownToWholeUnits
-        return Text(whole.map(MoneyText.whole) ?? "—")
-            .font(.system(size: size, weight: .bold, design: .rounded)).monospacedDigit()
+        let text = whole.map(MoneyText.whole) ?? "—"
+        // Measure the complete amount including minus, grouping spaces and currency.
+        // Fit to the clear center of the rings before SwiftUI lays out the label.
+        let measured = (text as NSString).size(withAttributes: [
+            .font: UIFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
+        ]).width
+        let fitted = size * min(1, width * 0.95 / max(1, measured))
+        return Text(text)
+            .font(.system(size: fitted, weight: .bold, design: .rounded)).monospacedDigit()
+            .lineLimit(1).minimumScaleFactor(0.1)
+            .frame(width: width, height: size * 1.25)
             .foregroundStyle(whole.map { $0.minorUnits < 0 } == true ? Color.red : .primary)
-            .contentTransition(.numericText(value: Double(whole?.minorUnits ?? 0)))
-            .animation(.snappy, value: whole?.minorUnits)
+            .contentTransition(reduceMotion ? .identity : .numericText(value: Double(whole?.minorUnits ?? 0)))
+            .animation(reduceMotion ? nil : .snappy, value: whole?.minorUnits)
     }
 
     @ViewBuilder private var notes: some View {
@@ -118,15 +221,26 @@ struct BudgetRingsCard: View {
     }
 
     private var monthLine: some View {
-        HStack(spacing: 6) {
-            Text("Месяц").foregroundStyle(.secondary)
-            monthValue(personal, scope: .personal)
-            Text("·").foregroundStyle(.tertiary)
-            monthValue(family, scope: .family)
-        }
-        .font(.subheadline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .folkiGlass(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                Text("Месяц").foregroundStyle(.secondary)
+                monthValue(personal, scope: .personal)
+                Text("·").foregroundStyle(.tertiary)
+                monthValue(family, scope: .family)
+            }.fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Личный · месяц").foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    monthValue(personal, scope: .personal)
+                }
+                HStack {
+                    Text("Семейный · месяц").foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    monthValue(family, scope: .family)
+                }
+            }
+        }.font(.subheadline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
     }
 
     private func monthValue(_ result: DailyBudgetSnapshot?, scope: BudgetScope) -> some View {

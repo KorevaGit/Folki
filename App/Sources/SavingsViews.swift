@@ -15,7 +15,7 @@ struct SavingsSection: View {
             }
             if session.goals.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(session.scope == .personal ? "На то, что важно вам" : "На ваши общие планы", systemImage: "flag")
+                    Label(session.scope == .personal ? "На то, что важно тебе" : "На общие планы семьи", systemImage: "flag")
                         .font(.headline)
                     Text("Деньги в накоплениях защищены от повседневных трат.")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -32,9 +32,16 @@ struct SavingsSection: View {
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                             }
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(MoneyText.string(goal.balance)).font(.title2.bold()).monospacedDigit()
-                                Text("из \(MoneyText.string(goal.target))").font(.caption).foregroundStyle(.secondary)
+                            ViewThatFits(in: .horizontal) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(MoneyText.whole(goal.balance)).font(.title2.bold()).monospacedDigit().fixedSize()
+                                    Text("из \(MoneyText.whole(goal.target))").font(.caption).foregroundStyle(.secondary).fixedSize()
+                                }
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(MoneyText.whole(goal.balance)).font(.title2.bold()).monospacedDigit()
+                                        .lineLimit(1).minimumScaleFactor(0.5)
+                                    Text("из \(MoneyText.whole(goal.target))").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                             ProgressView(value: goal.fraction).tint(Color.budget(session.scope))
                         }.budgetCard()
@@ -63,18 +70,19 @@ private struct GoalSetupView: View {
                 Section(session.scope.savingsTitle) {
                     TextField("На что копим", text: $name)
                     TextField("Цель, \(MoneyText.symbol)", text: $target).keyboardType(.decimalPad)
-                    Text(session.scope == .personal ? "Эту цель видите только вы." : "Эта цель относится к семейному бюджету.")
+                    Text(session.scope == .personal ? "Эту цель видишь только ты." : "Эта цель относится к семейному бюджету.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
+            .folkiFormLayout()
             .navigationTitle("Новая цель").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Создать") {
                         guard let money else { return }
-                        do { try session.createGoal(name: name, target: money); dismiss() }
+                        do { try session.createGoal(name: name, target: money); FolkiFeedback.saved(); dismiss() }
                         catch { errorMessage = "Не удалось создать цель. Данные формы сохранены здесь." }
                     }.disabled(money == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -100,8 +108,8 @@ struct GoalTransferView: View {
         NavigationStack {
             Form {
                 Section(goal.name) {
-                    LabeledContent("Накоплено", value: MoneyText.string(goal.balance))
-                    LabeledContent("Цель", value: MoneyText.string(goal.target))
+                    LabeledContent("Накоплено", value: MoneyText.whole(goal.balance))
+                    LabeledContent("Цель", value: MoneyText.whole(goal.target))
                 }
                 Section(session.scope.title + " бюджет") {
                     Picker("Действие", selection: $withdrawal) {
@@ -113,7 +121,7 @@ struct GoalTransferView: View {
                        let free = try? (withdrawal ? available.adding(money) : available.subtracting(money)),
                        let saved = try? (withdrawal ? goal.balance.subtracting(money) : goal.balance.adding(money)) {
                         LabeledContent("Останется свободно", value: MoneyText.whole(free))
-                        LabeledContent("В накоплениях", value: MoneyText.string(saved))
+                        LabeledContent("В накоплениях", value: MoneyText.whole(saved))
                         if let before = session.result,
                            let after = session.previewTransfer(money, kind: withdrawal ? .reserveRelease : .reserveAllocation, funding: .reserve(goal.id)) {
                             ImpactLines(before: before, after: after).frame(maxWidth: .infinity)
@@ -122,16 +130,17 @@ struct GoalTransferView: View {
                     Text("Это перевод между свободными деньгами и накоплениями внутри выбранного бюджета.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
+            .folkiFormLayout()
             .navigationTitle("Накопления").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         guard let money else { return }
-                        do { try session.transfer(goal: goal, amount: money, withdrawal: withdrawal, operationID: operationID); dismiss() }
-                        catch { errorMessage = "Не удалось перевести деньги. Проверьте остаток и повторите." }
+                        do { try session.transfer(goal: goal, amount: money, withdrawal: withdrawal, operationID: operationID); FolkiFeedback.saved(); dismiss() }
+                        catch { errorMessage = "Не удалось перевести деньги. Проверь остаток и повтори." }
                     }.disabled(money == nil)
                 }
             }

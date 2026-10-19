@@ -41,12 +41,13 @@ struct BudgetHistoryView: View {
                 }
             }
         }
+        .folkiFormLayout()
         .id(showDeleted)
         .overlay {
             if records.isEmpty {
                 ContentUnavailableView(showDeleted ? "Удалённых записей нет" : "Записей пока нет",
                     systemImage: "list.bullet.rectangle",
-                    description: Text(showDeleted ? "Здесь можно восстановить удалённые записи." : "Добавьте первую запись в бюджете."))
+                    description: Text(showDeleted ? "Здесь можно восстановить удалённые записи." : "Добавь первую запись в бюджете."))
             }
         }
         .navigationTitle(showDeleted ? "Удалённые" : session.scope.title + " · история")
@@ -71,11 +72,11 @@ struct BudgetHistoryView: View {
 
     private func cancelContribution(_ record: LedgerRecord) {
         do { try session.cancelContribution(record) }
-        catch { errorMessage = "Не удалось отменить взнос. Обновите историю и повторите." }
+        catch { errorMessage = "Не удалось отменить взнос. Обнови историю и повтори." }
     }
 
     private func setDeleted(_ deleted: Bool, record: LedgerRecord) {
         do { try session.setDeleted(deleted, record: record) }
-        catch { errorMessage = "Не удалось изменить запись. Обновите историю и повторите." }
+        catch { errorMessage = "Не удалось изменить запись. Обнови историю и повтори." }
     }
 }
