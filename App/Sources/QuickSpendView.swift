@@ -125,7 +125,7 @@ struct QuickSpendView: View {
                         TextField("Описание · необязательно", text: $title)
                             .focused($descriptionFocused).submitLabel(.done)
                             .onSubmit { descriptionFocused = false }
-                            .padding(FolkiSpacing.card).background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .padding(FolkiSpacing.card).glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .padding(.horizontal, FolkiSpacing.page)
                         if let errorMessage {
                             FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page)
@@ -148,7 +148,7 @@ struct QuickSpendView: View {
                             Text(isIncome ? "Внести деньги" : "Записать").font(.system(.title3, design: .rounded, weight: .bold))
                                 .frame(maxWidth: .infinity).frame(minHeight: 60)
                                 .foregroundStyle(.white)
-                                .background(Color.folkiAccent.opacity(after == nil ? 0.35 : 1), in: Capsule())
+                                .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
                         }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
                     }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
                 }
@@ -184,13 +184,13 @@ struct QuickSpendView: View {
                             Text(category.name).font(.subheadline).lineLimit(1)
                         }
                         .padding(.horizontal, FolkiSpacing.card).frame(minHeight: chipHeight)
-                        .background(isSelected ? category.color.color.opacity(0.22) : Color.folkiSoft, in: Capsule())
+                        .glassEffect(.regular.tint(isSelected ? category.color.color.opacity(0.3) : .clear).interactive(), in: Capsule())
                     }
                     .buttonStyle(FolkiPressStyle()).accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
                 Button("Ещё") { showingAllCategories = true }
                     .font(.subheadline.weight(.medium)).padding(.horizontal, 18).frame(minHeight: chipHeight)
-                    .background(Color.folkiSoft, in: Capsule()).buttonStyle(FolkiPressStyle())
+                    .glassEffect(.regular.interactive(), in: Capsule()).buttonStyle(FolkiPressStyle())
             }.padding(.horizontal, FolkiSpacing.page)
         }
     }
@@ -223,7 +223,7 @@ struct AmountKeypad: View {
                     }
                     .font(.system(.title2, design: .rounded, weight: .medium))
                     .frame(maxWidth: .infinity, minHeight: keyHeight)
-                    .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.92))
                 .accessibilityLabel(key == "⌫" ? "Стереть" : key == "," ? "Запятая" : key)

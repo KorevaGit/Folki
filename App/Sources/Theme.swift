@@ -233,12 +233,12 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
     static func prepare() { selector.prepare(); soft.prepare(); light.prepare() }
 }
 
-/// Quiet controls: a soft tint of the text color, no outline, no glass shine. Visible on the page and inside cards.
+/// A soft tint of the text color for quiet fills.
 extension Color {
     static let folkiSoft = Color.primary.opacity(0.07)
 }
 
-/// Secondary buttons: soft fill, accent text, gives under the finger.
+/// Secondary buttons: clear liquid glass, accent text.
 struct FolkiSoftButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -246,14 +246,14 @@ struct FolkiSoftButtonStyle: ButtonStyle {
         configuration.label
             .font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
             .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 44)
-            .background(Color.folkiSoft, in: Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
             .opacity(isEnabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
             .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)
     }
 }
 
-/// The main action of a screen: solid accent, white text.
+/// The main action of a screen: accent-tinted liquid glass, white text.
 struct FolkiPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -261,7 +261,7 @@ struct FolkiPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(.title3, design: .rounded, weight: .bold)).foregroundStyle(.white)
             .padding(.horizontal, 20).frame(minHeight: 56)
-            .background(Color.folkiAccent.opacity(isEnabled ? 1 : 0.35), in: Capsule())
+            .glassEffect(.regular.tint(Color.folkiAccent.opacity(isEnabled ? 1 : 0.35)).interactive(), in: Capsule())
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .animation(.spring(duration: 0.25, bounce: 0.35), value: configuration.isPressed)
     }

@@ -11,21 +11,42 @@ struct BudgetHistoryView: View {
         session.historyRecords.filter { $0.transaction.isDeleted == showDeleted }.reversed()
     }
 
+    private var days: [(Date, [LedgerRecord])] {
+        let calendar = session.calendar
+        var order: [Date] = [], groups: [Date: [LedgerRecord]] = [:]
+        for record in records {
+            let day = calendar.startOfDay(for: record.transaction.date)
+            if groups[day] == nil { order.append(day) }
+            groups[day, default: []].append(record)
+        }
+        return order.map { ($0, groups[$0] ?? []) }
+    }
+    private func dayTitle(_ day: Date) -> String {
+        let calendar = session.calendar
+        if calendar.isDate(day, inSameDayAs: session.referenceDate) { return "Сегодня" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: session.referenceDate),
+           calendar.isDate(day, inSameDayAs: yesterday) { return "Вчера" }
+        return day.formatted(.dateTime.weekday(.wide).day().month(.wide))
+    }
+
     var body: some View {
         List {
-            ForEach(records) { record in
+            // Grouped by day, newest first, like Wallet.
+            ForEach(days, id: \.0) { day, items in
+              Section {
+                ForEach(items) { record in
                 VStack(alignment: .leading) {
                     if record.transaction.isDeleted {
-                        LedgerRow(record: record, session: session)
+                        LedgerRow(record: record, session: session, showsDate: false)
                         Button("Восстановить запись", systemImage: "arrow.uturn.backward") {
                             setDeleted(false, record: record)
                         }.buttonStyle(.bordered)
                     } else if session.isEditable(record) {
                         Button { editing = record } label: {
-                            LedgerRow(record: record, session: session)
+                            LedgerRow(record: record, session: session, showsDate: false)
                         }.buttonStyle(.plain)
                     } else {
-                        LedgerRow(record: record, session: session)
+                        LedgerRow(record: record, session: session, showsDate: false)
                     }
                 }
                 .swipeActions {
@@ -39,6 +60,10 @@ struct BudgetHistoryView: View {
                         Button("Удалить", role: .destructive) { setDeleted(true, record: record) }
                     }
                 }
+                }
+              } header: {
+                Text(dayTitle(day)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).textCase(nil)
+              }
             }
         }
         .folkiFormLayout()
@@ -50,7 +75,8 @@ struct BudgetHistoryView: View {
                     description: Text(showDeleted ? "Здесь можно восстановить удалённые записи." : "Добавь первую запись в бюджете."))
             }
         }
-        .navigationTitle(showDeleted ? "Удалённые" : session.scope.title + " · история")
+        .navigationTitle(showDeleted ? "Удалённые" : "История")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("Показать записи", systemImage: "line.3.horizontal.decrease") {

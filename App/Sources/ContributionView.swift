@@ -23,25 +23,30 @@ struct ContributionView: View {
                     Label("Из личного в семейный", systemImage: "arrow.right")
                         .font(.headline).foregroundStyle(Color.folkiAccent)
                     Text("\(amount.isEmpty ? "0" : amount) ₽")
-                        .font(.system(size: 48, weight: .bold, design: .rounded)).monospacedDigit()
+                        .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                         .lineLimit(1).minimumScaleFactor(0.3).frame(maxWidth: .infinity)
+                        .contentTransition(.numericText()).animation(.snappy, value: amount)
                     if let available {
                         Text("Можно перевести до \(MoneyText.whole(available))")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
-                    if let money, let personalBefore = personal.result, let familyBefore = family.result,
-                       let personalAfter = personal.previewTransfer(money, kind: .contributionOut),
-                       let familyAfter = family.previewTransfer(money, kind: .contributionIn) {
+                    // Both budgets are always visible, so the effect of the amount shows as it is typed.
+                    if let personalBefore = personal.result, let familyBefore = family.result {
                         VStack(spacing: 16) {
-                            ImpactLines(before: personalBefore, after: personalAfter, label: "Личный после перевода")
+                            ImpactLines(before: personalBefore,
+                                        after: money.flatMap { personal.previewTransfer($0, kind: .contributionOut) },
+                                        label: "Личный")
                             Divider()
-                            ImpactLines(before: familyBefore, after: familyAfter, label: "Семейный после перевода")
+                            ImpactLines(before: familyBefore,
+                                        after: money.flatMap { family.previewTransfer($0, kind: .contributionIn) },
+                                        label: "Семейный")
                         }.budgetCard()
-                    } else if !amount.isEmpty {
-                        Text("Введи сумму в пределах свободного остатка личного бюджета.")
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                    Text("Это перевод твоих денег в общий бюджет, а не новый доход или трата. Семья увидит взнос; личные суммы останутся приватными.")
+                    if !amount.isEmpty && money == nil {
+                        Text("Больше, чем свободно в личном бюджете").font(.footnote).foregroundStyle(.red)
+                    }
+                    Text("Семья увидит взнос, личные суммы — нет.")
                         .font(.footnote).foregroundStyle(.secondary)
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
@@ -49,10 +54,10 @@ struct ContributionView: View {
                 VStack(spacing: 12) {
                     AmountKeypad(text: $amount)
                     Button(action: transfer) {
-                        Text("Перевести в семейный").font(.headline)
+                        Text("Перевести в семейный").font(.system(.title3, design: .rounded, weight: .bold))
                             .frame(maxWidth: .infinity).frame(minHeight: 60).foregroundStyle(.white)
-                            .background(Color.folkiAccent, in: Capsule())
-                    }.buttonStyle(.plain).disabled(money == nil)
+                            .glassEffect(.regular.tint(Color.folkiAccent.opacity(money == nil ? 0.35 : 1)).interactive(), in: Capsule())
+                    }.buttonStyle(FolkiPressStyle()).disabled(money == nil)
                 }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
             }
             .background { FolkiBackground() }

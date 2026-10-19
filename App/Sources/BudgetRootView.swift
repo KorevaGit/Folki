@@ -145,7 +145,7 @@ struct BudgetRootView: View {
     private var spendButton: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
-        return Group {
+        return GlassEffectContainer(spacing: 12) {
         layout {
             Button {
                 FolkiFeedback.tap()
@@ -155,17 +155,17 @@ struct BudgetRootView: View {
             } label: {
                 Text("− Потратить").frame(maxWidth: .infinity).frame(minHeight: 70)
                     .foregroundStyle(.white)
-                    .background(Color.folkiAccent, in: Capsule())
+                    .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
             }
             .buttonStyle(FolkiPressStyle())
             .frame(minWidth: 104, maxWidth: .infinity)
             Menu {
-                Button("Поступление в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
-                Button("Поступление в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
-                Button("Взнос из личного в семейный", systemImage: "arrow.right.circle") { openContribution() }
+                Button("Доход в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
+                Button("Доход в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
+                Button("Взнос в семейный", systemImage: "arrow.right.circle") { openContribution() }
             } label: {
                 Text("+ Внести").frame(maxWidth: .infinity, minHeight: 70)
-                    .background(Color.folkiSoft, in: Capsule()).foregroundStyle(Color.folkiInk)
+                    .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk)
             }
             .menuStyle(.button).buttonStyle(.plain)
                 .simultaneousGesture(TapGesture().onEnded { FolkiFeedback.tap(); returnToToday() })
@@ -255,6 +255,8 @@ private struct BudgetCalculationView: View {
 struct LedgerRow: View {
     let record: LedgerRecord
     let session: BudgetSession
+    /// History groups rows by day, so the date there would repeat the section header.
+    var showsDate = true
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var kindTitle: String {
         switch record.transaction.kind {
@@ -286,7 +288,7 @@ struct LedgerRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.title.isEmpty ? (category?.name ?? "") : record.title)
                 Text(([session.payerName(for: record)] + (category.map { [$0.name] } ?? [])
-                    + [record.transaction.date.formatted(.dateTime.day().month())]).joined(separator: " · "))
+                    + (showsDate ? [record.transaction.date.formatted(.dateTime.day().month())] : [])).joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)

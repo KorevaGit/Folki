@@ -33,8 +33,8 @@ struct SummaryCards: View {
                 } } label: {
                     tile("Накопления", symbol: "flag.fill", tint: Color.budget(.family)) {
                         let goals = personal.goals + family.goals
-                        value(goals.isEmpty ? "Нет целей" : MoneyText.whole(goals.reduce(Money(minorUnits: 0)) { (try? $0.adding($1.balance)) ?? $0 }))
-                        caption(goals.isEmpty ? "создай первую" : "\(goals.count) \(goals.count == 1 ? "цель" : "цели")")
+                        value(goals.isEmpty ? "—" : MoneyText.whole(goals.reduce(Money(minorUnits: 0)) { (try? $0.adding($1.balance)) ?? $0 }))
+                        caption(goals.isEmpty ? "создай первую цель" : "\(goals.count) \(goals.count == 1 ? "цель" : "цели")")
                     }
                 }
                 NavigationLink { HistoryScreen(personal: personal, family: family) } label: {
@@ -121,7 +121,7 @@ struct HistoryScreen: View {
         BudgetHistoryView(session: scope == .personal ? personal : family).id(scope)
             .safeAreaInset(edge: .top) {
                 FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
-                    options: BudgetScope.allCases.map { ($0.title, $0) }).padding(.horizontal, FolkiSpacing.page).padding(.vertical, 8).background(.bar)
+                    options: BudgetScope.allCases.map { ($0.title, $0) }).padding(.horizontal, FolkiSpacing.page).padding(.vertical, 8)
             }
             .toolbar(.visible, for: .navigationBar)
     }
