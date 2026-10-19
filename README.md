@@ -75,11 +75,11 @@ Swift Testing проверяет расчёты, SQLite после повтор�
 
 [Предложения по ведению бюджета и следующему развитию](docs/BUDGET-PRACTICES.md).
 
-## Снимки ранее проверенной сборки
+## Снимки экранов
 
-Снимки ниже предшествуют добавлению быстрых действий и аналитики; актуальная реализация находится в App/Sources.
+[Текущий бюджет · тёмная тема](docs/screenshots/budget-calendar-dark.png): центрированные кольца, действия и четыре числовых показателя над плавающим меню.
 
-[Бюджет · тёмная тема](docs/screenshots/budget-calendar-dark.png) · [Бюджет · светлая тема](docs/screenshots/budget-calendar-light.png) · [Конвертация в USD](docs/screenshots/budget-converted-usd.png) · [Общая сводка](docs/screenshots/summary-current-dark.png).
+Снимки предыдущей проверенной сборки, до быстрых действий и аналитики: [светлая тема](docs/screenshots/budget-calendar-light.png) · [конвертация в USD](docs/screenshots/budget-converted-usd.png) · [сводка](docs/screenshots/summary-current-dark.png).
 
 ## Материалы
 
