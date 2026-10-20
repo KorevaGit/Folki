@@ -6260,6 +6260,56 @@
           }
         }
       }
+    },
+    "К кольцу": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to budget"
+          }
+        }
+      }
+    },
+    "Конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envelope"
+          }
+        }
+      }
+    },
+    "Не получилось загрузить траты за день. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load daily spending. Please try again."
+          }
+        }
+      }
+    },
+    "Трат пока нет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No expenses yet"
+          }
+        }
+      }
+    },
+    "Траты за день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily spending"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

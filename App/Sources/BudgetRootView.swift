@@ -10,6 +10,9 @@ struct BudgetRootView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var showsMonth = false
+    @State private var showingDayHistory = false
+    @State private var pageDrag: CGFloat = 0
+    @State private var historyAtTop = true
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
@@ -30,7 +33,7 @@ struct BudgetRootView: View {
         let personalDay = personal.overview(on: date)
         let familyDay = family.overview(on: date)
         NavigationStack {
-            GeometryReader { page in
+            GeometryReader { _ in
                 let card = BudgetRingsCard(personal: personalDay.result, family: familyDay.result,
                                            isToday: selectedDay == nil, showsMonth: showsMonth,
                                            togglePeriod: toggleRingPeriod,
@@ -39,38 +42,45 @@ struct BudgetRootView: View {
                                            addFunds: { scope in selectedScope = scope; sheet = .income }) { scope in
                     selectedScope = scope; sheet = .limits
                 }
-                if page.size.height < 520 || dynamicTypeSize.isAccessibilitySize {
-                    ScrollView {
-                        VStack(spacing: FolkiSpacing.card) {
-                            weekCalendar
-                            if dynamicTypeSize.isAccessibilitySize {
-                                interactiveRings(card.rings)
-                            } else {
-                                interactiveRings(card.rings).aspectRatio(FinancialRings.aspectRatio, contentMode: .fit)
-                                    .padding(.horizontal, -8)
-                            }
-                            entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
-                            distributionLine
-                            card.outlook.contentShape(Rectangle()).onTapGesture { sheet = .details }
-                        }.folkiPagePadding(top: 4)
-                    }.scrollBounceBehavior(.basedOnSize)
-                } else {
-                    // One scroll for the whole page: no hard edges under the calendar or above the tab bar.
-                    ScrollView {
-                        VStack(spacing: FolkiSpacing.card) {
-                            weekCalendar
-                            BudgetDashboardLayout {
-                                interactiveRings(card.rings).padding(.horizontal, -8)
+                VStack(spacing: 8) {
+                    weekCalendar.padding(.horizontal, FolkiSpacing.page)
+                    GeometryReader { viewport in
+                        let height = viewport.size.height
+                        ZStack(alignment: .top) {
+                            VStack(spacing: 12) {
+                                interactiveRings(card.rings).frame(maxHeight: .infinity)
                                 entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                 distributionLine
+                                Button { showHistory(true) } label: {
+                                    Label("Траты за день", systemImage: "chevron.down")
+                                        .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
+                                }.buttonStyle(.plain).foregroundStyle(.secondary)
                             }
+                            .padding(.horizontal, FolkiSpacing.page)
+                            .frame(width: viewport.size.width, height: height)
+                            .offset(y: (showingDayHistory ? -height : 0) + pageDrag)
+                            .allowsHitTesting(!showingDayHistory).accessibilityHidden(showingDayHistory)
+
+                            VStack(spacing: 8) {
+                                Button { showHistory(false) } label: {
+                                    Label("К кольцу", systemImage: "chevron.up")
+                                        .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
+                                }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                DailyExpenseHistoryView(personal: personal, family: family,
+                                    personalDay: personalDay, familyDay: familyDay, atTop: $historyAtTop) { record, scope in
+                                        selectedScope = scope; editingRecord = record
+                                    }
+                                    .id(calendar.startOfDay(for: date))
+                            }
+                            .frame(width: viewport.size.width, height: height)
+                            .offset(y: (showingDayHistory ? 0 : height) + pageDrag)
+                            .allowsHitTesting(showingDayHistory).accessibilityHidden(!showingDayHistory)
                         }
-                        .padding(.horizontal, FolkiSpacing.page).padding(.top, 4)
-                        .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
+                        .contentShape(Rectangle()).clipped()
+                        .simultaneousGesture(verticalPaging(height: height))
                     }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .contentMargins(.bottom, 24, for: .scrollContent)
-                }
+                }.padding(.top, 4).padding(.bottom, 8)
+
             }
             .background { FolkiBackground() }
             .navigationTitle("Бюджет")
@@ -95,6 +105,38 @@ struct BudgetRootView: View {
             case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
             }
         }
+    }
+
+    private func showHistory(_ show: Bool) {
+        FolkiFeedback.selection()
+        withAnimation(reduceMotion ? nil : .spring(duration: 0.38, bounce: 0.08)) {
+            showingDayHistory = show; pageDrag = 0
+        }
+    }
+
+    private func verticalPaging(height: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                guard abs(value.translation.height) > abs(value.translation.width) * 1.3 else { return }
+                if showingDayHistory {
+                    guard historyAtTop, value.translation.height > 0 else { return }
+                    pageDrag = min(height, value.translation.height)
+                } else {
+                    pageDrag = max(-height, min(0, value.translation.height))
+                }
+            }
+            .onEnded { value in
+                let distance = value.translation.height
+                let predicted = value.predictedEndTranslation.height
+                let vertical = abs(distance) > abs(value.translation.width) * 1.3
+                if vertical && !showingDayHistory && (distance < -64 || predicted < -height * 0.3) {
+                    showHistory(true)
+                } else if vertical && showingDayHistory && historyAtTop && (distance > 64 || predicted > height * 0.3) {
+                    showHistory(false)
+                } else {
+                    withAnimation(reduceMotion ? nil : .spring(duration: 0.3)) { pageDrag = 0 }
+                }
+            }
     }
 
     private var distributionLine: some View {
@@ -345,37 +387,6 @@ extension View {
     func budgetCard() -> some View {
         padding(FolkiSpacing.card).frame(maxWidth: .infinity, alignment: .leading)
             .folkiGlass(RoundedRectangle(cornerRadius: 20))
-    }
-}
-
-/// Keep the ring diameter stable when entry actions become a past-day recap.
-/// Additional content scrolls within the safe area above the native tab bar.
-private struct BudgetDashboardLayout: Layout {
-    private let spacing: CGFloat = 20
-
-    private func metrics(width: CGFloat, subviews: Subviews) -> (heights: [CGFloat], total: CGFloat) {
-        var heights = subviews.enumerated().map { index, view in
-            index == 0 ? CGFloat.zero : view.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
-        }
-        // Match the wider action row and preserve true circles.
-        // Short screens can scroll instead of distorting the rings.
-        heights[0] = (width + 16) / FinancialRings.aspectRatio
-        return (heights, heights.reduce(0, +) + spacing * CGFloat(max(0, subviews.count - 1)))
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 350
-        return CGSize(width: width, height: metrics(width: width, subviews: subviews).total)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let heights = metrics(width: bounds.width, subviews: subviews).heights
-        var y = bounds.minY
-        for (index, view) in subviews.enumerated() {
-            view.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
-                       proposal: ProposedViewSize(width: bounds.width, height: heights[index]))
-            y += heights[index] + spacing
-        }
     }
 }
 
