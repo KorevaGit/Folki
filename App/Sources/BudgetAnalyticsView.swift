@@ -9,22 +9,28 @@ struct BudgetAnalyticsSection: View {
     @State private var period: AnalyticsPeriod = .month
     @State private var chosenDate: Date?
     @State private var showsAllCategories = false
-    /// The whole period up to today: a past month ends on its last day, not on today's day number.
+    private var baseDate: Date { chosenDate ?? date }
+    private var selectedPeriod: BudgetPeriod? { session.period(on: baseDate) }
     private var anchor: Date {
-        let base = chosenDate ?? date
-        guard let interval = analyticsCalendar.dateInterval(of: component, for: base) else { return base }
-        return min(interval.end.addingTimeInterval(-1), session.referenceDate)
+        if period == .month, let selectedPeriod {
+            return min(selectedPeriod.endExclusive.addingTimeInterval(-0.001), session.referenceDate)
+        }
+        guard let interval = analyticsCalendar.dateInterval(of: component, for: baseDate) else { return baseDate }
+        return min(interval.end.addingTimeInterval(-0.001), session.referenceDate)
     }
-    private var analyticsCalendar: Calendar {
-        var calendar = session.calendar
-        calendar.firstWeekday = 2; calendar.minimumDaysInFirstWeek = 4
-        return calendar
-    }
+    private var analyticsCalendar: Calendar { session.calendar }
     private var component: Calendar.Component {
         switch period { case .day: .day; case .week: .weekOfYear; case .month: .month }
     }
+    private var canGoBack: Bool {
+        guard period == .month, let selectedPeriod else { return true }
+        return session.periods.contains { $0.start < selectedPeriod.start }
+    }
     private var canGoForward: Bool {
-        analyticsCalendar.dateInterval(of: component, for: anchor).map { $0.end <= session.referenceDate } ?? false
+        if period == .month, let selectedPeriod {
+            return session.periods.contains { $0.start > selectedPeriod.start && $0.start <= session.referenceDate }
+        }
+        return analyticsCalendar.dateInterval(of: component, for: anchor).map { $0.end <= session.referenceDate } ?? false
     }
 
     var body: some View {
@@ -32,8 +38,7 @@ struct BudgetAnalyticsSection: View {
             // A single day is already on the main screen's calendar.
             FolkiSegmentedPicker(title: String(localized: "Период аналитики"), selection: $period,
                 options: [AnalyticsPeriod.week, .month].map { ($0.title, $0) })
-            if let result = try? BudgetAnalytics.calculate(records: session.historyRecords, period: period,
-                anchor: anchor, asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog) {
+            if let result = try? session.analytics(period, on: baseDate) {
                 periodNavigation(result)
                 let monthPlan = period == .month ? session.overview(on: result.cutoff).result : nil
                 let insights = PeriodInsights(result: result, records: session.historyRecords, catalog: session.catalog,
@@ -75,12 +80,12 @@ struct BudgetAnalyticsSection: View {
     private func periodNavigation(_ result: BudgetAnalyticsSnapshot) -> some View {
         HStack(spacing: 12) {
             Button { move(-1) } label: { Image(systemName: "chevron.left").frame(width: 24, height: 24) }
-                .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).accessibilityLabel("Предыдущий период")
+                .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).disabled(!canGoBack).accessibilityLabel("Предыдущий период")
             VStack(spacing: 4) {
                 if period == .day {
                     Text(result.interval.start, format: .dateTime.day().month(.wide).year())
                 } else {
-                    Text("\(result.interval.start.formatted(.dateTime.day().month(.abbreviated))) — \(result.cutoff.formatted(.dateTime.day().month(.abbreviated).year()))")
+                    Text("\(result.interval.start.formatted(.dateTime.day().month(.abbreviated))) — \(result.interval.end.addingTimeInterval(-0.001).formatted(.dateTime.day().month(.abbreviated).year()))")
                 }
             }.font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).multilineTextAlignment(.center)
             Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
@@ -90,9 +95,15 @@ struct BudgetAnalyticsSection: View {
     }
 
     private func move(_ offset: Int) {
-        guard let next = analyticsCalendar.date(byAdding: component, value: offset, to: anchor) else { return }
+        if period == .month, let selectedPeriod,
+           let index = session.periods.firstIndex(of: selectedPeriod) {
+            let next = index + offset
+            guard session.periods.indices.contains(next) else { return }
+            chosenDate = session.periods[next].start
+        } else if let next = analyticsCalendar.date(byAdding: component, value: offset, to: anchor) {
+            chosenDate = min(next, session.referenceDate)
+        }
         FolkiFeedback.selection()
-        chosenDate = min(next, session.referenceDate)
     }
 
     private func overview(_ result: BudgetAnalyticsSnapshot) -> some View {
@@ -118,30 +129,29 @@ struct BudgetAnalyticsSection: View {
     /// The month against its plan: how much is spent, and where the spending should be by today.
     private func pace(_ result: BudgetAnalyticsSnapshot, plan snapshot: DailyBudgetSnapshot) -> some View {
         let net = (try? result.netSpending) ?? result.expenses
-        let plan = snapshot.monthlyPlan.minorUnits
-        let cal = analyticsCalendar
-        let days = cal.range(of: .day, in: .month, for: result.interval.start)?.count ?? 30
-        let passed = min(days, (cal.dateComponents([.day], from: result.interval.start, to: result.cutoff).day ?? 0) + 1)
-        let expected = plan * Int64(passed) / Int64(max(1, days))
+        let plan = snapshot.periodPlan.minorUnits
+        let days = max(1, result.buckets.count)
+        let passed = result.buckets.filter(\.isObserved).count
+        let expected = plan / Int64(days) * Int64(passed) + (plan % Int64(days)) * Int64(passed) / Int64(days)
         let spentFraction = plan > 0 ? Double(max(0, net.minorUnits)) / Double(plan) : 0
         let expectedFraction = Double(passed) / Double(max(1, days))
         let ahead = net.minorUnits - expected
         let finished = passed >= days
         return VStack(alignment: .leading, spacing: 14) {
-            Text("Как идёт месяц").font(.headline).foregroundStyle(.secondary)
+            Text("Как идёт период").font(.headline).foregroundStyle(.secondary)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                     .contentTransition(.numericText(value: Double(net.minorUnits))).animation(.snappy, value: net.minorUnits)
                 if plan > 0 {
-                    Text("из \(MoneyText.whole(snapshot.monthlyPlan))").font(.title3.weight(.semibold))
+                    Text("из \(MoneyText.whole(snapshot.periodPlan))").font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
                 }
             }
             if plan > 0 {
                 PaceBar(spent: spentFraction, expected: finished ? nil : expectedFraction,
                         over: net.minorUnits > plan)
-                Text(finished ? String(localized: "Месяц завершён") : String(localized: "Прошло \(passed) из \(days) дней"))
+                Text(finished ? String(localized: "Период завершён") : String(localized: "Прошло \(passed) из \(days) дней"))
                     .font(.footnote).foregroundStyle(.secondary)
                 Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, snapshot: snapshot))
                     .font(.subheadline.weight(.semibold))
@@ -166,11 +176,7 @@ struct BudgetAnalyticsSection: View {
 
     /// Categories that changed noticeably against the same stretch of the previous period.
     @ViewBuilder private func changes(_ result: BudgetAnalyticsSnapshot) -> some View {
-        let cal = analyticsCalendar
-        if let previousAnchor = cal.date(byAdding: component, value: -1, to: result.cutoff),
-           let previous = try? BudgetAnalytics.calculate(records: session.historyRecords, period: period,
-                anchor: previousAnchor, asOf: previousAnchor, calendar: session.calendar, catalog: session.catalog),
-           previous.recordCount > 0 {
+        if let previous = previousComparison(result), previous.recordCount > 0 {
             let before = Dictionary(previous.categories.map { ($0.categoryID, net($0).minorUnits) }, uniquingKeysWith: +)
             let now = Dictionary(result.categories.map { ($0.categoryID, net($0).minorUnits) }, uniquingKeysWith: +)
             let items = Set(before.keys).union(now.keys).compactMap { id -> (UUID, Int64, Int64)? in
@@ -182,7 +188,7 @@ struct BudgetAnalyticsSection: View {
             if !items.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Что изменилось").font(.headline)
-                    Text(period == .month ? String(localized: "По сравнению с тем же днём прошлого месяца") : String(localized: "По сравнению с прошлой неделей на этот день"))
+                    Text(period == .month ? String(localized: "По сравнению с тем же числом дней прошлого периода") : String(localized: "По сравнению с прошлой неделей на этот день"))
                         .font(.footnote).foregroundStyle(.secondary)
                     ForEach(Array(items), id: \.0) { id, diff, old in
                         let category = session.catalog.category(for: id)
@@ -224,7 +230,7 @@ struct BudgetAnalyticsSection: View {
         var id: Date { date }
     }
     @ViewBuilder private func chart(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot?) -> some View {
-        if period == .month, let plan, plan.monthlyPlan.minorUnits > 0 {
+        if period == .month, let plan, plan.periodPlan.minorUnits > 0 {
             monthLine(result, plan: plan)
         } else {
             dailyBars(result)
@@ -236,12 +242,12 @@ struct BudgetAnalyticsSection: View {
         var running = 0.0
         let points = result.buckets.filter(\.isObserved).map { bucket -> PlotPoint in
             running += Double(bucket.expenses.minorUnits - bucket.refunds.minorUnits) / 100
-            return PlotPoint(date: bucket.start, value: running)
+            return PlotPoint(date: max(bucket.start, result.interval.start), value: running)
         }
-        let planned = Double(plan.monthlyPlan.minorUnits) / 100
+        let planned = Double(plan.periodPlan.minorUnits) / 100
         let end = result.interval.end
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Траты за месяц").font(.headline)
+            Text("Траты за период").font(.headline)
             HStack(spacing: 14) {
                 Label("факт", systemImage: "circle.fill").foregroundStyle(Color.folkiAccent)
                 Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(.secondary)
@@ -266,7 +272,7 @@ struct BudgetAnalyticsSection: View {
                 }
             }
             .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 240 : 180)
-            .accessibilityLabel("Траты за месяц нарастающим итогом и ровный темп по плану")
+            .accessibilityLabel("Траты за период нарастающим итогом и ровный темп по плану")
         }
     }
 
@@ -295,15 +301,23 @@ struct BudgetAnalyticsSection: View {
     private func net(_ item: CategorySpending) -> Money {
         (try? item.expenses.subtracting(item.refunds)) ?? item.expenses
     }
-    /// Net spending per category in each of the three full months before this one.
+    private func previousComparison(_ result: BudgetAnalyticsSnapshot) -> BudgetAnalyticsSnapshot? {
+        if period == .month {
+            guard let previous = session.periods.last(where: { $0.start < result.interval.start }) else { return nil }
+            let elapsedDays = analyticsCalendar.dateComponents([.day], from: analyticsCalendar.startOfDay(for: result.interval.start),
+                to: analyticsCalendar.startOfDay(for: result.cutoff)).day ?? 0
+            let endDay = analyticsCalendar.date(byAdding: .day, value: elapsedDays + 1,
+                to: analyticsCalendar.startOfDay(for: previous.start)) ?? previous.endExclusive
+            let cutoff = min(endDay, previous.endExclusive).addingTimeInterval(-0.001)
+            return try? session.analytics(.month, on: previous.start, through: cutoff)
+        }
+        guard let previous = analyticsCalendar.date(byAdding: component, value: -1, to: result.cutoff) else { return nil }
+        return try? session.analytics(period, on: previous, through: previous)
+    }
     private func previousMonths(before result: BudgetAnalyticsSnapshot) -> [UUID: [Money]] {
         var history: [UUID: [Money]] = [:]
-        for offset in 1...3 {
-            guard let day = analyticsCalendar.date(byAdding: .month, value: -offset, to: result.interval.start),
-                  let month = analyticsCalendar.dateInterval(of: .month, for: day),
-                  let past = try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month,
-                      anchor: month.end.addingTimeInterval(-1), asOf: session.referenceDate,
-                      calendar: session.calendar, catalog: session.catalog) else { continue }
+        for period in session.periods.filter({ $0.endExclusive <= result.interval.start }).suffix(3) {
+            guard let past = try? session.analytics(.month, on: period.start) else { continue }
             for item in past.categories { history[item.categoryID, default: []].append(net(item)) }
         }
         return history
@@ -317,13 +331,13 @@ struct BudgetAnalyticsSection: View {
         let history = plan == nil ? [:] : previousMonths(before: result)
         let hint: (UUID) -> Money? = { id in
             guard let plan else { return nil }
-            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.monthlyPlan, history: history[id] ?? [])
+            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.periodPlan, history: history[id] ?? [])
         }
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("На что ушли деньги").font(.headline)
                 if plan != nil {
-                    Text("Рядом — подсказка, сколько примерно стоит закладывать в месяц 💡").font(.footnote).foregroundStyle(.secondary)
+                    Text("Рядом — подсказка, сколько примерно стоит закладывать в период 💡").font(.footnote).foregroundStyle(.secondary)
                 }
             }
             ForEach(items) { item in
@@ -385,7 +399,7 @@ struct BudgetAnalyticsSection: View {
                 (String(localized: "Отложено"), String(localized: "в накопления"), saved, 20, Color.folkiAccent)]
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Баланс месяца").font(.headline)
+                    Text("Баланс периода").font(.headline)
                     Text("Ориентир: 50% на обязательное, 30% на желания, 20% в копилку 🐷")
                         .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }

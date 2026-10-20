@@ -1,61 +1,6 @@
 import SwiftUI
 import FolkiDuoCore
 
-struct BudgetSetupView: View {
-    @Environment(\.dismiss) private var dismiss
-    let session: BudgetSession
-    @State private var monthly = ""
-    @State private var available = ""
-    @State private var reserveName = ""
-    @State private var reserveAmount = ""
-    private var reserve: ProtectedReserve? {
-        guard let amount = try? MoneyText.parse(reserveAmount), amount.minorUnits > 0, !reserveName.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        return ProtectedReserve(name: reserveName, openingAmount: amount)
-    }
-    @State private var errorMessage: String?
-    private var validated: (Money, Money)? {
-        guard let plan = try? MoneyText.parse(monthly), plan.minorUnits > 0,
-              let funds = try? MoneyText.parse(available), funds.minorUnits >= 0,
-              reserveAmount.isEmpty || (reserve != nil && reserve!.openingAmount.minorUnits <= funds.minorUnits) else { return nil }
-        return (plan, funds)
-    }
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("План на месяц", text: $monthly).keyboardType(.decimalPad)
-                    TextField("Всего денег, включая накопления", text: $available).keyboardType(.decimalPad)
-                } header: { Text("Свободный бюджет, \(MoneyText.symbol)") } footer: {
-                    Text("Впиши всё, что есть, вместе с накоплениями — их Folki сам отложит в сторону 🙌")
-                }
-                Section("Защищённый резерв · необязательно") {
-                    TextField("Например, аренда", text: $reserveName)
-                    TextField("Сумма резерва, \(MoneyText.symbol)", text: $reserveAmount).keyboardType(.decimalPad)
-                    Text("Например, на аренду — эти деньги не попадут в траты на день 🏠").font(.caption).foregroundStyle(.secondary)
-                }
-                Section {
-                    Text(session.isDemo ? String(localized: "Это демо — всё исчезнет после закрытия 👀") : session.scope == .personal ? String(localized: "Это только твоё 🤫") : String(localized: "Это общее для всей семьи 💚"))
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                if let errorMessage { FolkiErrorMessage(message: errorMessage) }
-            }
-            .folkiFormLayout()
-            .navigationTitle(session.scope.title + String(localized: " бюджет")).navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Создать") {
-                        guard let values = validated else { return }
-                        do { try session.createPlan(monthlyPlan: values.0, available: values.1, reserves: reserve.map { [$0] } ?? []); FolkiFeedback.saved(); dismiss() }
-                        catch LedgerError.existingPeriod { errorMessage = String(localized: "План этого месяца уже существует.") }
-                        catch { errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и доступ к хранилищу.") }
-                    }.disabled(validated == nil)
-                }
-            }
-        }
-    }
-}
-
 struct ExpenseEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
@@ -97,7 +42,7 @@ struct ExpenseEditorView: View {
     }
     private var editingBudget: StoredBudget? { try? session.budget(editing: editing) }
     private var expenseReserves: [ProtectedReserve] {
-        (editingBudget?.snapshot.reserves ?? []).filter { reserve in !session.goals.contains(where: { $0.id == reserve.id }) }
+        (editingBudget?.snapshot.reserves ?? []).filter { $0.isRegularPayment || $0.id == reserveID }
     }
     private var impact: DailyBudgetSnapshot? { draft.flatMap { try? session.preview($0, editing: editing) } }
     var body: some View {

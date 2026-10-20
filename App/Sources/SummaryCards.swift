@@ -47,7 +47,7 @@ struct SummaryCards: View {
                 NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика"), initial: .family) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
                     tile(String(localized: "Взносы"), symbol: "person.2.fill", tint: Color.budget(.family)) {
                         value(familyMonth.map { MoneyText.whole($0.contributions) } ?? "—")
-                        caption(String(localized: "за месяц"))
+                        caption(String(localized: "за период"))
                     }
                 }
             }
@@ -104,20 +104,11 @@ struct SummaryCards: View {
     private func spentToday(_ session: BudgetSession) -> String {
         session.overview(on: date).result.map { MoneyText.whole($0.todayNetSpending.roundedUpToWholeUnits) } ?? "—"
     }
-    /// A whole week or month up to today, not cut at the selected day.
-    private func periodEnd(_ period: AnalyticsPeriod, _ session: BudgetSession) -> Date {
-        var calendar = session.calendar
-        calendar.firstWeekday = 2; calendar.minimumDaysInFirstWeek = 4
-        guard let interval = calendar.dateInterval(of: period == .week ? .weekOfYear : .month, for: date) else { return date }
-        return min(interval.end.addingTimeInterval(-1), session.referenceDate)
-    }
     private func month(_ session: BudgetSession) -> BudgetAnalyticsSnapshot? {
-        try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month, anchor: periodEnd(.month, session),
-                                       asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog)
+        try? session.analytics(.month, on: date)
     }
     private func week(_ session: BudgetSession) -> BudgetAnalyticsSnapshot? {
-        try? BudgetAnalytics.calculate(records: session.historyRecords, period: .week, anchor: periodEnd(.week, session),
-                                       asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog)
+        try? session.analytics(.week, on: date)
     }
 }
 

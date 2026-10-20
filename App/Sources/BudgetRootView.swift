@@ -137,7 +137,19 @@ struct BudgetRootView: View {
     private func entryArea(date: Date, personalDay: BudgetDayOverview, familyDay: BudgetDayOverview) -> some View {
         ZStack(alignment: .top) {
             if selectedDay == nil {
-                spendButton.padding(.horizontal, -8).transition(.opacity)
+                VStack(spacing: 10) {
+                    ForEach([personal, family].filter(\.periodEnded), id: \.scope) { budget in
+                        Button {
+                            selectedScope = budget.scope; sheet = .setup
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(budget.scope.title): пришла зарплата?").font(.headline)
+                                Text("Введи сумму и дату следующей").font(.footnote)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                        }.buttonStyle(FolkiSoftButtonStyle())
+                    }
+                    spendButton.padding(.horizontal, -8)
+                }.transition(.opacity)
             } else {
                 BudgetDaySpendingSummary(date: date, personal: personal, family: family,
                                          personalDay: personalDay, familyDay: familyDay)
@@ -165,6 +177,8 @@ struct BudgetRootView: View {
             .buttonStyle(FolkiPressStyle())
             .frame(minWidth: 104, maxWidth: .infinity)
             Menu {
+                Button("Зарплата — новый личный период", systemImage: "arrow.clockwise") { selectedScope = .personal; sheet = .setup }
+                Button("Зарплата — новый семейный период", systemImage: "arrow.clockwise") { selectedScope = .family; sheet = .setup }
                 Button("Доход в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
                 Button("Доход в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
                 Button("Взнос в семейный", systemImage: "arrow.right.circle") { openContribution() }
@@ -235,7 +249,7 @@ private struct BudgetCalculationView: View {
                 calculation(personal, title: String(localized: "Личный бюджет"))
                 calculation(family, title: String(localized: "Семейный бюджет"))
                 Section("Кольца") {
-                    Text("Снаружи — твой день, внутри — семейный. Тратишь — кольцо тает 🍩")
+                    Text("Снаружи — личный бюджет, внутри — семейный. Нажми на кольца, чтобы переключить день и период.")
                     Text("Накопления сюда не входят. Прогноз — если сегодня больше ничего не тратить.")
                 }
             }
@@ -250,8 +264,9 @@ private struct BudgetCalculationView: View {
                 LabeledContent("Ориентир дня", value: MoneyText.whole(result.todayGuide))
                 LabeledContent("Потрачено с учётом возвратов", value: MoneyText.whole(result.todayNetSpending))
                 LabeledContent("Сегодня осталось", value: MoneyText.whole(result.todayRemaining))
-                LabeledContent("Месячный лимит", value: MoneyText.whole(result.monthlyPlan))
-                LabeledContent("Остаток месяца", value: MoneyText.whole(result.monthlyRemaining))
+                LabeledContent("План на период", value: MoneyText.whole(result.periodPlan))
+                LabeledContent("Остаток периода", value: MoneyText.whole(result.periodRemaining))
+                LabeledContent("Из них на повседневное", value: MoneyText.whole(result.monthlyRemaining))
             } else { Text("Тут пока нет плана").foregroundStyle(.secondary) }
         }
     }

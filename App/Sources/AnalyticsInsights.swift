@@ -46,7 +46,7 @@ import FolkiDuoCore
             let quarter = amount / 4
             if isMonth, let days = snapshot?.futureAllocation?.days, days > 0, quarter / Int64(days) >= 5_000 {
                 let perDay = Money(minorUnits: quarter / Int64(days) / 1_000 * 1_000)
-                return String(localized: "Больше всего из желаний — «\(category.name)»: \(MoneyText.whole(Money(minorUnits: amount).roundedDownToWholeUnits)). Если тратить на четверть меньше, до конца месяца будет на \(MoneyText.whole(perDay)) в день больше 👀")
+                return String(localized: "Больше всего из желаний — «\(category.name)»: \(MoneyText.whole(Money(minorUnits: amount).roundedDownToWholeUnits)). Если тратить на четверть меньше, до конца периода будет на \(MoneyText.whole(perDay)) в день больше 👀")
             }
             return String(localized: "Больше всего из желаний — «\(category.name)»: \(MoneyText.whole(Money(minorUnits: amount).roundedDownToWholeUnits)). Это первое место, где можно сэкономить без потерь 👀")
         }

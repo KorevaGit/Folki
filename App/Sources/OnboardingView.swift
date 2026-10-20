@@ -1,349 +1,191 @@
 import SwiftUI
 import FolkiDuoCore
 
-/// First launch: hello, then four steps — family (or later), how much to save, the category split, how the rings work.
-/// The step is stored, so a relaunch (for example after changing the app language) continues where it stopped.
+/// A current balance and the next payday are enough to start. Salary planning is optional.
 struct OnboardingView: View {
     let personal: BudgetSession
     let family: BudgetSession
     let finish: () -> Void
     @AppStorage("FolkiOnboardingStep") private var page = 0
+    @AppStorage("FolkiOnboardingAvailable") private var available = ""
+    @AppStorage("FolkiOnboardingPayday") private var paydayTimestamp = 0.0
     @State private var forward = true
-    @State private var available = ""
-    @State private var saving = ""
-    @State private var split: [UUID: String] = [:]
-    @State private var errorMessage: String?
+    @State private var editingAmount = false
     @State private var showingFamily = false
     @State private var showingJoin = false
-    /// The amount the keypad is typing into; nil hides the keypad.
-    @State private var active: Field?
+    @State private var showingPlan = false
+    @State private var errorMessage: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private enum Field: Hashable { case available, saving, category(UUID) }
-    private let steps = 4
-
+    private var payday: Binding<Date> {
+        Binding(get: { paydayTimestamp > 0 ? Date(timeIntervalSince1970: paydayTimestamp) : defaultPayday },
+                set: { paydayTimestamp = $0.timeIntervalSince1970 })
+    }
+    private var minimumPayday: Date {
+        personal.calendar.date(byAdding: .day, value: 1, to: personal.calendar.startOfDay(for: personal.referenceDate))!
+    }
+    private var defaultPayday: Date { personal.calendar.date(byAdding: .month, value: 1, to: personal.referenceDate) ?? minimumPayday }
     private var funds: Money? { (try? MoneyText.parse(available)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
-    private var savingAmount: Money { (try? MoneyText.parse(saving)).flatMap { $0.minorUnits >= 0 ? $0 : nil } ?? Money(minorUnits: 0) }
-    /// What is left to spend once the saving is set aside.
-    private var spendable: Money? {
-        guard let funds, savingAmount.minorUnits < funds.minorUnits else { return nil }
-        return Money(minorUnits: funds.minorUnits - savingAmount.minorUnits)
+    private var estimate: DailyBudgetSnapshot? {
+        guard let funds, let period = try? BudgetPeriod.untilPayday(from: personal.referenceDate, payday: payday.wrappedValue,
+                timeZoneIdentifier: personal.calendar.timeZone.identifier) else { return nil }
+        return try? DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period, monthlyFreePlan: funds, openingFunds: funds), asOf: personal.referenceDate)
     }
-    private var splitTotal: Money {
-        Money(minorUnits: split.values.reduce(0) { $0 + ((try? MoneyText.parse($1))?.minorUnits ?? 0) })
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             header.frame(height: 56).padding(.top, 12).padding(.horizontal, FolkiSpacing.page)
-            // Steps move only by the buttons, so nothing gets skipped by a stray swipe.
             ZStack {
                 switch page {
                 case 0: intro.transition(step)
                 case 1: familyPage.transition(step)
-                case 2: savingPage.transition(step)
-                case 3: splitPage.transition(step)
+                case 2: moneyPage.transition(step)
+                case 3: planPage.transition(step)
                 default: readyPage.transition(step)
                 }
             }.frame(maxHeight: .infinity)
-            Group {
-                if let active {
-                    // The same keypad as on the spend screen, instead of the system keyboard.
-                    VStack(spacing: 12) {
-                        AmountKeypad(text: binding(for: active))
-                        if active == .available {
-                            Button("Дальше") { choose(.saving) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-                        } else {
-                            Button("Готово") { withAnimation(.snappy) { self.active = nil } }
-                                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-                        }
-                    }.transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    VStack(spacing: 0) { footer }.transition(.opacity)
-                }
-            }
-            .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
-            .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: active == nil)
+            VStack(spacing: 12) {
+                if editingAmount {
+                    AmountKeypad(text: $available)
+                    Button("Готово") { withAnimation(.snappy) { editingAmount = false } }
+                        .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                } else { footer }
+            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
         }
         .background { FolkiBackground() }
+        .environment(\.calendar, personal.calendar).environment(\.timeZone, personal.calendar.timeZone)
         .sheet(isPresented: $showingJoin) { JoinFamilyView(family: family).presentationDetents([.medium]) }
-        .sheet(isPresented: $showingFamily, onDismiss: { if family.members.filter(\.isActive).count > 1 { FolkiFeedback.success() } }) {
-            SharingView(session: family)
+        .sheet(isPresented: $showingFamily) { SharingView(session: family) }
+        .sheet(isPresented: $showingPlan) { BudgetSetupView(session: personal, editingCurrent: true) }
+        .onChange(of: page) { editingAmount = false; errorMessage = nil }
+        .onAppear {
+            if page == 3 && personal.result == nil { page = 2 }
+            if payday.wrappedValue < minimumPayday { paydayTimestamp = defaultPayday.timeIntervalSince1970 }
         }
-        .onChange(of: page) { active = page == 2 ? .available : nil }
     }
-
-    // MARK: Navigation
-
     private var step: AnyTransition {
         guard !reduceMotion else { return .opacity }
         return .asymmetric(insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
                            removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity))
     }
     private func go(_ next: Int) {
-        FolkiFeedback.selection()
-        forward = next > page
+        FolkiFeedback.selection(); forward = next > page
         withAnimation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.15)) { page = next }
     }
-
     private var header: some View {
         ZStack {
             if page > 0 {
-                VStack(spacing: 10) {
-                    Text("Шаг \(page) из \(steps)").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                    dots
+                VStack(spacing: 8) {
+                    Text("Шаг \(min(page, 4)) из 4").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        ForEach(1...4, id: \.self) { i in
+                            Capsule().fill(i <= page ? Color.folkiAccent : Color.folkiInk.opacity(0.12)).frame(width: i == page ? 24 : 8, height: 8)
+                        }
+                    }.accessibilityHidden(true)
                 }
                 HStack {
-                    Button { go(page - 1) } label: {
-                        Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle())
-                    .accessibilityLabel("Назад")
+                    Button { go(page - 1) } label: { Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44) }
+                        .buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Назад")
                     Spacer()
                 }
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: page > 0)
     }
-
-    private var dots: some View {
-        HStack(spacing: 8) {
-            ForEach(1...steps, id: \.self) { index in
-                Capsule().fill(index == page ? Color.folkiAccent : Color.secondary.opacity(0.3))
-                    .frame(width: index == page ? 22 : 8, height: 8)
-            }
-        }.animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.3), value: page).accessibilityHidden(true)
-    }
-
-    // MARK: Pages
-
     private var intro: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 20)
+        illustration(title: "Привет! Это Folki 👋", text: "Бюджет, в котором сразу видно, сколько можно потратить сегодня.") {
             AnimatedHouse().frame(width: 210, height: 190)
-            VStack(spacing: 12) {
-                Text("Привет! Это Folki 👋").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                    .multilineTextAlignment(.center)
-                Text("Семейный бюджет, в котором сразу видно, сколько можно потратить сегодня.")
-                    .font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }.folkiAppear(8)
-            Spacer(minLength: 20)
-        }.padding(.horizontal, 28)
-    }
-
-    private var familyPage: some View {
-        page(title: String(localized: "Начнём с семьи"),
-             text: String(localized: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.")) {
-            FamilyBubbles(family: family) { FolkiFeedback.tap(); showingFamily = true }
-                .frame(height: 270)
-        } extra: {
-            Button("Меня пригласили 💌") { FolkiFeedback.tap(); showingJoin = true }
-                .buttonStyle(FolkiSoftButtonStyle())
         }
     }
-
-    private var savingPage: some View {
+    private var familyPage: some View {
+        VStack(spacing: 12) {
+            illustration(title: "Начнём с семьи", text: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.") {
+                FamilyBubbles(family: family) { FolkiFeedback.tap(); showingFamily = true }.frame(height: 240)
+            }
+            Button("Меня пригласили 💌") { showingJoin = true }.buttonStyle(FolkiSoftButtonStyle()).padding(.horizontal, 28)
+        }
+    }
+    private var moneyPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Сначала — копилка").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("Скажи, сколько хочешь отложить, а остальное Folki сам разложит по тратам ✨")
-                    .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                amountField(String(localized: "Сколько денег у тебя сейчас"), hint: String(localized: "Всё, что есть на картах и наличными"),
-                            text: $available, field: .available)
-                amountField(String(localized: "Сколько хочешь отложить в этом месяце"), hint: String(localized: "Эти деньги не попадут в траты на день 🐷"),
-                            text: $saving, field: .saving)
-                if let spendable {
-                    HStack {
-                        Text("На жизнь останется").foregroundStyle(.secondary)
-                        Spacer()
-                        Text(MoneyText.whole(spendable)).font(.headline).monospacedDigit()
-                            .contentTransition(.numericText()).animation(.snappy, value: spendable.minorUnits)
-                    }.budgetCard()
-                } else if funds != nil {
-                    Text("Отложить можно меньше, чем есть сейчас 🙂").font(.footnote).foregroundStyle(.secondary)
-                }
-            }.padding(.horizontal, FolkiSpacing.page).padding(.top, 12)
-        }.scrollDismissesKeyboard(.interactively)
-    }
-
-    private var splitPage: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Твой план на месяц").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("Разложили по обычным долям. Поправь любую сумму, если у тебя по-другому.")
-                    .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Label("Копилка", systemImage: "banknote.fill").foregroundStyle(Color.folkiAccent)
-                    Spacer()
-                    moneyInput($saving, field: .saving)
-                }.font(.headline).budgetCard()
-                VStack(spacing: 0) {
-                    ForEach(BuiltInCategory.allCases, id: \.self) { builtIn in
-                        let category = builtIn.category
-                        HStack(spacing: 12) {
-                            CategoryIcon(category: category, size: 30)
-                            Text(category.name).font(.subheadline).lineLimit(1).minimumScaleFactor(0.8)
-                            Spacer(minLength: 8)
-                            moneyInput(Binding(get: { split[builtIn.id] ?? "" }, set: { split[builtIn.id] = $0 }),
-                                       field: .category(builtIn.id))
-                        }.padding(.vertical, 8)
-                        if builtIn != BuiltInCategory.allCases.last { Divider().padding(.leading, 42) }
+                Text("Деньги до зарплаты").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Text("Две вещи — и Folki сразу разложит деньги по дням ✨").foregroundStyle(.secondary)
+                if personal.result != nil {
+                    Text("Период уже создан: \(personal.periodTitle)").font(.headline)
+                    Text("Платежи и копилку можно настроить на следующем шаге.").foregroundStyle(.secondary)
+                } else {
+                    Text("Сколько денег есть сейчас").font(.headline)
+                    Button { withAnimation(.snappy) { editingAmount = true } } label: {
+                        HStack {
+                            Text(available.isEmpty ? "0" : available).monospacedDigit()
+                            Text(MoneyText.symbol).foregroundStyle(.secondary)
+                            Spacer()
+                        }.font(.system(size: 34, weight: .bold, design: .rounded)).padding(18)
+                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20))
+                    }.buttonStyle(.plain)
+                    DatePicker("Следующая зарплата", selection: payday, in: minimumPayday..., displayedComponents: .date)
+                    if let estimate {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Сегодня можно").font(.subheadline).foregroundStyle(.secondary)
+                            Text(MoneyText.whole(estimate.todayGuide)).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                            Text("До зарплаты \(estimate.remainingDays) дн. Дата зарплаты начнёт следующий период.").font(.footnote).foregroundStyle(.secondary)
+                        }.budgetCard()
                     }
-                }.budgetCard()
-                totals
+                }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
-            }.padding(.horizontal, FolkiSpacing.page).padding(.top, 12).padding(.bottom, 16)
-        }.scrollDismissesKeyboard(.interactively)
+            }.folkiPagePadding()
+        }
     }
-
-    @ViewBuilder private var totals: some View {
-        let total = splitTotal.minorUnits + savingAmount.minorUnits
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Траты за месяц").foregroundStyle(.secondary)
-                Spacer()
-                Text(MoneyText.whole(splitTotal)).font(.headline).monospacedDigit()
-            }
-            if let funds {
-                let left = funds.minorUnits - total
-                Text(left >= 0 ? String(localized: "Не распределено: \(MoneyText.whole(Money(minorUnits: left)))")
-                               : String(localized: "Больше, чем есть, на \(MoneyText.whole(Money(minorUnits: -left))) — поправь суммы 🙏"))
-                    .font(.footnote).foregroundStyle(left >= 0 ? Color.secondary : Color.red)
-            }
-        }.padding(.horizontal, 4)
+    private var planPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                Text("План уже работает 🎉").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                if let result = personal.result {
+                    Text("Сегодня можно \(MoneyText.whole(result.todayRemaining))").font(.title2.bold())
+                    Text(personal.periodTitle).foregroundStyle(.secondary)
+                }
+                Text("Хочешь отложить на аренду, подписки или в копилку? Составь план по зарплате. Платежи будут отдельно от повседневных денег.")
+                    .foregroundStyle(.secondary)
+                Button("Составить план по зарплате") { showingPlan = true }.buttonStyle(FolkiSoftButtonStyle())
+                Text("Можно сделать позже в настройках.").font(.footnote).foregroundStyle(.secondary)
+            }.folkiPagePadding()
+        }
     }
-
     private var readyPage: some View {
-        page(title: String(localized: "Всё готово 🎉"),
-             text: String(localized: "Кольцо покажет, сколько можно потратить сегодня: снаружи твой день, внутри семейный. Тратишь — кольцо тает 🍩")) {
+        illustration(title: "Всё готово 🎉", text: "Кольца покажут остаток: снаружи личный бюджет, внутри семейный. Нажми на кольца, чтобы переключить день и весь период до зарплаты 🍩") {
             DemoRings(outer: 0.7, inner: 0.45).frame(width: 200, height: 200)
         }
     }
-
-    // MARK: Parts
-
-    private func page<Art: View, Extra: View>(title: String, text: String, @ViewBuilder art: () -> Art,
-                                              @ViewBuilder extra: () -> Extra = { EmptyView() }) -> some View {
-        VStack(spacing: 24) {
-            Spacer(minLength: 12)
-            art()
-            VStack(spacing: 12) {
-                Text(title).font(.system(.largeTitle, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
-                Text(text).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                extra()
-            }
-            Spacer(minLength: 12)
-        }.padding(.horizontal, 28)
+    private func illustration<Art: View>(title: LocalizedStringKey, text: LocalizedStringKey, @ViewBuilder art: () -> Art) -> some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                art()
+                Text(title).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Text(text).foregroundStyle(.secondary)
+            }.multilineTextAlignment(.center).padding(28).frame(maxWidth: .infinity)
+        }.scrollBounceBehavior(.basedOnSize)
     }
-
-    private func binding(for field: Field) -> Binding<String> {
-        switch field {
-        case .available: $available
-        case .saving: $saving
-        case .category(let id): Binding(get: { split[id] ?? "" }, set: { split[id] = $0 })
-        }
-    }
-
-    private func choose(_ field: Field) {
-        FolkiFeedback.selection()
-        withAnimation(.snappy) { active = field }
-    }
-
-    private func amountField(_ title: String, hint: String, text: Binding<String>, field: Field) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
-            Button { choose(field) } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(text.wrappedValue.isEmpty ? "0" : text.wrappedValue)
-                        .foregroundStyle(text.wrappedValue.isEmpty ? .tertiary : .primary)
-                        .contentTransition(.numericText()).animation(.snappy, value: text.wrappedValue)
-                    Text(MoneyText.symbol).foregroundStyle(.tertiary)
-                    Spacer()
-                }
-                .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
-                .padding(.horizontal, 18).padding(.vertical, 12)
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.folkiAccent, lineWidth: active == field ? 2 : 0)
-                }
-            }.buttonStyle(.plain)
-            Text(hint).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private func moneyInput(_ text: Binding<String>, field: Field) -> some View {
-        Button { choose(field) } label: {
-            HStack(spacing: 4) {
-                Text(text.wrappedValue.isEmpty ? "0" : text.wrappedValue).monospacedDigit()
-                    .contentTransition(.numericText()).animation(.snappy, value: text.wrappedValue)
-                Text(MoneyText.symbol).foregroundStyle(.secondary)
-            }
-            .font(.body.weight(.semibold))
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(active == field ? Color.folkiAccent.opacity(0.18) : Color.folkiSoft, in: Capsule())
-        }.buttonStyle(.plain)
-    }
-
     @ViewBuilder private var footer: some View {
         switch page {
         case 0:
             Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            // Keeps the footer the same height on every page.
-            Text(" ").font(.subheadline).padding(.top, 8).accessibilityHidden(true)
         case 1:
-            if family.members.filter(\.isActive).count > 1 {
-                Button("Дальше") { go(2) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            } else {
-                Button("Пригласить", systemImage: "person.badge.plus") { FolkiFeedback.tap(); showingFamily = true }
-                    .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            }
-            Button("Добавлю позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Дальше") { go(2) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            Button("Пригласить близких") { showingFamily = true }.font(.subheadline).foregroundStyle(.secondary)
         case 2:
-            if personal.result == nil {
-                Button("Разложить по тратам") { fillSplit(); go(3) }
-                    .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(spendable == nil)
-            } else {
-                Button("Дальше") { go(4) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            }
-            Button("Сделаю позже") { go(4) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button(personal.result == nil ? "Начать период" : "Дальше", action: createPeriod)
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(personal.result == nil && estimate == nil)
         case 3:
-            Button("Создать план") { createPlan() }
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(splitTotal.minorUnits <= 0)
-            Button("Сделаю позже") { go(4) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Дальше") { go(4) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
         default:
-            Button("Начать") { FolkiFeedback.success(); finish() }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            Text(" ").font(.subheadline).padding(.top, 8).accessibilityHidden(true)
+            Button("Начать") { FolkiFeedback.success(); available = ""; paydayTimestamp = 0; finish() }
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
         }
     }
-
-    /// Splits what is left to spend by the usual shares, rounded to 100 ₽; the remainder goes to «Другое».
-    private func fillSplit() {
-        guard let spendable else { return }
-        var amounts: [UUID: Int64] = [:]
-        for builtIn in BuiltInCategory.allCases where builtIn != .other {
-            amounts[builtIn.id] = Int64(Double(spendable.minorUnits) * CategoryGuide.share(of: builtIn)) / 10_000 * 10_000
-        }
-        amounts[BuiltInCategory.other.id] = spendable.minorUnits - amounts.values.reduce(0, +)
-        split = amounts.mapValues { MoneyText.input(Money(minorUnits: $0)).replacingOccurrences(of: ".", with: ",") }
-    }
-
-    private func createPlan() {
-        guard let funds, splitTotal.minorUnits > 0 else { return }
-        guard splitTotal.minorUnits + savingAmount.minorUnits <= funds.minorUnits else {
-            errorMessage = String(localized: "Траты и копилка больше, чем есть сейчас. Поправь суммы 🙏")
-            return
-        }
-        let reserves = savingAmount.minorUnits > 0 ? [ProtectedReserve(name: String(localized: "Копилка"), openingAmount: savingAmount)] : []
+    private func createPeriod() {
+        if personal.result != nil { go(3); return }
+        guard let funds else { return }
         do {
-            try personal.createPlan(monthlyPlan: splitTotal, available: funds, reserves: reserves)
-            CategoryPlanStore.save(split.compactMapValues { try? MoneyText.parse($0) }.filter { $0.value.minorUnits > 0 }, scope: .personal)
-            FolkiFeedback.saved(); errorMessage = nil; active = nil; go(4)
-        } catch {
-            errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и попробуй снова.")
-        }
+            try personal.createPlan(monthlyPlan: funds, available: funds, payday: payday.wrappedValue)
+            FolkiFeedback.saved(); go(3)
+        } catch { errorMessage = String(localized: "Не получилось сохранить. Проверь сумму, дату и попробуй снова.") }
     }
 }
 

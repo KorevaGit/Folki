@@ -8,6 +8,7 @@ struct BudgetSettingsView: View {
     @State private var scope: BudgetScope = .personal
     @State private var setupScope: BudgetScope?
     @State private var limitsScope: BudgetScope?
+    @State private var salaryScope: BudgetScope?
     @State private var showingFamily = false
     private var session: BudgetSession { scope == .personal ? personal : family }
 
@@ -47,36 +48,42 @@ struct BudgetSettingsView: View {
             }
             .sheet(item: $setupScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family) }
             .sheet(item: $limitsScope) { scope in SpendingLimitsView(personal: personal, family: family, scope: scope) }
+            .sheet(item: $salaryScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family, editingCurrent: true) }
             .sheet(isPresented: $showingFamily) { SharingView(session: family) }
         }
     }
 
     private var plan: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("План на месяц").font(.system(.title2, design: .rounded, weight: .bold))
+            Text("До зарплаты").font(.system(.title2, design: .rounded, weight: .bold))
             if let result = session.result {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(session.referenceDate, format: .dateTime.month(.wide).year()).font(.subheadline).foregroundStyle(.secondary)
-                    Text(MoneyText.whole(result.monthlyPlan))
+                    Text(session.periodTitle).font(.subheadline).foregroundStyle(.secondary)
+                    Text(MoneyText.whole(result.periodPlan))
                         .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
                         .foregroundStyle(Color.budget(scope)).lineLimit(1).minimumScaleFactor(0.5)
-                    Text("Столько ты хочешь потратить за месяц")
+                    Text("На период, включая регулярные платежи")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Divider()
                     LabeledContent("Свободно сейчас", value: MoneyText.whole(result.monthlyRemaining))
+                    ForEach(session.household?.reserves.filter(\.isRegularPayment) ?? []) { reserve in
+                        LabeledContent(reserve.name, value: MoneyText.whole(result.reserveBalances[reserve.id] ?? Money(minorUnits: 0)))
+                    }
+                    Button("План по зарплате", systemImage: "list.bullet.clipboard") { salaryScope = scope }
+                        .buttonStyle(FolkiSoftButtonStyle())
                     Button { limitsScope = scope } label: {
-                        Label("Изменить месячный план", systemImage: "slider.horizontal.3")
+                        Label("Изменить план повседневных трат", systemImage: "slider.horizontal.3")
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }.buttonStyle(FolkiSoftButtonStyle())
                 }.budgetCard()
-                Text("Пришли деньги? Жми «Внести» 💸")
-                    .font(.footnote).foregroundStyle(.secondary)
+                Button("Пришла зарплата — начать новый период", systemImage: "arrow.clockwise") { setupScope = scope }
+                    .buttonStyle(FolkiSoftButtonStyle())
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Плана на месяц пока нет").font(.headline)
-                    Text("Две цифры — и Folki скажет, сколько можно тратить в день ✨")
+                    Text(session.periodEnded ? "Пришла зарплата?" : "Период пока не начат").font(.headline)
+                    Text("Введи сумму и дату следующей зарплаты — Folki посчитает твой день ✨")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Button("Создать план месяца", systemImage: "plus") { setupScope = scope }
+                    Button("Начать период", systemImage: "plus") { setupScope = scope }
                         .buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
                 }.budgetCard()
             }

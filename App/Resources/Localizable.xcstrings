@@ -4850,6 +4850,926 @@
           }
         }
       }
+    },
+    "%@: период превышен на %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: period overspent by %@"
+          }
+        }
+      }
+    },
+    "%@: пришла зарплата?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: payday?"
+          }
+        }
+      }
+    },
+    "Folki отложит их отдельно от дневных денег. При оплате выбери платёж в поле «Источник» — дневное кольцо не изменится.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folki sets this money aside from daily spending. Choose the payment under Source when paying it; your daily ring stays the same."
+          }
+        }
+      }
+    },
+    "Баланс периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period balance"
+          }
+        }
+      }
+    },
+    "Больше всего из желаний — «%@»: %@. Если тратить на четверть меньше, до конца периода будет на %@ в день больше 👀": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your biggest want is “%@”: %@. Spending a quarter less would give you %@ more per day until the period ends 👀"
+          }
+        }
+      }
+    },
+    "Бюджет уже изменился. Закрой форму и открой её снова.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The budget has changed. Close this form and open it again."
+          }
+        }
+      }
+    },
+    "Бюджет, в котором сразу видно, сколько можно потратить сегодня.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A budget that shows how much you can spend today."
+          }
+        }
+      }
+    },
+    "В целях накоплений": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In savings goals"
+          }
+        }
+      }
+    },
+    "Введи сумму и дату следующей": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the amount and your next payday"
+          }
+        }
+      }
+    },
+    "Введи сумму и дату следующей зарплаты — Folki посчитает твой день ✨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the amount and your next payday; Folki will work out your daily budget ✨"
+          }
+        }
+      }
+    },
+    "Всё, что есть на картах и наличными, включая накопления. В день следующей зарплаты начнётся новый период.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything in your accounts and cash, including savings. Your next payday starts a new period."
+          }
+        }
+      }
+    },
+    "Две вещи — и Folki сразу разложит деньги по дням ✨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Two details, and Folki splits your money into days ✨"
+          }
+        }
+      }
+    },
+    "Деньги до зарплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money until payday"
+          }
+        }
+      }
+    },
+    "Деньги на начало периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money at the start of the period"
+          }
+        }
+      }
+    },
+    "До зарплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until payday"
+          }
+        }
+      }
+    },
+    "До зарплаты %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days until payday."
+          }
+        }
+      }
+    },
+    "До зарплаты %lld дн. Дата зарплаты начнёт следующий период.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days until payday. Payday starts the next period."
+          }
+        }
+      }
+    },
+    "До зарплаты, ₽": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until payday, ₽"
+          }
+        }
+      }
+    },
+    "Добавить платёж": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a payment"
+          }
+        }
+      }
+    },
+    "Задай план на период — и Folki посчитает твой день ✨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up a period and Folki will work out your daily budget ✨"
+          }
+        }
+      }
+    },
+    "Зарплата и остаток, ₽": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salary and balance, ₽"
+          }
+        }
+      }
+    },
+    "Зарплата — новый личный период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday — new personal period"
+          }
+        }
+      }
+    },
+    "Зарплата — новый семейный период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday — new family period"
+          }
+        }
+      }
+    },
+    "Из этих денег уже были траты. Оставь для платежа не меньше оплаченной суммы и проверь свободный остаток.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some of this money has already been spent. Keep at least the amount already paid for each payment and check your available balance."
+          }
+        }
+      }
+    },
+    "Изменить план повседневных трат": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit the daily spending plan"
+          }
+        }
+      }
+    },
+    "Как идёт период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How this period is going"
+          }
+        }
+      }
+    },
+    "Кольца покажут остаток: снаружи личный бюджет, внутри семейный. Нажми на кольца, чтобы переключить день и весь период до зарплаты 🍩": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The outer ring shows your personal budget, the inner ring your family budget. Tap to switch between today and the whole period until payday 🍩"
+          }
+        }
+      }
+    },
+    "Копилка и цели не входят в кольца расходов.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Savings and goals are outside the spending rings."
+          }
+        }
+      }
+    },
+    "Личный · период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal · period"
+          }
+        }
+      }
+    },
+    "Можно сделать позже в настройках.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can do this later in Settings."
+          }
+        }
+      }
+    },
+    "На весь период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For the whole period"
+          }
+        }
+      }
+    },
+    "На период, включая регулярные платежи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For this period, including regular payments"
+          }
+        }
+      }
+    },
+    "На повседневные траты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For daily spending"
+          }
+        }
+      }
+    },
+    "Начать период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start a period"
+          }
+        }
+      }
+    },
+    "Не получилось открыть хранилище Folki. Данные не удалены. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open Folki storage. Your data is safe. Try again."
+          }
+        }
+      }
+    },
+    "Не получилось сохранить. Проверь сумму, дату и попробуй снова.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save. Check the amount and date, then try again."
+          }
+        }
+      }
+    },
+    "Не получилось сохранить. Проверь суммы, дату и доступ к бюджету.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save. Check the amounts, date and budget access."
+          }
+        }
+      }
+    },
+    "Остатки периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period remaining"
+          }
+        }
+      }
+    },
+    "Отложить в копилку": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set aside savings"
+          }
+        }
+      }
+    },
+    "Переключить остатки дня и периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch between daily and period balances"
+          }
+        }
+      }
+    },
+    "Период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period"
+          }
+        }
+      }
+    },
+    "Период завершён": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period complete"
+          }
+        }
+      }
+    },
+    "Период пока не начат": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No period started yet"
+          }
+        }
+      }
+    },
+    "Период превышен на %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period overspent by %@"
+          }
+        }
+      }
+    },
+    "Период уже создан: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period already started: %@"
+          }
+        }
+      }
+    },
+    "План по зарплате": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salary plan"
+          }
+        }
+      }
+    },
+    "План расходов за период в рублях": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period spending plan in rubles"
+          }
+        }
+      }
+    },
+    "План уже работает 🎉": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your plan is ready 🎉"
+          }
+        }
+      }
+    },
+    "Плана на этот период пока нет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No plan for this period yet"
+          }
+        }
+      }
+    },
+    "Платежи и копилку можно настроить на следующем шаге.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can set up payments and savings in the next step."
+          }
+        }
+      }
+    },
+    "По сравнению с тем же числом дней прошлого периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compared with the same number of days in the previous period"
+          }
+        }
+      }
+    },
+    "Повседневные деньги": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily spending money"
+          }
+        }
+      }
+    },
+    "Показать остатки периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show period balances"
+          }
+        }
+      }
+    },
+    "Последний день периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last day of the period"
+          }
+        }
+      }
+    },
+    "Пригласить близких": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite loved ones"
+          }
+        }
+      }
+    },
+    "Пришла зарплата — начать новый период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday — start a new period"
+          }
+        }
+      }
+    },
+    "Пришла зарплата?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday?"
+          }
+        }
+      }
+    },
+    "Пришла зарплата? Введи сумму и дату следующей. История сохранится.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday? Enter the amount and your next payday. Your history stays."
+          }
+        }
+      }
+    },
+    "Проверь суммы: платежи и накопления должны помещаться в доступные деньги.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the amounts: payments and savings must fit within your available money."
+          }
+        }
+      }
+    },
+    "Регулярные платежи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular payments"
+          }
+        }
+      }
+    },
+    "Рядом — подсказка, сколько примерно стоит закладывать в период 💡": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beside each category is a suggested amount for the period 💡"
+          }
+        }
+      }
+    },
+    "Сегодня можно": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available today"
+          }
+        }
+      }
+    },
+    "Сегодня можно %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available today: %@"
+          }
+        }
+      }
+    },
+    "Семейный · период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Family · period"
+          }
+        }
+      }
+    },
+    "Сколько денег есть сейчас": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much money do you have now?"
+          }
+        }
+      }
+    },
+    "Сколько отложить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much to save"
+          }
+        }
+      }
+    },
+    "Сколько планируешь потратить на повседневное?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much do you plan to spend on everyday needs?"
+          }
+        }
+      }
+    },
+    "Следующая зарплата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next payday"
+          }
+        }
+      }
+    },
+    "Создать план периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a period plan"
+          }
+        }
+      }
+    },
+    "Составить план по зарплате": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up a salary plan"
+          }
+        }
+      }
+    },
+    "Сумма": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amount"
+          }
+        }
+      }
+    },
+    "Сумма на весь период с учётом прошлых трат. Регулярные платежи — отдельно.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For the whole period, including past spending. Regular payments are separate."
+          }
+        }
+      }
+    },
+    "Сумма на начало периода: зарплата, остаток и накопления. Уже записанные траты сохранятся.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money at the start: salary, remaining balance and savings. Recorded spending stays."
+          }
+        }
+      }
+    },
+    "Текущий период завершится сейчас. Его операции останутся в истории. Введи весь остаток после поступления зарплаты.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current period ends now. Its entries stay in history. Enter your total balance after receiving your salary."
+          }
+        }
+      }
+    },
+    "Траты за период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period spending"
+          }
+        }
+      }
+    },
+    "Траты за период нарастающим итогом и ровный темп по плану": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cumulative period spending and an even pace against the plan"
+          }
+        }
+      }
+    },
+    "Хочешь отложить на аренду, подписки или в копилку? Составь план по зарплате. Платежи будут отдельно от повседневных денег.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Want to set money aside for rent, subscriptions or savings? Set up a salary plan. Payments stay separate from everyday spending."
+          }
+        }
+      }
+    },
+    "Шаг %lld из 4": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld of 4"
+          }
+        }
+      }
+    },
+    "за период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "this period"
+          }
+        }
+      }
+    },
+    "сегодня %@, период %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "today %@, period %@"
+          }
+        }
+      }
+    },
+    "чтобы уложиться в период, %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "to stay within the period, %lld days"
+          }
+        }
+      }
+    },
+    "Кредит": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loan"
+          }
+        }
+      }
+    },
+    "Другой платёж": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other payment"
+          }
+        }
+      }
+    },
+    "План на период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period plan"
+          }
+        }
+      }
+    },
+    "Остаток периода": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period balance"
+          }
+        }
+      }
+    },
+    "Из них на повседневное": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Of which, daily spending"
+          }
+        }
+      }
+    },
+    "Сегодня останется": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining today"
+          }
+        }
+      }
+    },
+    "период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "period"
+          }
+        }
+      }
+    },
+    "день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "day"
+          }
+        }
+      }
+    },
+    "Снаружи — личный бюджет, внутри — семейный. Нажми на кольца, чтобы переключить день и период.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The outer ring shows your personal budget, the inner ring your family budget. Tap the rings to switch between today and the period."
+          }
+        }
+      }
+    },
+    "Жильё и коммуналка": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Housing and utilities"
+          }
+        }
+      }
+    },
+    "Связь и подписки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectivity and subscriptions"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

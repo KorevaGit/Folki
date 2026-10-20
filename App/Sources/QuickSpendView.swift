@@ -25,22 +25,22 @@ struct ImpactLines: View {
         if remaining.minorUnits < 0 {
             Text("Сегодня \(MoneyText.whole(remaining))").font(.subheadline.weight(.semibold)).foregroundStyle(.red)
         } else {
-            Text("\(after == nil ? "Сегодня можно" : "Сегодня останется") \(MoneyText.whole(remaining))").font(.subheadline)
+            Text("\(after == nil ? String(localized: "Сегодня можно") : String(localized: "Сегодня останется")) \(MoneyText.whole(remaining))").font(.subheadline)
         }
     }
 
     @ViewBuilder private func nextDays(_ result: DailyBudgetSnapshot) -> some View {
         if result.monthlyRemaining.minorUnits < 0 {
-            Text("Месяц превышен на \(MoneyText.whole(Money(minorUnits: -result.monthlyRemaining.minorUnits).roundedUpToWholeUnits))")
+            Text("Период превышен на \(MoneyText.whole(Money(minorUnits: -result.monthlyRemaining.minorUnits).roundedUpToWholeUnits))")
                 .font(.footnote).foregroundStyle(.red)
         } else if let future = result.futureAllocation {
             let change = after == nil ? nil : (try? result.nextDaysChange(since: before))
             let changeText = Text(change.map { " (\(signed($0)))" } ?? "")
                 .foregroundStyle(change.map { $0.minorUnits < 0 } == true ? Color.red : .secondary)
             Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))\(changeText)").font(.footnote)
-            Text("чтобы уложиться в месяц, \(future.days) дн.").font(.caption2).foregroundStyle(.secondary)
+            Text("чтобы уложиться в период, \(future.days) дн.").font(.caption2).foregroundStyle(.secondary)
         } else {
-            Text("Последний день месяца").font(.footnote).foregroundStyle(.secondary)
+            Text("Последний день периода").font(.footnote).foregroundStyle(.secondary)
         }
     }
 
@@ -63,6 +63,7 @@ struct QuickSpendView: View {
     @AppStorage("FolkiLastSpendScope") private var scopeRaw = BudgetScope.personal.rawValue
     @State private var amount = ""
     @State private var categoryID: UUID?
+    @State private var reserveID: UUID?
     @State private var title = ""
     @FocusState private var descriptionFocused: Bool
     @State private var date: Date
@@ -92,7 +93,8 @@ struct QuickSpendView: View {
     private var draft: LedgerRecord? {
         guard let money, let payer = payerID ?? session.authorID else { return nil }
         return try? session.draft(amount: money, title: title, payerID: payer, date: date, kind: entryKind,
-            categoryID: categoryID ?? BuiltInCategory.other.id, funding: .flexible, newRecordID: recordID)
+            categoryID: categoryID ?? BuiltInCategory.other.id,
+            funding: isIncome ? .flexible : reserveID.map { .reserve($0) } ?? .flexible, newRecordID: recordID)
     }
     private var after: DailyBudgetSnapshot? { draft.flatMap { try? session.preview($0) } }
 
@@ -103,7 +105,7 @@ struct QuickSpendView: View {
                     FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
                         options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
-                    .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; recordID = UUID() }
+                    .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; reserveID = nil; recordID = UUID() }
                     if let before = session.result {
                         Text("\(amount.isEmpty ? "0" : amount) ₽")
                             .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
@@ -118,6 +120,15 @@ struct QuickSpendView: View {
                             .folkiGlass(RoundedRectangle(cornerRadius: 18))
                             .padding(.horizontal, FolkiSpacing.page)
                         if !isIncome { categoryChips.frame(height: chipHeight + 12) }
+                        if !isIncome, let payments = session.household?.reserves.filter(\.isRegularPayment), !payments.isEmpty {
+                            Picker("Источник", selection: $reserveID) {
+                                Text("Повседневные деньги").tag(nil as UUID?)
+                                ForEach(payments) { payment in
+                                    Text("\(payment.name) · \(MoneyText.whole(before.reserveBalances[payment.id] ?? Money(minorUnits: 0)))")
+                                        .tag(Optional(payment.id))
+                                }
+                            }.padding(.horizontal, FolkiSpacing.page)
+                        }
                         if isIncome {
                             Text("Поступление увеличит свободные деньги \(scope == .personal ? "личного" : "семейного") бюджета. Это не перевод из другого бюджета.")
                                 .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, FolkiSpacing.page)
@@ -134,7 +145,7 @@ struct QuickSpendView: View {
                         ContentUnavailableView {
                             Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
                         } description: {
-                            Text("Задай план на месяц — и Folki посчитает твой день ✨")
+                            Text("Задай план на период — и Folki посчитает твой день ✨")
                         } actions: {
                             Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
                         }

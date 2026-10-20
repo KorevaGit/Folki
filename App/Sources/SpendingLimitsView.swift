@@ -26,22 +26,21 @@ struct SpendingLimitsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text("\(scope.title) бюджет · \(session.referenceDate.formatted(.dateTime.month(.wide).year()))")
+                    Text("\(scope.title) бюджет · \(session.periodTitle)")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(Color.budget(scope))
                     if let expected, expected.snapshot.period.contains(session.referenceDate) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Сколько планируешь потратить за месяц?").font(.headline)
+                            Text("Сколько планируешь потратить на повседневное?").font(.headline)
                             HStack(alignment: .firstTextBaseline) {
                                 TextField("0", text: $amount).keyboardType(.decimalPad)
                                     .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
-                                    .accessibilityLabel("План расходов за месяц в рублях")
+                                    .accessibilityLabel("План расходов за период в рублях")
                                 Text(MoneyText.symbol).font(.title2).foregroundStyle(.secondary)
                             }
-                            Text("Сумма на весь месяц, вместе с тем, что уже потрачено")
+                            Text("Сумма на весь период с учётом прошлых трат. Регулярные платежи — отдельно.")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }.budgetCard()
-                        if let stats = try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month,
-                            anchor: session.referenceDate, asOf: session.referenceDate, calendar: session.calendar) {
+                        if let stats = try? session.analytics(.month, on: session.referenceDate) {
                             VStack(alignment: .leading, spacing: 12) {
                                 LabeledContent("Уже потрачено из свободных денег", value: MoneyText.whole(stats.flexibleNetSpending))
                                 if let limit, let left = try? limit.subtracting(stats.flexibleNetSpending) {
@@ -58,8 +57,8 @@ struct SpendingLimitsView: View {
                             Text("Сохранить план").font(.headline).frame(maxWidth: .infinity, minHeight: 52)
                         }.buttonStyle(FolkiPrimaryButtonStyle()).disabled(limit == nil)
                     } else {
-                        Text("Плана на этот месяц пока нет").font(.headline)
-                        Button("Создать план месяца") { settingUp = true }.buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
+                        Text("Плана на этот период пока нет").font(.headline)
+                        Button("Создать план периода") { settingUp = true }.buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
                     }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.folkiPagePadding()

@@ -15,6 +15,7 @@ final class BudgetSession {
     private(set) var goals: [SavingsGoalSnapshot] = []
     private(set) var catalog = CategoryCatalog()
     private(set) var household: HouseholdSnapshot?
+    private(set) var periods: [BudgetPeriod] = []
     private(set) var result: DailyBudgetSnapshot?
     private(set) var allRecords: [LedgerRecord]
     private(set) var historyRecords: [LedgerRecord] = []
@@ -57,6 +58,7 @@ final class BudgetSession {
             do {
                 let stored = try repository.load(asOf: referenceDate, scope: scope)
                 household = stored?.snapshot
+                periods = try repository.periods(scope: scope)
                 allRecords = stored?.records ?? []
                 historyRecords = try repository.history(scope: scope)
                 goals = try repository.goals(scope: scope, asOf: referenceDate)
@@ -71,12 +73,13 @@ final class BudgetSession {
                 return
             }
         }
+        if repository == nil { periods = household.map { [$0.period] } ?? [] }
         guard let household else { result = nil; errorMessage = nil; return }
         do {
             result = try DailyBudgetCalculator.calculate(household, asOf: referenceDate)
             errorMessage = nil
         } catch BudgetError.dateOutsidePeriod {
-            result = nil; errorMessage = String(localized: "Период закончился. Создай новый план месяца. История сохранится.")
+            result = nil; errorMessage = String(localized: "Пришла зарплата? Введи сумму и дату следующей. История сохранится.")
         } catch {
             result = nil; errorMessage = String(localized: "Не получилось рассчитать бюджет. Проверь суммы и резервы.")
         }
@@ -108,7 +111,7 @@ final class BudgetSession {
             let records: [LedgerRecord]
             if let repository {
                 let budget = try repository.load(asOf: cutoff, scope: scope)
-                snapshot = budget?.snapshot
+                snapshot = budget?.snapshot.period.contains(cutoff) == true ? budget?.snapshot : nil
                 records = budget?.records ?? []
             } else {
                 snapshot = household?.period.contains(cutoff) == true ? household : nil
@@ -121,17 +124,42 @@ final class BudgetSession {
         }
     }
 
-    func createPlan(monthlyPlan: Money, available: Money, reserves: [ProtectedReserve] = []) throws {
+    func createPlan(monthlyPlan: Money, available: Money, reserves: [ProtectedReserve] = [], payday: Date, closeCurrent: Bool = false) throws {
         overviewCache = [:]
         if let repository {
-            try repository.createPlan(monthlyPlan: monthlyPlan, available: available, asOf: referenceDate, reserves: reserves, scope: scope)
+            try repository.createPlan(monthlyPlan: monthlyPlan, available: available, asOf: referenceDate, reserves: reserves, scope: scope,
+                                      payday: payday, closeCurrent: closeCurrent)
             refresh()
             return
         }
         guard isDemo else { throw LedgerError.unavailable }
-        let period = try BudgetPeriod(monthContaining: referenceDate, timeZoneIdentifier: TimeZone.current.identifier)
+        let period = try BudgetPeriod.untilPayday(from: referenceDate, payday: payday, timeZoneIdentifier: calendar.timeZone.identifier)
         household = HouseholdSnapshot(period: period, monthlyFreePlan: monthlyPlan, openingFunds: available, reserves: reserves)
         allRecords = []; refresh()
+    }
+
+    var periodEnded: Bool { household.map { referenceDate >= $0.period.endExclusive } ?? false }
+    var periodTitle: String {
+        guard let period = household?.period else { return String(localized: "До зарплаты") }
+        var style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+        style.timeZone = calendar.timeZone
+        return period.start.formatted(style) + " — " + period.endExclusive.addingTimeInterval(-1).formatted(style)
+    }
+    func period(on date: Date) -> BudgetPeriod? {
+        periods.first { $0.contains(date) } ?? periods.last { $0.start <= date }
+    }
+    func analytics(_ range: AnalyticsPeriod, on date: Date, through cutoff: Date? = nil) throws -> BudgetAnalyticsSnapshot {
+        let stored = range == .month ? period(on: date) : nil
+        let interval = stored.map { DateInterval(start: $0.start, end: $0.endExclusive) }
+            ?? calendar.dateInterval(of: range == .day ? .day : range == .week ? .weekOfYear : .month, for: date)
+        let anchor = cutoff ?? min(interval?.end.addingTimeInterval(-0.001) ?? date, referenceDate)
+        return try BudgetAnalytics.calculate(records: historyRecords, period: range, anchor: anchor,
+            asOf: referenceDate, calendar: calendar, catalog: catalog, budgetPeriod: stored)
+    }
+    func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], expected: StoredBudget) throws {
+        guard let repository else { throw LedgerError.unavailable }
+        try repository.updateSalaryPlan(available: available, reserves: reserves, in: expected, asOf: referenceDate)
+        refresh()
     }
 
     func updateSpendingLimit(_ amount: Money, expected budget: StoredBudget) throws {
