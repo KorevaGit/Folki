@@ -337,18 +337,32 @@ final class BudgetSession {
         try repository.renameMember(member, name: name, in: budget, asOf: referenceDate); refresh()
     }
     /// The categories used most often in this budget, padded with everyday defaults.
+    /// Spends of the last 30 days, the base for the chips and the guess.
+    private var recentExpenses: [LedgerRecord] {
+        let since = referenceDate.addingTimeInterval(-30 * 86_400)
+        return historyRecords.filter { $0.transaction.kind == .expense && !$0.transaction.isDeleted && $0.transaction.date >= since }
+    }
+    /// The three chips: most used in 30 days in a fixed order; a new user gets groceries, cafes, transport.
     func frequentCategories(limit: Int = 3) -> [SpendingCategory] {
         let selectable = catalog.selectable
         var counts: [UUID: Int] = [:]
-        for record in historyRecords where record.transaction.kind == .expense && !record.transaction.isDeleted {
-            counts[record.categoryID, default: 0] += 1
-        }
+        for record in recentExpenses { counts[record.categoryID, default: 0] += 1 }
         let used = selectable.filter { counts[$0.id] != nil && $0.id != BuiltInCategory.other.id }
             .sorted { counts[$0.id]! == counts[$1.id]! ? $0.name < $1.name : counts[$0.id]! > counts[$1.id]! }
         let defaults = [BuiltInCategory.groceries, .cafes, .transport].map(\.category).filter { selectable.contains($0) }
         var result: [SpendingCategory] = []
         for category in used + defaults where !result.contains(category) && result.count < limit { result.append(category) }
         return result
+    }
+    /// The chip picked in advance: the one most used around this hour (±1 h) among the chips.
+    func likelyCategory(among chips: [SpendingCategory], at date: Date) -> SpendingCategory? {
+        let hour = calendar.component(.hour, from: date)
+        var counts: [UUID: Int] = [:]
+        for record in recentExpenses {
+            let other = calendar.component(.hour, from: record.transaction.date)
+            if min(abs(other - hour), 24 - abs(other - hour)) <= 1 { counts[record.categoryID, default: 0] += 1 }
+        }
+        return chips.filter { counts[$0.id] != nil }.max { counts[$0.id]! < counts[$1.id]! } ?? chips.first
     }
     /// Nil for contributions and savings transfers, which have no category.
     func category(for record: LedgerRecord) -> SpendingCategory? {

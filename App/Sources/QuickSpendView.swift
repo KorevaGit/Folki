@@ -63,16 +63,12 @@ struct QuickSpendView: View {
     @AppStorage("FolkiLastSpendScope") private var scopeRaw = BudgetScope.personal.rawValue
     @State private var amount = ""
     @State private var categoryID: UUID?
-    @State private var reserveID: UUID?
-    @State private var title = ""
-    @FocusState private var descriptionFocused: Bool
     @State private var date: Date
-    @State private var payerID: UUID?
     @State private var showingAllCategories = false
     @State private var settingUp = false
     @State private var recordID = UUID()
     @State private var errorMessage: String?
-    @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 44
 
     init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal, onSaved: (() -> Void)? = nil) {
         self.personal = personal; self.family = family; self.entryKind = entryKind; self.onSaved = onSaved
@@ -91,21 +87,21 @@ struct QuickSpendView: View {
         return money
     }
     private var draft: LedgerRecord? {
-        guard let money, let payer = payerID ?? session.authorID else { return nil }
-        return try? session.draft(amount: money, title: title, payerID: payer, date: date, kind: entryKind,
+        guard let money, let payer = session.authorID else { return nil }
+        return try? session.draft(amount: money, title: "", payerID: payer, date: date, kind: entryKind,
             categoryID: categoryID ?? BuiltInCategory.other.id,
-            funding: isIncome ? .flexible : reserveID.map { .reserve($0) } ?? .flexible, newRecordID: recordID)
+            funding: .flexible, newRecordID: recordID)
     }
     private var after: DailyBudgetSnapshot? { draft.flatMap { try? session.preview($0) } }
 
     var body: some View {
         NavigationStack {
-            FolkiEntryLayout(hidesKeypad: descriptionFocused) { availableHeight in
+            FolkiEntryLayout { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
                     if family.household != nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
                         options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
-                    .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; reserveID = nil; recordID = UUID() }
+                    .onChange(of: activeScopeRaw) { categoryID = nil; preselectCategory(); recordID = UUID() }
                     }
                     if let before = session.result {
                         Text("\(amount.isEmpty ? "0" : amount) ₽")
@@ -121,24 +117,10 @@ struct QuickSpendView: View {
                             .folkiGlass(RoundedRectangle(cornerRadius: 18))
                             .padding(.horizontal, FolkiSpacing.page)
                         if !isIncome { categoryChips.frame(height: chipHeight + 12) }
-                        if !isIncome, let payments = session.household?.reserves.filter(\.isRegularPayment), !payments.isEmpty {
-                            Picker("Источник", selection: $reserveID) {
-                                Text("Повседневные деньги").tag(nil as UUID?)
-                                ForEach(payments) { payment in
-                                    Text("\(payment.name) · \(MoneyText.whole(before.reserveBalances[payment.id] ?? Money(minorUnits: 0)))")
-                                        .tag(Optional(payment.id))
-                                }
-                            }.padding(.horizontal, FolkiSpacing.page)
-                        }
                         if isIncome {
                             Text("Поступление увеличит свободные деньги \(scope == .personal ? "личного" : "семейного") бюджета. Это не перевод из другого бюджета.")
                                 .font(.footnote).foregroundStyle(.secondary).padding(.horizontal, FolkiSpacing.page)
                         }
-                        TextField("Описание · необязательно", text: $title)
-                            .focused($descriptionFocused).submitLabel(.done)
-                            .onSubmit { descriptionFocused = false }
-                            .padding(FolkiSpacing.card).glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .padding(.horizontal, FolkiSpacing.page)
                         if let errorMessage {
                             FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page)
                         }
@@ -146,7 +128,7 @@ struct QuickSpendView: View {
                         ContentUnavailableView {
                             Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
                         } description: {
-                            Text("Задай план на период — и Folki посчитает твой день ✨")
+                            Text("Задай сумму на период — я посчитаю твой день")
                         } actions: {
                             Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
                         }
@@ -157,8 +139,8 @@ struct QuickSpendView: View {
                     VStack(spacing: 12) {
                         AmountKeypad(text: $amount)
                         Button(action: save) {
-                            Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.system(.title3, design: .rounded, weight: .bold))
-                                .frame(maxWidth: .infinity).frame(minHeight: 60)
+                            Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.headline)
+                                .frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
                                 .foregroundStyle(.white)
                                 .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
                         }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
@@ -166,23 +148,20 @@ struct QuickSpendView: View {
                 }
             }
             .background { FolkiBackground() }
-            .navigationTitle(isIncome ? String(localized: "Внести") : String(localized: "Потратить")).toolbarTitleDisplayMode(.inlineLarge)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Готово") { descriptionFocused = false }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
             }
-            .sheet(isPresented: $showingAllCategories) { CategoryPickerView(session: session, selection: $categoryID) }
+            .sheet(isPresented: $showingAllCategories) {
+                CategoryGridSheet(session: session, selection: $categoryID).presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $settingUp) { DailyFundingView(personal: personal, family: family, initialScope: scope) }
             .onAppear {
                 if UserDefaults.standard.string(forKey: "FolkiLastSpendScope") == nil && family.hasFunding && !personal.hasFunding {
                     scopeRaw = BudgetScope.family.rawValue
                 }
                 prepareBudget()
+                preselectCategory()
             }
             .onChange(of: activeScopeRaw) { prepareBudget() }
         }
@@ -192,24 +171,27 @@ struct QuickSpendView: View {
     private var categoryChips: some View {
         let frequent = session.frequentCategories()
         let selected = categoryID.map { session.catalog.category(for: $0) }
-        let chips = frequent + (selected.map { frequent.contains($0) ? [] : [$0] } ?? [])
+        // A category picked under "Ещё" takes the third chip's place for this spend.
+        let chips = selected.map { frequent.contains($0) ? frequent : Array(frequent.prefix(2)) + [$0] } ?? frequent
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(chips) { category in
                     let isSelected = categoryID == category.id
                     Button { categoryID = isSelected ? nil : category.id; FolkiFeedback.selection() } label: {
-                        HStack(spacing: 6) {
-                            CategoryIcon(category: category, size: 28)
-                            Text(category.name).font(.subheadline).lineLimit(1)
+                        HStack(spacing: FolkiSpacing.xs) {
+                            CategoryIcon(category: category, size: 24)
+                            Text(category.name).font(.subheadline.weight(.medium)).lineLimit(1)
                         }
-                        .padding(.horizontal, FolkiSpacing.card).frame(minHeight: chipHeight)
-                        .glassEffect(.regular.tint(isSelected ? category.color.color.opacity(0.3) : .clear).interactive(), in: Capsule())
+                        .padding(.horizontal, FolkiSpacing.item).frame(minHeight: chipHeight)
+                        .background(isSelected ? category.color.color.opacity(0.15) : Color.folkiSoft, in: Capsule())
+                        .overlay { if isSelected { Capsule().strokeBorder(category.color.color, lineWidth: 1.5) } }
+                        .foregroundStyle(Color.folkiInk)
                     }
                     .buttonStyle(FolkiPressStyle()).accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
                 Button("Ещё") { showingAllCategories = true }
-                    .font(.subheadline.weight(.medium)).padding(.horizontal, 18).frame(minHeight: chipHeight)
-                    .glassEffect(.regular.interactive(), in: Capsule()).buttonStyle(FolkiPressStyle())
+                    .font(.subheadline.weight(.medium)).padding(.horizontal, FolkiSpacing.page).frame(minHeight: chipHeight)
+                    .background(Color.folkiSoft, in: Capsule()).foregroundStyle(Color.folkiInk).buttonStyle(FolkiPressStyle())
             }.padding(.horizontal, FolkiSpacing.page)
         }
     }
@@ -225,6 +207,11 @@ struct QuickSpendView: View {
         } catch {
             errorMessage = String(localized: "Не получилось записать. Сумма осталась здесь, попробуй ещё раз.")
         }
+    }
+    /// Zero taps for the usual case: the chip most used around this hour is picked in advance.
+    private func preselectCategory() {
+        guard !isIncome, categoryID == nil else { return }
+        categoryID = session.likelyCategory(among: session.frequentCategories(), at: .now)?.id
     }
     private func prepareBudget() {
         do { try session.ensureDailyPeriod(); date = session.referenceDate }
@@ -325,6 +312,45 @@ private struct SpendContentLayout: Layout {
             view.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
                        proposal: ProposedViewSize(width: bounds.width, height: sizes.heights[index]))
             y += sizes.heights[index] + sizes.gap
+        }
+    }
+}
+
+/// "Ещё": every category as a grid of round icons, like Reminders. Picking one closes the sheet.
+struct CategoryGridSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let session: BudgetSession
+    @Binding var selection: UUID?
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: FolkiSpacing.xs), count: 4)
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: FolkiSpacing.page) {
+                    ForEach(session.catalog.selectable) { category in
+                        Button {
+                            FolkiFeedback.selection(); selection = category.id; dismiss()
+                        } label: {
+                            VStack(spacing: FolkiSpacing.xs) {
+                                CategoryIcon(category: category, size: 52)
+                                    .overlay { if selection == category.id { Circle().strokeBorder(Color.folkiInk, lineWidth: 2).padding(-4) } }
+                                Text(category.name).font(.footnote).foregroundStyle(Color.folkiInk)
+                                    .lineLimit(2).multilineTextAlignment(.center)
+                            }.frame(maxWidth: .infinity)
+                        }.buttonStyle(FolkiPressStyle())
+                    }
+                    NavigationLink { CategoriesView(session: session) } label: {
+                        VStack(spacing: FolkiSpacing.xs) {
+                            Image(systemName: "plus").font(.title2.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                                .frame(width: 52, height: 52).background(Color.folkiSoft, in: Circle())
+                            Text("Своя категория").font(.footnote).foregroundStyle(Color.folkiInk)
+                                .lineLimit(2).multilineTextAlignment(.center)
+                        }.frame(maxWidth: .infinity)
+                    }.buttonStyle(.plain)
+                }.padding(FolkiSpacing.page)
+            }
+            .navigationTitle("Категория").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } } }
         }
     }
 }
