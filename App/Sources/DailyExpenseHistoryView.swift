@@ -8,7 +8,6 @@ struct DailyExpenseHistoryView: View {
     let personalDay: BudgetDayOverview
     let familyDay: BudgetDayOverview
     @Binding var atTop: Bool
-    let edit: (LedgerRecord, BudgetScope) -> Void
 
     private struct Entry: Identifiable {
         let record: LedgerRecord
@@ -41,11 +40,10 @@ struct DailyExpenseHistoryView: View {
                         .frame(maxWidth: .infinity).padding(.top, 28)
                 } else {
                     ForEach(entries) { entry in
-                        if entry.session.isEditable(entry.record) {
-                            Button { edit(entry.record, entry.session.scope) } label: { row(entry) }
-                                .buttonStyle(FolkiPressStyle())
-                        } else { row(entry) }
-                        Divider().padding(.leading, 54)
+                        row(entry)
+                            .padding(.horizontal, 16)
+                            .background(Color.folkiInk.opacity(0.035), in: RoundedRectangle(cornerRadius: 20))
+                            .padding(.bottom, 10)
                     }
                 }
             }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 28)
@@ -83,6 +81,6 @@ struct DailyExpenseHistoryView: View {
             Text((record.transaction.kind == .refund ? "+" : "−") + MoneyText.string(record.transaction.amount))
                 .fontWeight(.semibold).monospacedDigit().foregroundStyle(Color.folkiInk)
                 .lineLimit(1).minimumScaleFactor(0.65).layoutPriority(1)
-        }.font(.subheadline).padding(.vertical, 14).contentShape(Rectangle())
+        }.font(.subheadline).padding(.vertical, 14).accessibilityElement(children: .combine)
     }
 }

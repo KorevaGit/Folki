@@ -13,6 +13,7 @@ struct BudgetRootView: View {
     @State private var showingDayHistory = false
     @State private var pageDrag: CGFloat = 0
     @State private var historyAtTop = true
+    @State private var paging = false
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
@@ -59,7 +60,7 @@ struct BudgetRootView: View {
                             .padding(.horizontal, FolkiSpacing.page)
                             .frame(width: viewport.size.width, height: height)
                             .offset(y: (showingDayHistory ? -height : 0) + pageDrag)
-                            .allowsHitTesting(!showingDayHistory).accessibilityHidden(showingDayHistory)
+                            .allowsHitTesting(!showingDayHistory && !paging).accessibilityHidden(showingDayHistory)
 
                             VStack(spacing: 8) {
                                 Button { showHistory(false) } label: {
@@ -67,14 +68,12 @@ struct BudgetRootView: View {
                                         .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
                                 }.buttonStyle(.plain).foregroundStyle(.secondary)
                                 DailyExpenseHistoryView(personal: personal, family: family,
-                                    personalDay: personalDay, familyDay: familyDay, atTop: $historyAtTop) { record, scope in
-                                        selectedScope = scope; editingRecord = record
-                                    }
+                                    personalDay: personalDay, familyDay: familyDay, atTop: $historyAtTop)
                                     .id(calendar.startOfDay(for: date))
                             }
                             .frame(width: viewport.size.width, height: height)
                             .offset(y: (showingDayHistory ? 0 : height) + pageDrag)
-                            .allowsHitTesting(showingDayHistory).accessibilityHidden(!showingDayHistory)
+                            .allowsHitTesting(showingDayHistory && !paging).accessibilityHidden(!showingDayHistory)
                         }
                         .contentShape(Rectangle()).clipped()
                         .simultaneousGesture(verticalPaging(height: height))
@@ -108,10 +107,11 @@ struct BudgetRootView: View {
     }
 
     private func showHistory(_ show: Bool) {
-        FolkiFeedback.selection()
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.38, bounce: 0.08)) {
+        FolkiFeedback.tap()
+        paging = true
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.55), completionCriteria: .removed) {
             showingDayHistory = show; pageDrag = 0
-        }
+        } completion: { paging = false }
     }
 
     private func verticalPaging(height: CGFloat) -> some Gesture {
@@ -134,7 +134,7 @@ struct BudgetRootView: View {
                 } else if vertical && showingDayHistory && historyAtTop && (distance > 64 || predicted > height * 0.3) {
                     showHistory(false)
                 } else {
-                    withAnimation(reduceMotion ? nil : .spring(duration: 0.3)) { pageDrag = 0 }
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.4)) { pageDrag = 0 }
                 }
             }
     }
@@ -148,21 +148,13 @@ struct BudgetRootView: View {
                     Text(personal.periodTitle).font(.footnote).foregroundStyle(.secondary)
                 }.buttonStyle(.plain)
             }
-            if personal.hasFunding && !personal.envelopeOfferDismissed && !personal.fullFinanceEnabled {
-                HStack {
-                    Button("Настроить конверты") {
-                        selectedScope = .personal; personal.fullFinanceEnabled = true; sheet = .envelopes
-                    }.font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Button("Позже") { personal.envelopeOfferDismissed = true }.font(.footnote).foregroundStyle(.secondary)
-                }.padding(14).budgetCard()
-            }
+
         }
     }
 
     private func toggleRingPeriod() {
         FolkiFeedback.toggle()
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.2)) { showsMonth.toggle() }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.7)) { showsMonth.toggle() }
     }
 
     private var isAtToday: Bool {

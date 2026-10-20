@@ -16,10 +16,12 @@ struct OnboardingView: View {
     @State private var showingFamily = false
     @State private var showingJoin = false
     @State private var showingDistribution = false
-    @State private var showingFullFinance = false
     @State private var showingExpense = false
     @State private var errorMessage: String?
     @State private var day = 0
+    @State private var payments: [OnboardingPayment] = []
+    @State private var showingPayment = false
+    @AppStorage("FolkiOnboardingPayments") private var savedPayments = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var hasFamily: Bool { family.household != nil }
     private var step: AnyTransition {
@@ -35,16 +37,14 @@ struct OnboardingView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
             if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page) }
             Group {
-                if let editingScope {
-                    VStack(spacing: 12) {
-                        AmountKeypad(text: editingScope == .personal ? $personalAmount : $familyAmount)
-                        Button("Готово") { edit(nil) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-                    }.transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    VStack(spacing: 0) { footer }.id(page).transition(.opacity)
-                        .allowsHitTesting(!transitioning)
+                VStack(spacing: 12) {
+                    if page == 2 {
+                        AmountKeypad(text: editingScope == .family ? $familyAmount : $personalAmount)
+                    }
+                    VStack(spacing: 0) { footer }.id(page).allowsHitTesting(!transitioning)
                 }
-            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+
+            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 28)
                 .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: editingScope)
         }
         .background { FolkiBackground() }
@@ -56,29 +56,38 @@ struct OnboardingView: View {
                 if hasFamily { try family.setDistributionDay(value) }
             })
         }
-        .sheet(isPresented: $showingFullFinance) { BudgetSetupView(session: personal, editingCurrent: true) }
-        .sheet(isPresented: $showingExpense) { QuickSpendView(personal: personal, family: family) }
-        .onAppear { day = personal.distributionDay }
+        .sheet(isPresented: $showingExpense) { QuickSpendView(personal: personal, family: family, onSaved: complete) }
+        .sheet(isPresented: $showingPayment) {
+            OnboardingPaymentView(hasFamily: hasFamily, available: availableForPayment) { payments.append($0) }
+        }
+        .onChange(of: payments) { savedPayments = (try? String(data: JSONEncoder().encode(payments), encoding: .utf8)) ?? "" }
+        .onAppear {
+            day = personal.distributionDay
+            payments = savedPayments.data(using: .utf8).flatMap { try? JSONDecoder().decode([OnboardingPayment].self, from: $0) } ?? []
+            if page == 2 { editingScope = .personal }
+        }
     }
     @ViewBuilder private var content: some View {
         switch page {
         case 0:
-            illustration(title: "Привет! Это Folki 👋", text: "Сколько можно потратить сегодня.") {
-                AnimatedHouse().frame(width: 210, height: 190)
+            illustration(title: "Привет! Это Folki 👋", text: "Твой домашний хаб.") {
+                AnimatedHouse().frame(width: 260, height: 260)
             }
         case 1:
             illustration(title: "Вместе с близкими", text: "Общие траты — вместе. Личные — только твои.") {
-                FamilyBubbles(family: family) { createFamily() }.frame(height: 250)
+                FamilyBubbles(family: family) { createFamily() }.frame(height: 290)
             } extra: {
-                Button("Меня пригласили") { showingJoin = true }.buttonStyle(FolkiSoftButtonStyle())
+                Button { showingJoin = true } label: { Label { Text("Меня пригласили") } icon: {
+                    Image(systemName: "envelope").overlay {
+                        Image(systemName: "heart.fill").font(.system(size: 7)).padding(2)
+                            .background(Color(uiColor: .systemBackground), in: Circle())
+                    }
+                } }.buttonStyle(FolkiSoftButtonStyle())
             }
         case 2: moneyPage
         default:
-            illustration(title: "Первая трата", text: "Уже что-нибудь потратил сегодня?") {
-                Image(systemName: "basket.fill").font(.system(size: 96)).foregroundStyle(Color.folkiAccent)
-                    .frame(height: 180).folkiAppear()
-            } extra: {
-                Button("Записать трату") { showingExpense = true }.buttonStyle(FolkiSoftButtonStyle())
+            illustration(title: "Начнём считать", text: "Запиши первую трату — остальное Folki посчитает.") {
+                FirstExpensePreview().frame(height: 210)
             }
         }
     }
@@ -103,8 +112,8 @@ struct OnboardingView: View {
     }
     private var moneyPage: some View {
         pageScroll(centered: false) {
-            VStack(alignment: .leading, spacing: 22) {
-                Text("На каждый день").font(.system(.largeTitle, design: .rounded, weight: .bold))
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Прикинем бюджет").font(.system(.largeTitle, design: .rounded, weight: .bold))
                 if hasFamily {
                     amountRow("Личные", text: personalAmount, scope: .personal)
                     amountRow("Семейные", text: familyAmount, scope: .family)
@@ -119,12 +128,20 @@ struct OnboardingView: View {
                         Image(systemName: "chevron.down").font(.caption)
                     }.font(.subheadline)
                 }.buttonStyle(.plain)
-                Button("Хочу вести все финансы") {
-                    do {
-                        try personal.setDistributionDay(day); try personal.ensureDailyPeriod()
-                        personal.fullFinanceEnabled = true; showingFullFinance = true
-                    } catch { errorMessage = String(localized: "Не получилось открыть бюджет. Попробуй ещё раз.") }
-                }.font(.subheadline).foregroundStyle(Color.folkiAccent)
+                Button("Есть регулярные платежи?") { showingPayment = true }
+                    .font(.subheadline).foregroundStyle(Color.folkiAccent)
+                ForEach(payments) { payment in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(payment.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(payment.dueDate, format: .dateTime.day().month()).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(payment.money.map(MoneyText.whole) ?? "").font(.subheadline).monospacedDigit()
+                        Button { payments.removeAll { $0.id == payment.id } } label: { Image(systemName: "xmark.circle.fill") }
+                            .accessibilityLabel("Убрать конверт")
+                    }
+                }
             }.padding(.vertical, 16).folkiAppear(1)
         }
     }
@@ -133,32 +150,30 @@ struct OnboardingView: View {
             Text(title).font(.headline)
             Button { edit(scope) } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(text.isEmpty ? "0" : text).font(.system(size: 34, weight: .bold, design: .rounded))
+                    Text(text.isEmpty ? "0" : text).font(.system(size: 30, weight: .bold, design: .rounded))
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(text.isEmpty ? 1 : 0.4).layoutPriority(1)
                         .contentTransition(text.isEmpty ? .identity : .numericText())
                     Text(MoneyText.symbol).font(.title).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-                }.padding(18).glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20))
+                }.padding(12).glassEffect(.regular.tint(editingScope == scope ? Color.folkiAccent.opacity(0.1) : .clear).interactive(), in: RoundedRectangle(cornerRadius: 20))
             }.buttonStyle(.plain)
         }
     }
     @ViewBuilder private var footer: some View {
         switch page {
         case 0:
-            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
             footerSpace
         case 1:
             Button(hasFamily ? "Дальше" : "Создать семью") { hasFamily ? go(2) : createFamily() }
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            Button("Настрою позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
+            Button("Настрою позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 14).frame(minHeight: 44)
         case 2:
-            Button("Продолжить", action: saveFunds).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            Button("Добавлю позже") { go(3) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Продолжить", action: saveFunds).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
+            Button("Позже") { savePaymentsWithoutFunding() }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
         default:
-            Button("Начать") {
-                personalAmount = ""; familyAmount = ""; FolkiFeedback.success(); finish()
-            }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            footerSpace
+            Button("Первая трата") { showingExpense = true }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
+            Button("Позже", action: complete).font(.subheadline).foregroundStyle(.secondary).padding(.top, 14).frame(minHeight: 44)
         }
     }
     private var footerSpace: some View { Text(" ").font(.subheadline).padding(.top, 8).accessibilityHidden(true) }
@@ -166,7 +181,7 @@ struct OnboardingView: View {
         guard !transitioning else { return }
         transitioning = true
         forward = next > page; FolkiFeedback.selection()
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.15)) { editingScope = nil; page = next }
+        withAnimation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.15)) { editingScope = next == 2 ? .personal : nil; page = next }
         savedPage = next; errorMessage = nil
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
@@ -187,14 +202,50 @@ struct OnboardingView: View {
             let parsed = try entries.map { ($0.0, $0.1.isEmpty ? nil : try MoneyText.parse($0.1)) }
             guard parsed.allSatisfy({ $0.1 == nil || $0.1!.minorUnits > 0 }) else { throw BudgetError.invalidAmount }
             for (session, amount) in parsed {
+                let reserved = try payments.filter { payment in
+                    payment.scope == session.scope && payment.reserveNow && !(session.household?.reserves.contains { $0.id == payment.id } ?? false)
+                }.compactMap(\.money)
+                    .reduce(Money(minorUnits: 0)) { try $0.adding($1) }
+                let available = try (session.result?.monthlyRemaining ?? Money(minorUnits: 0)).adding(amount ?? Money(minorUnits: 0))
+                guard reserved.minorUnits <= available.minorUnits else { throw BudgetError.insufficientReserve }
+            }
+            for (session, amount) in parsed {
                 try session.setDistributionDay(day)
                 if let amount {
                     try session.addDailyFunds(amount)
                     if session.scope == .personal { personalAmount = "" } else { familyAmount = "" }
                 }
             }
+            try savePayments()
             go(3)
         } catch { errorMessage = String(localized: "Проверь сумму и попробуй ещё раз.") }
+    }
+    private func complete() {
+        personalAmount = ""; familyAmount = ""; payments = []; savedPayments = ""
+        FolkiFeedback.success(); finish()
+    }
+    private func availableForPayment(_ scope: BudgetScope) -> Money {
+        let amount = scope == .personal ? personalAmount : familyAmount
+        let session = scope == .personal ? personal : family
+        let incoming = (try? MoneyText.parse(amount)) ?? Money(minorUnits: 0)
+        let pending = payments.filter { $0.scope == scope && $0.reserveNow }.compactMap(\.money)
+        let total = (try? incoming.adding(session.result?.monthlyRemaining ?? Money(minorUnits: 0))) ?? incoming
+        return ((try? pending.reduce(total) { try $0.subtracting($1) }) ?? Money(minorUnits: 0)).nonnegative
+    }
+    private func savePayments() throws {
+        for payment in payments {
+            guard let money = payment.money else { throw BudgetError.invalidAmount }
+            let session = payment.scope == .personal ? personal : family
+            try session.setDistributionDay(day)
+            try session.addPayment(id: payment.id, name: payment.name, amount: money, dueDate: payment.dueDate, reserveNow: payment.reserveNow)
+        }
+        payments = []
+    }
+    private func savePaymentsWithoutFunding() {
+        do {
+            payments = payments.map { var value = $0; value.reserveNow = false; return value }
+            try savePayments(); go(3)
+        } catch { errorMessage = String(localized: "Не получилось сохранить конверт. Попробуй ещё раз.") }
     }
     private func pageScroll<Content: View>(centered: Bool, @ViewBuilder content: () -> Content) -> some View {
         let pageBody = content()
@@ -266,25 +317,21 @@ private struct AnimatedHouse: View {
 
     var body: some View {
         GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let style = StrokeStyle(lineWidth: w * 0.13, lineCap: .round, lineJoin: .round)
+            let w = geo.size.width
+            let style = StrokeStyle(lineWidth: w * 0.09, lineCap: .round, lineJoin: .round)
             ZStack {
-                Chevron(peak: 0.0, spread: 0.47, drop: 0.35).stroke(Color(red: 0.93, green: 0.58, blue: 0.16).opacity(0.16), style: style)
-                Chevron(peak: 0.0, spread: 0.47, drop: 0.35).trim(from: 0, to: outer)
+                IconRoof(inner: false).stroke(Color.orange.opacity(0.12), style: style)
+                IconRoof(inner: false).trim(from: 0, to: outer)
                     .stroke(Color(red: 0.93, green: 0.58, blue: 0.16), style: style)
-                Chevron(peak: 0.19, spread: 0.30, drop: 0.215).stroke(Color(red: 0.10, green: 0.56, blue: 0.40).opacity(0.16), style: style)
-                Chevron(peak: 0.19, spread: 0.30, drop: 0.215).trim(from: 0, to: inner)
+                IconRoof(inner: true).stroke(Color.green.opacity(0.12), style: style)
+                IconRoof(inner: true).trim(from: 0, to: inner)
                     .stroke(Color(red: 0.10, green: 0.56, blue: 0.40), style: style)
                 ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
-                        .fill(scheme == .dark ? Color(red: 0.96, green: 0.93, blue: 0.89) : Color(red: 0.09, green: 0.29, blue: 0.23))
-                    UnevenRoundedRectangle(topLeadingRadius: w * 0.07, topTrailingRadius: w * 0.07)
-                        .frame(width: w * 0.14, height: h * 0.27)
-                        .blendMode(.destinationOut)
-                }
-                .compositingGroup()
-                .frame(width: w * 0.6, height: h * 0.4)
-                .position(x: w / 2, y: h * 0.8)
+                    RoundedRectangle(cornerRadius: w * 0.057).fill(scheme == .dark ? Color.white : Color(red: 0.09, green: 0.29, blue: 0.23))
+                    UnevenRoundedRectangle(topLeadingRadius: w * 0.047, topTrailingRadius: w * 0.047)
+                        .frame(width: w * 0.094, height: w * 0.137).blendMode(.destinationOut)
+                }.compositingGroup().frame(width: w * 0.41, height: w * 0.225)
+                    .position(x: w * 0.5, y: w * 0.678)
             }
         }
         .onAppear(perform: play)
@@ -300,19 +347,35 @@ private struct AnimatedHouse: View {
     }
 }
 
-/// A roof stripe: peak at a fraction of the height, arms reaching `spread` of the width each side.
-private struct Chevron: Shape {
-    let peak: CGFloat
-    let spread: CGFloat
-    let drop: CGFloat
+private struct IconRoof: Shape {
+    var inner: Bool
     func path(in rect: CGRect) -> Path {
-        let inset = rect.width * 0.07
-        let top = rect.minY + rect.height * peak + inset
+        let left: CGFloat = inner ? 0.293 : 0.176
+        let y: CGFloat = inner ? 0.53 : 0.483
+        let peak: CGFloat = inner ? 0.359 : 0.217
         var path = Path()
-        path.move(to: CGPoint(x: rect.midX - rect.width * spread + inset, y: top + rect.height * drop))
-        path.addLine(to: CGPoint(x: rect.midX, y: top))
-        path.addLine(to: CGPoint(x: rect.midX + rect.width * spread - inset, y: top + rect.height * drop))
+        path.move(to: CGPoint(x: rect.width * left, y: rect.height * y))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.height * peak))
+        path.addLine(to: CGPoint(x: rect.width * (1 - left), y: rect.height * y))
         return path
+    }
+}
+
+private struct FirstExpensePreview: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            preview("Продукты", icon: "basket.fill", amount: "−1 250 ₽")
+            preview("Обед", icon: "fork.knife", amount: "−450 ₽")
+            preview("Транспорт", icon: "tram.fill", amount: "−80 ₽")
+        }.rotationEffect(.degrees(-5)).opacity(0.42).allowsHitTesting(false).accessibilityHidden(true)
+            .mask(LinearGradient(colors: [.clear, .black, .black, .clear], startPoint: .top, endPoint: .bottom))
+    }
+    private func preview(_ title: LocalizedStringKey, icon: String, amount: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).foregroundStyle(Color.folkiAccent).frame(width: 28)
+            Text(title); Spacer(); Text(amount).monospacedDigit()
+        }.font(.subheadline.weight(.semibold)).padding(18)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
     }
 }
 

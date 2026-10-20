@@ -6,11 +6,13 @@ private struct ReserveDraft: Identifiable {
     var name: String
     var amount = ""
     var isRegularPayment: Bool
+    var dueDate: Date? = nil
+    var targetAmount: Money? = nil
 
     var reserve: ProtectedReserve? {
         guard let value = try? Money(parsing: amount), value.minorUnits >= 0,
               !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return ProtectedReserve(id: id, name: name, openingAmount: value, isRegularPayment: isRegularPayment)
+        return ProtectedReserve(id: id, name: name, openingAmount: value, isRegularPayment: isRegularPayment, dueDate: dueDate, targetAmount: targetAmount)
     }
 }
 
@@ -136,6 +138,13 @@ struct BudgetSetupView: View {
                 TextField("Сумма", text: draft.amount).keyboardType(.decimalPad).monospacedDigit()
                 Text(MoneyText.symbol).foregroundStyle(.secondary)
             }
+            if let due = draft.wrappedValue.dueDate {
+                LabeledContent("Оплатить до", value: due.formatted(.dateTime.day().month(.wide)))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let target = draft.wrappedValue.targetAmount {
+                LabeledContent("К оплате", value: MoneyText.whole(target)).font(.caption).foregroundStyle(.secondary)
+            }
         }.padding(.vertical, 4)
     }
     private func delete(_ offsets: IndexSet, regular: Bool) {
@@ -154,9 +163,9 @@ struct BudgetSetupView: View {
         planning = editingCurrent
         if editingCurrent { available = session.result.map { MoneyText.input($0.totalFunds) } ?? "" }
         drafts = (session.household?.reserves ?? []).filter { reserve in !session.goals.contains { $0.id == reserve.id } }
-            .filter { $0.openingAmount.minorUnits > 0 }
+            .filter { $0.openingAmount.minorUnits > 0 || $0.dueDate != nil }
             .map { ReserveDraft(id: editingCurrent ? $0.id : UUID(), name: $0.name,
-                amount: MoneyText.input($0.openingAmount), isRegularPayment: $0.isRegularPayment) }
+                amount: MoneyText.input($0.openingAmount), isRegularPayment: $0.isRegularPayment, dueDate: $0.dueDate, targetAmount: $0.targetAmount) }
         if !drafts.contains(where: { !$0.isRegularPayment }) {
             drafts.append(ReserveDraft(name: String(localized: "Копилка"), isRegularPayment: false))
         }

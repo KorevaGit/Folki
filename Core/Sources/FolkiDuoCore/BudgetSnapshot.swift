@@ -6,12 +6,15 @@ public struct ProtectedReserve: Hashable, Sendable, Identifiable {
     public let openingAmount: Money
     /// Regular bills belong to the period's spending ring, but never the daily allowance.
     public let isRegularPayment: Bool
+    public let dueDate: Date?
+    public let targetAmount: Money?
 
-    public init(id: UUID = UUID(), name: String, openingAmount: Money, isRegularPayment: Bool = false) {
+    public init(id: UUID = UUID(), name: String, openingAmount: Money, isRegularPayment: Bool = false, dueDate: Date? = nil, targetAmount: Money? = nil) {
         self.id = id
         self.name = name
         self.openingAmount = openingAmount
         self.isRegularPayment = isRegularPayment
+        self.dueDate = dueDate; self.targetAmount = targetAmount
     }
 }
 

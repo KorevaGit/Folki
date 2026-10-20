@@ -174,7 +174,7 @@ final class BudgetSession {
             funds = previous.totalFunds; freePlan = previous.monthlyRemaining.nonnegative
             reserves = household.reserves.filter { reserve in !goals.contains { $0.id == reserve.id } }.map {
                 ProtectedReserve(id: $0.id, name: $0.name, openingAmount: previous.reserveBalances[$0.id] ?? Money(minorUnits: 0),
-                                 isRegularPayment: $0.isRegularPayment)
+                                 isRegularPayment: $0.isRegularPayment, dueDate: $0.dueDate, targetAmount: $0.targetAmount)
             }
         }
         try createPlan(monthlyPlan: freePlan, available: funds,
@@ -200,6 +200,18 @@ final class BudgetSession {
         let record = try draft(amount: amount, title: "", payerID: authorID, date: referenceDate,
             kind: .income, categoryID: BuiltInCategory.other.id, funding: .flexible, newRecordID: operationID)
         try save(record, addIncomeToPlan: true)
+    }
+
+    func addPayment(id: UUID, name: String, amount: Money, dueDate: Date, reserveNow: Bool) throws {
+        try ensureDailyPeriod()
+        guard let result, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+        // Reopening onboarding after a partial save must not add the same envelope twice.
+        if household?.reserves.contains(where: { $0.id == id }) == true { return }
+        let reserve = ProtectedReserve(id: id, name: name, openingAmount: reserveNow ? amount : Money(minorUnits: 0),
+            isRegularPayment: true, dueDate: dueDate, targetAmount: amount)
+        let existing = (household?.reserves ?? []).filter { item in !goals.contains { $0.id == item.id } }
+        guard let expected = storedBudget else { throw LedgerError.unavailable }
+        try updateSalaryPlan(available: result.totalFunds, reserves: existing + [reserve], expected: expected)
     }
 
     var periodEnded: Bool { household.map { referenceDate >= $0.period.endExclusive } ?? false }

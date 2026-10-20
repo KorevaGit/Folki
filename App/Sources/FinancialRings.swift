@@ -36,10 +36,10 @@ struct FinancialRings: View {
             .frame(width: size, height: size)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .animation(reduceMotion ? nil : (appeared ? .spring(duration: 0.5, bounce: 0.1) : nil), value: fractions)
+        .animation(reduceMotion ? nil : (appeared ? .smooth(duration: 0.7) : nil), value: fractions)
         .onAppear {
             guard !appeared else { return }
-            withAnimation(reduceMotion ? nil : .spring(duration: 0.9, bounce: 0.15).delay(0.1)) { appeared = true }
+            withAnimation(reduceMotion ? nil : .smooth(duration: 1.15).delay(0.15)) { appeared = true }
         }
     }
 }
@@ -224,7 +224,7 @@ struct BudgetRingsCard: View {
             .frame(width: width, height: size * 1.25)
             .foregroundStyle(whole.map { $0.minorUnits < 0 } == true ? Color.red : .primary)
             .contentTransition(reduceMotion ? .identity : .numericText(value: Double(whole?.minorUnits ?? 0)))
-            .animation(reduceMotion ? nil : .snappy, value: whole?.minorUnits)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.7), value: whole?.minorUnits)
     }
 
     @ViewBuilder private var notes: some View {

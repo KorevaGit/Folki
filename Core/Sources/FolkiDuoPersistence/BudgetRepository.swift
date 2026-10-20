@@ -190,7 +190,9 @@ public final class BudgetRepository {
         let reserves = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", periodObject)).map {
             ProtectedReserve(id: try $0.required("id"), name: try $0.required("name"),
                              openingAmount: Money(minorUnits: try $0.required("openingAmount")),
-                             isRegularPayment: $0.value(forKey: "isRegularPayment") as? Bool ?? false)
+                             isRegularPayment: $0.value(forKey: "isRegularPayment") as? Bool ?? false,
+                             dueDate: $0.value(forKey: "dueDate") as? Date,
+                             targetAmount: ($0.value(forKey: "targetAmount") as? NSNumber).map { Money(minorUnits: $0.int64Value) })
         }
         let transactionObjects = try fetch("Transaction", predicate: NSPredicate(format: "period == %@", periodObject))
         var records: [LedgerRecord] = try transactionObjects.map { try decode($0) }
@@ -270,6 +272,8 @@ public final class BudgetRepository {
                 item.setValue(reserve.name, forKey: "name")
                 item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
                 item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
+                item.setValue(reserve.dueDate, forKey: "dueDate")
+                item.setValue(reserve.targetAmount?.minorUnits, forKey: "targetAmount")
             }
             period.setValue(opening.minorUnits, forKey: "openingFunds")
             period.setValue(freePlan.minorUnits, forKey: "monthlyPlan")
@@ -339,6 +343,8 @@ public final class BudgetRepository {
                 item.setValue(reserve.name, forKey: "name")
                 item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
                 item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
+                item.setValue(reserve.dueDate, forKey: "dueDate")
+                item.setValue(reserve.targetAmount?.minorUnits, forKey: "targetAmount")
             }
             try commit()
         } catch { context.rollback(); throw error }

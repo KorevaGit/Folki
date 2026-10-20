@@ -57,9 +57,7 @@ struct ExpenseEditorView: View {
                         Text(MoneyText.symbol).font(.system(size: 44, weight: .bold, design: .rounded))
                             .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                     }.frame(maxWidth: .infinity)
-                    Picker("Операция", selection: $kind) {
-                        Text("Расход").tag("expense"); Text("Возврат").tag("refund"); Text("Доход").tag("income")
-                    }.pickerStyle(.segmented).sensoryFeedback(.selection, trigger: kind)
+
                 }.listRowBackground(Color.clear).listRowSeparator(.hidden)
                 Section {
                     TextField("Описание · необязательно", text: $title)

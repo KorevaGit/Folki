@@ -109,4 +109,36 @@ import FolkiDuoCore
         #expect(try DailyBudgetCalculator.calculate(budget.snapshot, asOf: now).monthlyRemaining == rub(-400))
         try repo.close()
     }
+    @Test func fundedAndScheduledPaymentsKeepTheirDateAndTargetAfterReopening() async throws {
+        let (repo, path, author) = try await open(); defer { try? FileManager.default.removeItem(at: path) }
+        try repo.createPlan(monthlyPlan: rub(18000), available: rub(18000), asOf: now,
+                            timeZone: "Europe/Moscow", scope: .personal)
+        var budget = try #require(try repo.load(asOf: now, scope: .personal))
+        let due = ISO8601DateFormatter().date(from: "2026-11-03T12:00:00Z")!
+        let funded = ProtectedReserve(name: "Подписки", openingAmount: rub(5000), isRegularPayment: true,
+                                      dueDate: due, targetAmount: rub(5000))
+        let scheduled = ProtectedReserve(name: "Жильё", openingAmount: rub(0), isRegularPayment: true,
+                                         dueDate: due, targetAmount: rub(28000))
+        try repo.updateSalaryPlan(available: rub(18000), reserves: [funded, scheduled], in: budget,
+                                  asOf: now, balanceIsCurrent: true)
+        try repo.close()
+        let reopened = try await BudgetRepository.open(directory: path, localMemberID: author)
+        budget = try #require(try reopened.load(asOf: now, scope: .personal))
+        #expect(Set(budget.snapshot.reserves) == Set([funded, scheduled]))
+        let result = try DailyBudgetCalculator.calculate(budget.snapshot, asOf: now)
+        #expect(result.totalFunds == rub(18000))
+        #expect(result.monthlyRemaining == rub(13000))
+        #expect(result.reserveBalances[scheduled.id] == rub(0))
+        let payment = LedgerRecord(transaction: TransactionSnapshot(amount: rub(5000), kind: .expense,
+            funding: .reserve(funded.id), date: now, authorID: author, payerID: author), title: "Подписки")
+        try reopened.save(payment, in: budget, expectedRevision: nil, asOf: now)
+        budget = try #require(try reopened.load(asOf: now, scope: .personal))
+        #expect(try DailyBudgetCalculator.calculate(budget.snapshot, asOf: now).todayRemaining == result.todayRemaining)
+        try reopened.updateSalaryPlan(available: rub(13000), reserves: [funded], in: budget, asOf: now, balanceIsCurrent: true)
+        budget = try #require(try reopened.load(asOf: now, scope: .personal))
+        let removed = try #require(budget.snapshot.reserves.first { $0.id == scheduled.id })
+        #expect(removed.dueDate == nil && removed.targetAmount == nil)
+        try reopened.close()
+    }
+
 }

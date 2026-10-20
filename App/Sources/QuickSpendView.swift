@@ -58,6 +58,7 @@ struct QuickSpendView: View {
     let personal: BudgetSession
     let family: BudgetSession
     let entryKind: TransactionKind
+    var onSaved: (() -> Void)? = nil
     @State private var incomeScopeRaw: String
     @AppStorage("FolkiLastSpendScope") private var scopeRaw = BudgetScope.personal.rawValue
     @State private var amount = ""
@@ -73,8 +74,8 @@ struct QuickSpendView: View {
     @State private var errorMessage: String?
     @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 52
 
-    init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal) {
-        self.personal = personal; self.family = family; self.entryKind = entryKind
+    init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal, onSaved: (() -> Void)? = nil) {
+        self.personal = personal; self.family = family; self.entryKind = entryKind; self.onSaved = onSaved
         _incomeScopeRaw = State(initialValue: initialScope.rawValue)
         _date = State(initialValue: personal.referenceDate)
     }
@@ -220,6 +221,7 @@ struct QuickSpendView: View {
             try session.save(draft)
             FolkiFeedback.saved(overspending: overspends)
             dismiss()
+            onSaved?()
         } catch {
             errorMessage = String(localized: "Не получилось записать. Сумма осталась здесь, попробуй ещё раз.")
         }

@@ -52,4 +52,4 @@ open Folki.xcodeproj
 - `Core/Sources/FolkiDuoPersistence` — Core Data + `NSPersistentCloudKitContainer`. Личный бюджет хранится только в private store; общий доступ разрешён лишь для семейного корня.
 - `App` — SwiftUI, iOS 26. View получают снимки через `BudgetSession` и не трогают Core Data напрямую.
 
-Текущая модель данных — `FolkiV3`; версии `FolkiV1` и `FolkiV2` сохранены для автоматической миграции установленных бюджетов. Старые данные (каталог `FolkiBudgetV1`, контейнер `iCloud.dev.korevagit.folki`) не читаются и не переносятся.
+Текущая модель данных — `FolkiV4` (сумма и дата конверта); версии `FolkiV1`, `FolkiV2` и `FolkiV3` сохранены для автоматической миграции установленных бюджетов. Старые данные (каталог `FolkiBudgetV1`, контейнер `iCloud.dev.korevagit.folki`) не читаются и не переносятся.

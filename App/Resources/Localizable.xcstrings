@@ -6310,6 +6310,266 @@
           }
         }
       }
+    },
+    "Взносы %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contributions %@"
+          }
+        }
+      }
+    },
+    "Взносы в бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Budget contributions"
+          }
+        }
+      }
+    },
+    "Деньги останутся в конверте до оплаты и не попадут в дневной остаток.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The money stays in the envelope until payment and is excluded from your daily allowance."
+          }
+        }
+      }
+    },
+    "Добавить с датой": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add with date"
+          }
+        }
+      }
+    },
+    "Есть регулярные платежи?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any regular payments?"
+          }
+        }
+      }
+    },
+    "Запиши первую трату — остальное Folki посчитает.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record your first expense. Folki will do the rest."
+          }
+        }
+      }
+    },
+    "К оплате": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amount due"
+          }
+        }
+      }
+    },
+    "На каждый день останется": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left for everyday spending"
+          }
+        }
+      }
+    },
+    "Название платежа": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payment name"
+          }
+        }
+      }
+    },
+    "Начнём считать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let’s start counting"
+          }
+        }
+      }
+    },
+    "Не получилось сохранить конверт. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save the envelope. Please try again."
+          }
+        }
+      }
+    },
+    "Обед": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lunch"
+          }
+        }
+      }
+    },
+    "Общие траты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared spending"
+          }
+        }
+      }
+    },
+    "Оплатить до": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due by"
+          }
+        }
+      }
+    },
+    "Прикинем бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let’s work out your budget"
+          }
+        }
+      }
+    },
+    "Продукты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Groceries"
+          }
+        }
+      }
+    },
+    "Регулярный платёж": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular payment"
+          }
+        }
+      }
+    },
+    "Сохраним сумму и дату. Деньги из повседневного бюджета пока не вычитаются.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We will save the amount and date without deducting money from everyday spending yet."
+          }
+        }
+      }
+    },
+    "Твой домашний хаб.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your home hub."
+          }
+        }
+      }
+    },
+    "Траты %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spending %@"
+          }
+        }
+      }
+    },
+    "Убрать конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove envelope"
+          }
+        }
+      }
+    },
+    "Укажи сумму бюджета или добавь конверт без вычета.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a budget amount or add the envelope without a deduction."
+          }
+        }
+      }
+    },
+    "Учесть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set aside"
+          }
+        }
+      }
+    },
+    "Учесть в этой сумме": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set aside from this amount"
+          }
+        }
+      }
+    },
+    "Сумма больше бюджета. Добавь конверт без вычета или измени сумму.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This exceeds your budget. Add the envelope without a deduction or change the amount."
+          }
+        }
+      }
+    },
+    "В бюджете сейчас": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In your budget now"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
