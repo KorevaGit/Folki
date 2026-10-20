@@ -24,7 +24,6 @@
   <entity name="BudgetPeriod" representedClassName="NSManagedObject" syncable="YES">
     <attribute name="id" optional="YES" attributeType="UUID" />
     <attribute name="month" optional="YES" attributeType="Date" />
-    <attribute name="endsAt" optional="YES" attributeType="Date" />
     <attribute name="monthlyPlan" optional="YES" attributeType="Integer 64" usesScalarValueType="NO" />
     <attribute name="openingFunds" optional="YES" attributeType="Integer 64" usesScalarValueType="NO" />
     <attribute name="currency" optional="YES" attributeType="String" />

@@ -202,7 +202,7 @@ struct RepositoryTests {
         let repo = try await open(path, UUID())
         let model = repo.container.managedObjectModel
         #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Goal", "GoalContribution", "Category"])
-        #expect(model.versionIdentifiers.contains(AnyHashable("1")))
+        #expect(model.versionIdentifiers.contains(AnyHashable("3")))
         for entity in model.entities {
             #expect(entity.uniquenessConstraints.isEmpty)
             for relationship in entity.relationshipsByName.values {

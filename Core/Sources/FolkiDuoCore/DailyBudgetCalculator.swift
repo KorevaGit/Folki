@@ -6,13 +6,18 @@ public struct DailyBudgetSnapshot: Equatable, Sendable {
     public let todayGuide: Money
     public let todayNetSpending: Money
     public let todayRemaining: Money
+    /// Flexible money, excluding every reserve. Legacy names also cover payday periods.
     public let monthlyRemaining: Money
     public let monthlyPlan: Money
+    /// Spending ring totals: flexible money plus regular payments, excluding savings.
+    public let periodRemaining: Money
+    public let periodPlan: Money
+    public let reserveBalances: [UUID: Money]
     public let futureAllocation: DailyAllocation?
 
     /// Floating point is used for drawing only, never for money or rounding.
     public var dayRingFraction: Double { fraction(todayRemaining, of: todayGuide) }
-    public var monthRingFraction: Double { fraction(monthlyRemaining, of: monthlyPlan) }
+    public var monthRingFraction: Double { fraction(periodRemaining, of: periodPlan) }
     public var todayOverspending: Money {
         // A valid result cannot be Int64.min: guide is nonnegative and net spending
         // is checked before subtraction, so a representable deficit can be negated.
@@ -31,7 +36,8 @@ public enum DailyBudgetCalculator {
         let day = try snapshot.period.startOfDay(containing: now)
         let days = try snapshot.period.remainingDays(including: now)
         let currency = snapshot.monthlyFreePlan.currency
-        guard snapshot.monthlyFreePlan.minorUnits > 0 else { throw BudgetError.invalidPlan }
+        guard snapshot.monthlyFreePlan.minorUnits >= 0,
+              snapshot.monthlyFreePlan.minorUnits > 0 || !snapshot.reserves.isEmpty else { throw BudgetError.invalidPlan }
         guard snapshot.openingFunds.currency == currency else { throw BudgetError.currencyMismatch }
         var ledger = try Ledger(funds: snapshot.openingFunds, reserves: snapshot.reserves)
         var identifiers = Set<UUID>()
@@ -70,10 +76,17 @@ public enum DailyBudgetCalculator {
         let opening = try (dayOpeningFree ?? free).adding(todayStructuralChange)
         let allocation = try DailyAllocation(total: opening.nonnegative, days: days)
         let guide = allocation.firstDayAmount
+        let payments = snapshot.reserves.filter(\.isRegularPayment)
+        let paymentPlan = try payments.reduce(Money(minorUnits: 0, currency: currency)) { try $0.adding($1.openingAmount) }
+        let paymentBalance = try payments.reduce(Money(minorUnits: 0, currency: currency)) {
+            try $0.adding(ledger.reserves[$1.id] ?? Money(minorUnits: 0, currency: currency))
+        }
         return try DailyBudgetSnapshot(
             day: day, remainingDays: days, todayGuide: guide, todayNetSpending: todaySpending,
             todayRemaining: guide.subtracting(todaySpending), monthlyRemaining: free,
             monthlyPlan: snapshot.monthlyFreePlan,
+            periodRemaining: free.adding(paymentBalance), periodPlan: snapshot.monthlyFreePlan.adding(paymentPlan),
+            reserveBalances: ledger.reserves,
             futureAllocation: days > 1 ? DailyAllocation(total: free.nonnegative, days: days - 1) : nil
         )
     }

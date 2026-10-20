@@ -390,6 +390,16 @@
           }
         }
       }
+    },
+    "Период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

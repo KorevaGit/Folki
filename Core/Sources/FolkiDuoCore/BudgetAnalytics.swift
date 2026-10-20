@@ -3,7 +3,7 @@ import Foundation
 public enum AnalyticsPeriod: String, CaseIterable, Identifiable, Sendable {
     case day, week, month
     public var id: String { rawValue }
-    public var title: String { switch self { case .day: String(localized: "День", bundle: .module); case .week: String(localized: "Неделя", bundle: .module); case .month: String(localized: "Месяц", bundle: .module) } }
+    public var title: String { switch self { case .day: String(localized: "День", bundle: .module); case .week: String(localized: "Неделя", bundle: .module); case .month: String(localized: "Период", bundle: .module) } }
 }
 
 public struct AnalyticsBucket: Identifiable, Sendable {
@@ -49,14 +49,16 @@ public struct BudgetAnalyticsSnapshot: Sendable {
 }
 
 public enum BudgetAnalytics {
-    /// Calendar periods, Monday-first weeks, no future/deleted records or transfer double counting.
+    /// Calendar days/weeks, and stored payday bounds for the period view when supplied.
+    /// No future/deleted records or transfer double counting.
     public static func calculate(records: [LedgerRecord], period: AnalyticsPeriod, anchor: Date,
                                  asOf now: Date, calendar: Calendar,
-                                 catalog: CategoryCatalog = CategoryCatalog()) throws -> BudgetAnalyticsSnapshot {
+                                 catalog: CategoryCatalog = CategoryCatalog(), budgetPeriod: BudgetPeriod? = nil) throws -> BudgetAnalyticsSnapshot {
         var calendar = calendar
         calendar.firstWeekday = 2; calendar.minimumDaysInFirstWeek = 4
         let component: Calendar.Component = switch period { case .day: .day; case .week: .weekOfYear; case .month: .month }
-        guard let interval = calendar.dateInterval(of: component, for: anchor),
+        let custom = period == .month ? budgetPeriod.map { DateInterval(start: $0.start, end: $0.endExclusive) } : nil
+        guard let interval = custom ?? calendar.dateInterval(of: component, for: anchor),
               let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: anchor)) else {
             throw BudgetError.invalidPeriod
         }
@@ -105,7 +107,7 @@ public enum BudgetAnalytics {
             }
         }
         var buckets: [AnalyticsBucket] = []
-        var cursor = interval.start
+        var cursor = calendar.dateInterval(of: bucketComponent, for: interval.start)?.start ?? interval.start
         while cursor < interval.end {
             buckets.append(AnalyticsBucket(start: cursor, expenses: expenseBuckets[cursor] ?? zero,
                                            refunds: refundBuckets[cursor] ?? zero, isObserved: cursor <= cutoff))

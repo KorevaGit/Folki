@@ -1,14 +1,17 @@
 import Foundation
 
-public struct ProtectedReserve: Equatable, Sendable, Identifiable {
+public struct ProtectedReserve: Hashable, Sendable, Identifiable {
     public let id: UUID
     public let name: String
     public let openingAmount: Money
+    /// Regular bills belong to the period's spending ring, but never the daily allowance.
+    public let isRegularPayment: Bool
 
-    public init(id: UUID = UUID(), name: String, openingAmount: Money) {
+    public init(id: UUID = UUID(), name: String, openingAmount: Money, isRegularPayment: Bool = false) {
         self.id = id
         self.name = name
         self.openingAmount = openingAmount
+        self.isRegularPayment = isRegularPayment
     }
 }
 

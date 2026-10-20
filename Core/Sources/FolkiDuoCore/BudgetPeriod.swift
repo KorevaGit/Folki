@@ -49,7 +49,10 @@ public struct BudgetPeriod: Equatable, Sendable {
 
     public func remainingDays(including date: Date) throws -> Int {
         let day = try startOfDay(containing: date)
-        guard let days = calendar.dateComponents([.day], from: day, to: endExclusive).day, days > 0 else {
+        let endDay = calendar.startOfDay(for: endExclusive)
+        guard let fullDays = calendar.dateComponents([.day], from: day, to: endDay).day else { throw BudgetError.invalidPeriod }
+        let days = fullDays + (endExclusive > endDay ? 1 : 0)
+        guard days > 0 else {
             throw BudgetError.invalidPeriod
         }
         return days

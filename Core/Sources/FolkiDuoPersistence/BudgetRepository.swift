@@ -180,7 +180,7 @@ public final class BudgetRepository {
             }
             return (object, try BudgetPeriod(monthContaining: month, timeZoneIdentifier: zone))
         }.sorted { $0.1.start > $1.1.start }
-        guard let selected = sorted.first(where: { $0.1.contains(date) }) ?? sorted.first else { return nil }
+        guard let selected = sorted.first(where: { $0.1.contains(date) }) ?? sorted.first(where: { $0.1.start <= date }) else { return nil }
         let periodObject = selected.0
         let periodID: UUID = try periodObject.required("id")
         let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household)).map {
@@ -189,7 +189,8 @@ public final class BudgetRepository {
         guard scope == .personal ? members.count == 1 : (1...5).contains(members.filter(\.isActive).count) else { throw LedgerError.corruptStore }
         let reserves = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", periodObject)).map {
             ProtectedReserve(id: try $0.required("id"), name: try $0.required("name"),
-                             openingAmount: Money(minorUnits: try $0.required("openingAmount")))
+                             openingAmount: Money(minorUnits: try $0.required("openingAmount")),
+                             isRegularPayment: $0.value(forKey: "isRegularPayment") as? Bool ?? false)
         }
         let transactionObjects = try fetch("Transaction", predicate: NSPredicate(format: "period == %@", periodObject))
         var records: [LedgerRecord] = try transactionObjects.map { try decode($0) }
@@ -214,6 +215,61 @@ public final class BudgetRepository {
         return try objects.map { try decode($0) }.sorted { $0.transaction.date < $1.transaction.date }
     }
 
+    public func periods(scope: BudgetScope = .family) throws -> [BudgetPeriod] {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let root = roots.first else { return [] }
+        let zone: String = try root.required("timeZone")
+        return try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", root)).map {
+            let start: Date = try $0.required("month")
+            if let end = $0.value(forKey: "endsAt") as? Date {
+                return try BudgetPeriod(start: start, endExclusive: end, timeZoneIdentifier: zone)
+            }
+            return try BudgetPeriod(monthContaining: start, timeZoneIdentifier: zone)
+        }.sorted { $0.start < $1.start }
+    }
+
+    /// Adjust the opening salary plan without discarding any operations or goal balances.
+    /// Removed reserves remain with a zero opening amount so old record references still resolve.
+    public func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard let current = try load(asOf: now, scope: budget.scope),
+                  current.snapshot.openingFunds == budget.snapshot.openingFunds,
+                  current.snapshot.monthlyFreePlan == budget.snapshot.monthlyFreePlan,
+                  Set(current.snapshot.reserves) == Set(budget.snapshot.reserves),
+                  Set(current.records.map(\.revision)) == Set(budget.records.map(\.revision)) else { throw LedgerError.conflict }
+            let goalIDs = Set(try goals(scope: budget.scope, asOf: now).map(\.id))
+            guard Set(reserves.map(\.id)).count == reserves.count,
+                  reserves.allSatisfy({ !goalIDs.contains($0.id) && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+                throw BudgetError.invalidPlan
+            }
+            let goalReserves = current.snapshot.reserves.filter { goalIDs.contains($0.id) }
+            let removed = current.snapshot.reserves.filter { !goalIDs.contains($0.id) && !reserves.map(\.id).contains($0.id) }
+                .map { ProtectedReserve(id: $0.id, name: $0.name, openingAmount: Money(minorUnits: 0), isRegularPayment: $0.isRegularPayment) }
+            let all = reserves + goalReserves + removed
+            let protected = try all.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
+            let freePlan = try available.subtracting(protected)
+            guard available.currency == .rub, available.minorUnits > 0, freePlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+            let candidate = HouseholdSnapshot(id: current.snapshot.id, period: current.snapshot.period,
+                monthlyFreePlan: freePlan, openingFunds: available, reserves: all, transactions: current.snapshot.transactions)
+            let result = try DailyBudgetCalculator.calculate(candidate, asOf: now)
+            guard result.monthlyRemaining.minorUnits >= 0 else { throw BudgetError.insufficientReserve }
+            let period = try object("BudgetPeriod", id: current.periodID)
+            let existing = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", period))
+            for reserve in all {
+                let item = existing.first { $0.value(forKey: "id") as? UUID == reserve.id } ?? insert("Reserve", id: reserve.id, household: root)
+                item.setValue(period, forKey: "period")
+                item.setValue(reserve.name, forKey: "name")
+                item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
+                item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
+            }
+            period.setValue(available.minorUnits, forKey: "openingFunds")
+            period.setValue(freePlan.minorUnits, forKey: "monthlyPlan")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     /// Starts a budget period. With `payday`, it runs from today until that date; without, it is the calendar month.
     /// `closeCurrent` ends a period that still covers today, for when the salary comes early.
     public func createPlan(monthlyPlan: Money, available: Money, asOf now: Date,
@@ -222,7 +278,7 @@ public final class BudgetRepository {
                            payday: Date? = nil, closeCurrent: Bool = false) throws {
         try writable()
         guard monthlyPlan.currency == .rub, available.currency == .rub,
-              monthlyPlan.minorUnits > 0, available.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+              monthlyPlan.minorUnits >= 0, available.minorUnits >= 0 else { throw BudgetError.invalidPlan }
         do {
             let households = try households(in: scope)
             guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
@@ -244,8 +300,11 @@ public final class BudgetRepository {
             let zone: String = try household.required("timeZone")
             guard let store = household.objectID.persistentStore,
                   container.canModifyManagedObjects(in: store) else { throw LedgerError.accessDenied }
-            let period = try payday.map { try BudgetPeriod.untilPayday(from: now, payday: $0, timeZoneIdentifier: zone) }
+            var period = try payday.map { try BudgetPeriod.untilPayday(from: now, payday: $0, timeZoneIdentifier: zone) }
                 ?? BudgetPeriod(monthContaining: now, timeZoneIdentifier: zone)
+            if closeCurrent, payday != nil {
+                period = try BudgetPeriod(start: now, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
+            }
             let goalReserves = try goals(scope: scope, asOf: now).map {
                 ProtectedReserve(id: $0.id, name: $0.name, openingAmount: $0.balance)
             }
@@ -272,6 +331,7 @@ public final class BudgetRepository {
                 item.setValue(object, forKey: "period")
                 item.setValue(reserve.name, forKey: "name")
                 item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
+                item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
             }
             try commit()
         } catch { context.rollback(); throw error }
