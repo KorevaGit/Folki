@@ -495,3 +495,29 @@ private struct ShareBar: View {
         }.frame(height: 8).padding(.vertical, 3).accessibilityHidden(true)
     }
 }
+
+/// A screen about one budget, with the personal/family switch on top when there is a family.
+struct ScopedScreen<Content: View>: View {
+    let personal: BudgetSession
+    let family: BudgetSession
+    let title: String
+    var initial: BudgetScope = .personal
+    @ViewBuilder let content: (BudgetSession) -> Content
+    @State private var scope: BudgetScope?
+
+    var body: some View {
+        let current = family.household == nil ? .personal : scope ?? initial
+        ScrollView {
+            VStack(alignment: .leading, spacing: FolkiSpacing.card) {
+                if family.household != nil {
+                    FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: Binding(get: { current }, set: { scope = $0 }),
+                        options: BudgetScope.allCases.map { ($0.title, $0) })
+                }
+                content(current == .personal ? personal : family).id(current)
+            }.folkiPagePadding()
+        }
+        .background { FolkiBackground() }
+        .navigationTitle(title).toolbarTitleDisplayMode(.inlineLarge)
+        .toolbar(.visible, for: .navigationBar)
+    }
+}
