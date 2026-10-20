@@ -97,12 +97,12 @@ struct BudgetHistoryView: View {
     }
 
     private func cancelContribution(_ record: LedgerRecord) {
-        do { try session.cancelContribution(record); FolkiFeedback.boundary() }
+        do { try session.cancelContribution(record); FolkiFeedback.saved() }
         catch { errorMessage = String(localized: "Не получилось отменить взнос. Обнови историю и повтори.") }
     }
 
     private func setDeleted(_ deleted: Bool, record: LedgerRecord) {
-        do { try session.setDeleted(deleted, record: record); FolkiFeedback.boundary() }
+        do { try session.setDeleted(deleted, record: record); FolkiFeedback.saved() }
         catch { errorMessage = String(localized: "Не получилось изменить запись. Обнови историю и повтори.") }
     }
 }

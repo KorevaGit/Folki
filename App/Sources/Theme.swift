@@ -2,10 +2,14 @@ import SwiftUI
 import UIKit
 import FolkiDuoCore
 
-/// Folki colors: apricot is personal money, sage is family money, dark sage is the accent.
-/// Red is reserved for overspending and is never used for anything else.
+/// Folki colors: apricot is personal money, berry is family money, dark sage is the accent.
+/// Amber marks an envelope due in 3–7 days. Red is reserved for overspending and envelopes due in 0–2 days.
 extension Color {
     static let folkiAccent = adaptive(light: (0.06, 0.43, 0.34), dark: (0.11, 0.62, 0.46))
+
+    /// Envelope short of money, 3–7 days before payment: text and fill on its soft ground.
+    static let folkiWarning = adaptive(light: (0.729, 0.459, 0.090), dark: (0.980, 0.780, 0.459))
+    static let folkiWarningGround = adaptive(light: (0.980, 0.933, 0.855), dark: (0.255, 0.141, 0.008))
 
     static func budget(_ scope: BudgetScope) -> Color { RingPalette.palette(for: scope).text }
     /// Main screen ground: white in light mode, black in dark.
@@ -22,16 +26,16 @@ extension Color {
     }
 }
 
-/// Plain white by day; by night black with faint amber and malachite fields at the edges.
+/// Plain white by day; by night black with faint apricot and berry fields at the edges.
 struct FolkiBackground: View {
     @Environment(\.colorScheme) private var scheme
     private typealias Field = (color: Color, x: CGFloat, y: CGFloat, size: CGFloat, opacity: Double)
     private var fields: [Field] {
         scheme == .dark
             ? [(Color(red: 0.72, green: 0.43, blue: 0.08), -0.75, -0.15, 640, 0.34),
-               (Color(red: 0.06, green: 0.48, blue: 0.34), 0.65, 0.38, 570, 0.25),
+               (Color(red: 0.62, green: 0.22, blue: 0.38), 0.65, 0.38, 570, 0.25),
                (Color(red: 0.42, green: 0.25, blue: 0.05), -0.75, 0.70, 610, 0.29),
-               (Color(red: 0.05, green: 0.35, blue: 0.26), 0.65, 0.95, 550, 0.24)]
+               (Color(red: 0.42, green: 0.14, blue: 0.26), 0.65, 0.95, 550, 0.24)]
             : [] // Plain white by day: tinted fields on white read as dirt.
     }
     var body: some View {
@@ -83,10 +87,11 @@ struct RingPalette {
         start: .adaptive(light: (0.91, 0.54, 0.10), dark: (0.95, 0.66, 0.23)),
         end: .adaptive(light: (0.96, 0.70, 0.29), dark: (0.98, 0.79, 0.47)),
         text: .adaptive(light: (0.52, 0.31, 0.04), dark: (0.98, 0.78, 0.46)))
+    /// Berry #D4537E by day, #ED93B1 by night.
     static let family = RingPalette(
-        start: .adaptive(light: (0.07, 0.52, 0.37), dark: (0.18, 0.72, 0.55)),
-        end: .adaptive(light: (0.18, 0.71, 0.54), dark: (0.44, 0.83, 0.68)),
-        text: .adaptive(light: (0.06, 0.43, 0.34), dark: (0.36, 0.79, 0.65)))
+        start: .adaptive(light: (0.831, 0.325, 0.494), dark: (0.929, 0.576, 0.694)),
+        end: .adaptive(light: (0.929, 0.576, 0.694), dark: (0.957, 0.753, 0.820)),
+        text: .adaptive(light: (0.600, 0.208, 0.337), dark: (0.957, 0.753, 0.820)))
 
     static func palette(for scope: BudgetScope) -> RingPalette { scope == .personal ? personal : family }
 }
@@ -140,8 +145,17 @@ private struct FolkiNativeSegments<Value: Hashable>: UIViewRepresentable {
     }
 }
 
-/// Shared page grid. Cards add their own 16-point content inset inside these margins.
+/// Shared page grid on a 4-point scale: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48. No other numbers.
+/// Cards add their own 16-point content inset inside these margins.
 enum FolkiSpacing {
+    static let xxs: CGFloat = 4
+    static let xs: CGFloat = 8
+    static let large: CGFloat = 32
+    static let huge: CGFloat = 48
+    /// Card corners; liquid glass likes large radii.
+    static let cardRadius: CGFloat = 24
+    /// Height of the main action of a screen.
+    static let primaryButton: CGFloat = 60
     static let page: CGFloat = 20
     static let card: CGFloat = 16
     static let section: CGFloat = 24
@@ -204,37 +218,54 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
 }
 
 
-/// Distinct feedback for selection, the calendar boundary, and successful saves.
-/// One place for haptics. Generators are kept and prepared so taps answer without delay.
+/// The five haptics of Folki. Plain button taps stay silent: when everything buzzes, nothing means anything.
+/// Generators are kept and prepared so taps answer without delay.
 @MainActor enum FolkiFeedback {
     private static let selector = UISelectionFeedbackGenerator()
     private static let soft = UIImpactFeedbackGenerator(style: .soft)
     private static let light = UIImpactFeedbackGenerator(style: .light)
-    private static let medium = UIImpactFeedbackGenerator(style: .medium)
     private static let rigid = UIImpactFeedbackGenerator(style: .rigid)
     private static let notifier = UINotificationFeedbackGenerator()
 
-    static func saved(overspending: Bool = false) {
-        if overspending { notifier.notificationOccurred(.warning) }
-        else { light.impactOccurred(intensity: 0.8); light.prepare() }
-    }
-    /// A light tick for picking values: days, colors, segments, categories.
+    /// Picking a value: chips, toggles, days, segments.
     static func selection() { selector.selectionChanged(); selector.prepare() }
-    /// A soft key press, like a real keyboard.
-    static func key() { soft.impactOccurred(intensity: 0.55); soft.prepare() }
-    /// A key that did nothing: a third decimal, a second comma, an empty delete.
-    static func refused() { rigid.impactOccurred(intensity: 0.4); rigid.prepare() }
-    /// Opening a main action.
-    static func tap() { light.impactOccurred(intensity: 0.7); light.prepare() }
-    /// A firm click when the rings switch between day and month.
-    static func toggle() { medium.impactOccurred(intensity: 1); medium.prepare() }
-    /// A soft bump when a swipe hits today.
-    static func boundary() { soft.impactOccurred(intensity: 0.9); soft.prepare() }
-    /// Something went wrong.
-    static func warning() { notifier.notificationOccurred(.error); notifier.prepare() }
-    /// A finished flow: onboarding done, goal reached.
-    static func success() { notifier.notificationOccurred(.success); notifier.prepare() }
+    /// A digit on the Folki keypad: quiet, like the system keyboard.
+    static func key() { soft.impactOccurred(intensity: 0.4); soft.prepare() }
+    /// A saved spend, top-up or payment. `crossedIntoMinus` turns it into the warning.
+    static func saved(crossedIntoMinus: Bool = false) {
+        if crossedIntoMinus { warning() } else { light.impactOccurred(intensity: 0.8); light.prepare() }
+    }
+    /// Today went from plus to minus. Only on the crossing, never for every spend while already negative.
+    static func warning() { notifier.notificationOccurred(.warning); notifier.prepare() }
+    /// Something that cannot be done: a future day, a slider past its envelope, an empty amount.
+    static func boundary() { rigid.impactOccurred(intensity: 0.4); rigid.prepare() }
     static func prepare() { selector.prepare(); soft.prepare(); light.prepare() }
+
+    /// Whether a save moves today's remainder from zero-or-more to below zero.
+    static func crossesIntoMinus(before: Money?, after: Money?) -> Bool {
+        guard let before, let after else { return false }
+        return before.minorUnits >= 0 && after.minorUnits < 0
+    }
+}
+
+/// The four curves of Folki. Sheets, navigation and the tab bar keep their system motion.
+enum FolkiMotion {
+    /// Digits while typing, chips, rows appearing.
+    static let quick = Animation.snappy(duration: 0.25)
+    /// Onboarding pages, history, switching days.
+    static let standard = Animation.smooth(duration: 0.4)
+    /// Rings filling and changing.
+    static let ring = Animation.spring(duration: 0.9, bounce: 0.15)
+    /// One-off moments, such as the first main screen after onboarding.
+    static let hero = Animation.spring(duration: 1.2, bounce: 0.1)
+    /// Delay between items of a cascade.
+    static let cascadeStep = 0.08
+    /// Reduce Motion replaces every animation with this fade.
+    static let reduced = Animation.easeInOut(duration: 0.2)
+
+    static func resolved(_ animation: Animation, reduceMotion: Bool) -> Animation {
+        reduceMotion ? reduced : animation
+    }
 }
 
 /// A soft tint of the text color for quiet fills.
@@ -260,7 +291,7 @@ struct FolkiSoftButtonStyle: ButtonStyle {
 /// The main action of a screen: accent-tinted liquid glass, white text.
 struct FolkiPrimaryButtonStyle: ButtonStyle {
     var fullWidth = false
-    var minHeight: CGFloat = 56
+    var minHeight: CGFloat = FolkiSpacing.primaryButton
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
@@ -288,7 +319,6 @@ struct FolkiErrorMessage: View {
     let message: String
     var body: some View {
         Label(message, systemImage: "exclamationmark.circle")
-            .onAppear { FolkiFeedback.warning() }
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .font(.footnote).foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)

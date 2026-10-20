@@ -117,8 +117,8 @@ struct ExpenseEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         guard let draft else { return }
-                        let overspends = kind == "expense" && impact.map { $0.todayRemaining.minorUnits < 0 } == true
-                        do { try session.save(draft, editing: editing); FolkiFeedback.saved(overspending: overspends); dismiss() }
+                        let crossed = kind == "expense" && FolkiFeedback.crossesIntoMinus(before: session.result?.todayRemaining, after: impact?.todayRemaining)
+                        do { try session.save(draft, editing: editing); FolkiFeedback.saved(crossedIntoMinus: crossed); dismiss() }
                         catch LedgerError.conflict { errorMessage = String(localized: "Запись уже изменена. Закрой форму и открой её заново.") }
                         catch { errorMessage = String(localized: "Не получилось сохранить. Данные формы остались здесь; попробуй снова.") }
                     }.disabled(impact == nil)

@@ -222,7 +222,7 @@ struct OnboardingView: View {
     }
     private func complete() {
         personalAmount = ""; familyAmount = ""; payments = []; savedPayments = ""
-        FolkiFeedback.success(); finish()
+        finish()
     }
     private func availableForPayment(_ scope: BudgetScope) -> Money {
         let amount = scope == .personal ? personalAmount : familyAmount
@@ -320,12 +320,12 @@ private struct AnimatedHouse: View {
             let w = geo.size.width
             let style = StrokeStyle(lineWidth: w * 0.09, lineCap: .round, lineJoin: .round)
             ZStack {
-                IconRoof(inner: false).stroke(Color.orange.opacity(0.12), style: style)
+                IconRoof(inner: false).stroke(RingPalette.personal.start.opacity(0.12), style: style)
                 IconRoof(inner: false).trim(from: 0, to: outer)
-                    .stroke(Color(red: 0.93, green: 0.58, blue: 0.16), style: style)
-                IconRoof(inner: true).stroke(Color.green.opacity(0.12), style: style)
+                    .stroke(RingPalette.personal.start, style: style)
+                IconRoof(inner: true).stroke(RingPalette.family.start.opacity(0.12), style: style)
                 IconRoof(inner: true).trim(from: 0, to: inner)
-                    .stroke(Color(red: 0.10, green: 0.56, blue: 0.40), style: style)
+                    .stroke(RingPalette.family.start, style: style)
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: w * 0.057).fill(scheme == .dark ? Color.white : Color(red: 0.09, green: 0.29, blue: 0.23))
                     UnevenRoundedRectangle(topLeadingRadius: w * 0.047, topTrailingRadius: w * 0.047)
@@ -342,8 +342,6 @@ private struct AnimatedHouse: View {
         guard !reduceMotion else { outer = 1; inner = 1; return }
         withAnimation(.easeInOut(duration: 0.9).delay(0.2)) { outer = 1 }
         withAnimation(.easeInOut(duration: 0.8).delay(0.55)) { inner = 1 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { FolkiFeedback.tap() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) { FolkiFeedback.tap() }
     }
 }
 

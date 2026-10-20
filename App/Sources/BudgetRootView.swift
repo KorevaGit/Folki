@@ -107,7 +107,6 @@ struct BudgetRootView: View {
     }
 
     private func showHistory(_ show: Bool) {
-        FolkiFeedback.tap()
         paging = true
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.55), completionCriteria: .removed) {
             showingDayHistory = show; pageDrag = 0
@@ -153,7 +152,7 @@ struct BudgetRootView: View {
     }
 
     private func toggleRingPeriod() {
-        FolkiFeedback.toggle()
+        FolkiFeedback.selection()
         withAnimation(reduceMotion ? nil : .smooth(duration: 0.7)) { showsMonth.toggle() }
     }
 
@@ -218,7 +217,6 @@ struct BudgetRootView: View {
         return GlassEffectContainer(spacing: 12) {
         layout {
             Button {
-                FolkiFeedback.tap()
                 returnToToday {
                     sheet = .spend
                 }
@@ -240,7 +238,7 @@ struct BudgetRootView: View {
                     .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk)
             }
             .menuStyle(.button).buttonStyle(.plain)
-                .simultaneousGesture(TapGesture().onEnded { FolkiFeedback.tap(); returnToToday() })
+                .simultaneousGesture(TapGesture().onEnded { returnToToday() })
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
         }

@@ -67,7 +67,6 @@ struct SummaryCards: View {
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
         .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture().onEnded { FolkiFeedback.tap() })
         .folkiGlass(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .foregroundStyle(Color.folkiInk)
     }

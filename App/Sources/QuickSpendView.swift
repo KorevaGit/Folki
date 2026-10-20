@@ -216,10 +216,10 @@ struct QuickSpendView: View {
 
     private func save() {
         guard let draft else { return }
-        let overspends = !isIncome && after.map { $0.todayRemaining.minorUnits < 0 } == true
+        let crossed = !isIncome && FolkiFeedback.crossesIntoMinus(before: session.result?.todayRemaining, after: after?.todayRemaining)
         do {
             try session.save(draft)
-            FolkiFeedback.saved(overspending: overspends)
+            FolkiFeedback.saved(crossedIntoMinus: crossed)
             dismiss()
             onSaved?()
         } catch {
@@ -257,7 +257,7 @@ struct AmountKeypad: View {
 
     private func press(_ key: String) {
         let previous = text
-        defer { text != previous ? FolkiFeedback.key() : FolkiFeedback.refused() }
+        defer { text != previous ? FolkiFeedback.key() : FolkiFeedback.boundary() }
         switch key {
         case "⌫": if !text.isEmpty { text.removeLast() }
         case ",":
