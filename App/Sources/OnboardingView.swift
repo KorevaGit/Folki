@@ -14,7 +14,8 @@ struct OnboardingView: View {
     @State private var split: [UUID: String] = [:]
     @State private var errorMessage: String?
     @State private var showingFamily = false
-    @FocusState private var focused: Field?
+    /// The amount the keypad is typing into; nil hides the keypad.
+    @State private var active: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private enum Field: Hashable { case available, saving, category(UUID) }
     private let steps = 4
@@ -43,13 +44,30 @@ struct OnboardingView: View {
                 default: readyPage.transition(step)
                 }
             }.frame(maxHeight: .infinity)
-            footer.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+            Group {
+                if let active {
+                    // The same keypad as on the spend screen, instead of the system keyboard.
+                    VStack(spacing: 12) {
+                        AmountKeypad(text: binding(for: active))
+                        if active == .available {
+                            Button("Дальше") { choose(.saving) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                        } else {
+                            Button("Готово") { withAnimation(.snappy) { self.active = nil } }
+                                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                        }
+                    }.transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    VStack(spacing: 0) { footer }.transition(.opacity)
+                }
+            }
+            .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+            .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: active == nil)
         }
         .background { FolkiBackground() }
         .sheet(isPresented: $showingFamily, onDismiss: { if family.members.filter(\.isActive).count > 1 { FolkiFeedback.success() } }) {
             SharingView(session: family)
         }
-        .onChange(of: page) { focused = page == 2 ? .available : nil }
+        .onChange(of: page) { active = page == 2 ? .available : nil }
     }
 
     // MARK: Navigation
@@ -213,29 +231,53 @@ struct OnboardingView: View {
         }.padding(.horizontal, 28)
     }
 
+    private func binding(for field: Field) -> Binding<String> {
+        switch field {
+        case .available: $available
+        case .saving: $saving
+        case .category(let id): Binding(get: { split[id] ?? "" }, set: { split[id] = $0 })
+        }
+    }
+
+    private func choose(_ field: Field) {
+        FolkiFeedback.selection()
+        withAnimation(.snappy) { active = field }
+    }
+
     private func amountField(_ title: String, hint: String, text: Binding<String>, field: Field) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                TextField("0", text: text).keyboardType(.decimalPad).focused($focused, equals: field)
-                    .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
-                Text(MoneyText.symbol).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 18).padding(.vertical, 12)
-            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            Button { choose(field) } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(text.wrappedValue.isEmpty ? "0" : text.wrappedValue)
+                        .foregroundStyle(text.wrappedValue.isEmpty ? .tertiary : .primary)
+                        .contentTransition(.numericText()).animation(.snappy, value: text.wrappedValue)
+                    Text(MoneyText.symbol).foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                .padding(.horizontal, 18).padding(.vertical, 12)
+                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.folkiAccent, lineWidth: active == field ? 2 : 0)
+                }
+            }.buttonStyle(.plain)
             Text(hint).font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func moneyInput(_ text: Binding<String>, field: Field) -> some View {
-        HStack(spacing: 4) {
-            TextField("0", text: text).keyboardType(.decimalPad).focused($focused, equals: field)
-                .multilineTextAlignment(.trailing).monospacedDigit().fixedSize()
-            Text(MoneyText.symbol).foregroundStyle(.secondary)
-        }
-        .font(.body.weight(.semibold))
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(Color.folkiSoft, in: Capsule())
+        Button { choose(field) } label: {
+            HStack(spacing: 4) {
+                Text(text.wrappedValue.isEmpty ? "0" : text.wrappedValue).monospacedDigit()
+                    .contentTransition(.numericText()).animation(.snappy, value: text.wrappedValue)
+                Text(MoneyText.symbol).foregroundStyle(.secondary)
+            }
+            .font(.body.weight(.semibold))
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(active == field ? Color.folkiAccent.opacity(0.18) : Color.folkiSoft, in: Capsule())
+        }.buttonStyle(.plain)
     }
 
     @ViewBuilder private var footer: some View {
@@ -278,7 +320,7 @@ struct OnboardingView: View {
             amounts[builtIn.id] = Int64(Double(spendable.minorUnits) * CategoryGuide.share(of: builtIn)) / 10_000 * 10_000
         }
         amounts[BuiltInCategory.other.id] = spendable.minorUnits - amounts.values.reduce(0, +)
-        split = amounts.mapValues { MoneyText.input(Money(minorUnits: $0)) }
+        split = amounts.mapValues { MoneyText.input(Money(minorUnits: $0)).replacingOccurrences(of: ".", with: ",") }
     }
 
     private func createPlan() {
@@ -291,44 +333,40 @@ struct OnboardingView: View {
         do {
             try personal.createPlan(monthlyPlan: splitTotal, available: funds, reserves: reserves)
             CategoryPlanStore.save(split.compactMapValues { try? MoneyText.parse($0) }.filter { $0.value.minorUnits > 0 }, scope: .personal)
-            FolkiFeedback.saved(); errorMessage = nil; focused = nil; go(4)
+            FolkiFeedback.saved(); errorMessage = nil; active = nil; go(4)
         } catch {
             errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и попробуй снова.")
         }
     }
 }
 
-/// The icon's house built from its parts: the walls rise, then the two roof stripes drop in, then the door opens.
+/// The icon's house: the walls stand still, and the two roof stripes fill in like the rings.
 private struct AnimatedHouse: View {
-    @State private var walls = false
-    @State private var inner = false
-    @State private var outer = false
-    @State private var door = false
-    @State private var floating = false
+    @State private var outer: CGFloat = 0
+    @State private var inner: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            let stroke = w * 0.13
+            let style = StrokeStyle(lineWidth: w * 0.13, lineCap: .round, lineJoin: .round)
             ZStack {
-                Chevron(peak: 0.0, spread: 0.47, drop: 0.38)
-                    .stroke(Color(red: 0.93, green: 0.58, blue: 0.16), style: StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round))
-                    .offset(y: outer ? (floating ? -3 : 0) : -h * 0.5).opacity(outer ? 1 : 0)
-                Chevron(peak: 0.25, spread: 0.30, drop: 0.235)
-                    .stroke(Color(red: 0.10, green: 0.56, blue: 0.40), style: StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round))
-                    .offset(y: inner ? (floating ? -1.5 : 0) : -h * 0.4).opacity(inner ? 1 : 0)
+                Chevron(peak: 0.0, spread: 0.47, drop: 0.38).stroke(Color(red: 0.93, green: 0.58, blue: 0.16).opacity(0.16), style: style)
+                Chevron(peak: 0.0, spread: 0.47, drop: 0.38).trim(from: 0, to: outer)
+                    .stroke(Color(red: 0.93, green: 0.58, blue: 0.16), style: style)
+                Chevron(peak: 0.25, spread: 0.30, drop: 0.235).stroke(Color(red: 0.10, green: 0.56, blue: 0.40).opacity(0.16), style: style)
+                Chevron(peak: 0.25, spread: 0.30, drop: 0.235).trim(from: 0, to: inner)
+                    .stroke(Color(red: 0.10, green: 0.56, blue: 0.40), style: style)
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
                         .fill(scheme == .dark ? Color(red: 0.96, green: 0.93, blue: 0.89) : Color(red: 0.09, green: 0.29, blue: 0.23))
                     UnevenRoundedRectangle(topLeadingRadius: w * 0.07, topTrailingRadius: w * 0.07)
-                        .frame(width: w * 0.14, height: door ? h * 0.27 : 0)
+                        .frame(width: w * 0.14, height: h * 0.27)
                         .blendMode(.destinationOut)
                 }
                 .compositingGroup()
                 .frame(width: w * 0.6, height: h * 0.4)
-                .scaleEffect(x: 1, y: walls ? 1 : 0.01, anchor: .bottom)
                 .position(x: w / 2, y: h * 0.8)
             }
         }
@@ -337,15 +375,11 @@ private struct AnimatedHouse: View {
     }
 
     private func play() {
-        guard !reduceMotion else { walls = true; inner = true; outer = true; door = true; return }
-        withAnimation(.spring(duration: 0.55, bounce: 0.35).delay(0.1)) { walls = true }
-        withAnimation(.spring(duration: 0.6, bounce: 0.45).delay(0.45)) { inner = true }
-        withAnimation(.spring(duration: 0.6, bounce: 0.45).delay(0.65)) { outer = true }
-        withAnimation(.spring(duration: 0.4, bounce: 0.3).delay(0.95)) { door = true }
-        withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true).delay(1.5)) { floating = true }
-        for delay in [0.15, 0.55, 0.75] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { FolkiFeedback.tap() }
-        }
+        guard !reduceMotion else { outer = 1; inner = 1; return }
+        withAnimation(.easeInOut(duration: 0.9).delay(0.2)) { outer = 1 }
+        withAnimation(.easeInOut(duration: 0.8).delay(0.55)) { inner = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { FolkiFeedback.tap() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) { FolkiFeedback.tap() }
     }
 }
 
