@@ -352,11 +352,11 @@ private struct AnimatedHouse: View {
             let w = geo.size.width, h = geo.size.height
             let style = StrokeStyle(lineWidth: w * 0.13, lineCap: .round, lineJoin: .round)
             ZStack {
-                Chevron(peak: 0.0, spread: 0.47, drop: 0.38).stroke(Color(red: 0.93, green: 0.58, blue: 0.16).opacity(0.16), style: style)
-                Chevron(peak: 0.0, spread: 0.47, drop: 0.38).trim(from: 0, to: outer)
+                Chevron(peak: 0.0, spread: 0.47, drop: 0.35).stroke(Color(red: 0.93, green: 0.58, blue: 0.16).opacity(0.16), style: style)
+                Chevron(peak: 0.0, spread: 0.47, drop: 0.35).trim(from: 0, to: outer)
                     .stroke(Color(red: 0.93, green: 0.58, blue: 0.16), style: style)
-                Chevron(peak: 0.25, spread: 0.30, drop: 0.235).stroke(Color(red: 0.10, green: 0.56, blue: 0.40).opacity(0.16), style: style)
-                Chevron(peak: 0.25, spread: 0.30, drop: 0.235).trim(from: 0, to: inner)
+                Chevron(peak: 0.19, spread: 0.30, drop: 0.215).stroke(Color(red: 0.10, green: 0.56, blue: 0.40).opacity(0.16), style: style)
+                Chevron(peak: 0.19, spread: 0.30, drop: 0.215).trim(from: 0, to: inner)
                     .stroke(Color(red: 0.10, green: 0.56, blue: 0.40), style: style)
                 ZStack(alignment: .bottom) {
                     RoundedRectangle(cornerRadius: w * 0.08, style: .continuous)
