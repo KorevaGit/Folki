@@ -4,23 +4,8 @@ public enum BudgetScope: String, CaseIterable, Identifiable, Sendable {
     case personal, family
     public var id: String { rawValue }
     public var title: String { self == .personal ? String(localized: "Личный", bundle: .module) : String(localized: "Семейный", bundle: .module) }
-    public var savingsTitle: String { self == .personal ? String(localized: "Личные накопления", bundle: .module) : String(localized: "Семейные накопления", bundle: .module) }
     /// The direction a contribution takes in a budget of this scope.
     public var contributionKind: TransactionKind { self == .personal ? .contributionOut : .contributionIn }
-}
-
-public struct SavingsGoalSnapshot: Identifiable, Sendable {
-    public let id: UUID
-    public let name: String
-    public let target: Money
-    public let balance: Money
-    public init(id: UUID, name: String, target: Money, balance: Money) {
-        self.id = id; self.name = name; self.target = target; self.balance = balance
-    }
-    public var fraction: Double {
-        guard target.minorUnits > 0 else { return 0 }
-        return min(1, max(0, Double(balance.minorUnits) / Double(target.minorUnits)))
-    }
 }
 
 public struct Member: Identifiable, Equatable, Sendable {

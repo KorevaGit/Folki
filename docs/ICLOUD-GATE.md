@@ -8,7 +8,8 @@
 - Bundle ID: `dev.korevagit.folki`.
 - Контейнер: `iCloud.dev.korevagit.folki.budget` — новый и пустой. Прежний `iCloud.dev.korevagit.folki` не используется, данные из него не переносятся.
 - Схема Xcode: `Folki-iCloud`, конфигурация `Cloud`, development environment.
-- Локальные данные: `Application Support/Folki`. Старый каталог `FolkiBudgetV1` приложение не читает.
+- Локальные данные: `Application Support/Folki/v1`. Хранилища предрелизных схем и каталог `FolkiBudgetV1` приложение не читает.
+- Схема CloudKit: перед проверкой сбросить development-окружение контейнера в CloudKit Console (Reset Development Environment), чтобы в нём не остались типы записей предрелизных схем.
 
 ## Подготовка
 

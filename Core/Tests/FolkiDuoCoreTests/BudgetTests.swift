@@ -191,9 +191,6 @@ struct BudgetTests {
         #expect(throws: BudgetError.currencyMismatch) {
             try DailyBudgetCalculator.calculate(household([foreign]), asOf: now)
         }
-        #expect(throws: BudgetError.invalidAmount) {
-            try GoalContribution(goalID: UUID(), memberID: member, amount: rub(0), direction: .contribution, date: now)
-        }
     }
 
     @Test func independentOfflinePurchasesDoNotDependOnInputOrdering() throws {

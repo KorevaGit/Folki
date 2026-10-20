@@ -78,23 +78,3 @@ public struct HouseholdSnapshot: Sendable {
         self.transactions = transactions
     }
 }
-
-public struct GoalContribution: Sendable, Identifiable {
-    public enum Direction: Sendable { case contribution, withdrawal }
-    public let id: UUID
-    public let goalID: UUID
-    public let memberID: UUID
-    public let amount: Money
-    public let direction: Direction
-    public let date: Date
-
-    public init(id: UUID = UUID(), goalID: UUID, memberID: UUID, amount: Money, direction: Direction, date: Date) throws {
-        guard amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
-        self.id = id
-        self.goalID = goalID
-        self.memberID = memberID
-        self.amount = amount
-        self.direction = direction
-        self.date = date
-    }
-}

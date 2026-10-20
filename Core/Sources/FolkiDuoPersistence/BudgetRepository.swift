@@ -168,7 +168,6 @@ public final class BudgetRepository {
         let households = try households(in: scope)
         guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
         guard let household = households.first else { return nil }
-        try validateGoalTransfers(household: household, asOf: date)
         let householdID: UUID = try household.required("id")
         let zone: String = try household.required("timeZone")
         let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
@@ -231,7 +230,7 @@ public final class BudgetRepository {
         }.sorted { $0.start < $1.start }
     }
 
-    /// Adjust the opening salary plan without discarding any operations or goal balances.
+    /// Adjust the opening salary plan without discarding any operations.
     /// Removed reserves remain with a zero opening amount so old record references still resolve.
     public func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], in budget: StoredBudget, asOf now: Date,
                                  balanceIsCurrent: Bool = false) throws {
@@ -242,15 +241,13 @@ public final class BudgetRepository {
                   current.snapshot.monthlyFreePlan == budget.snapshot.monthlyFreePlan,
                   Set(current.snapshot.reserves) == Set(budget.snapshot.reserves),
                   Set(current.records.map(\.revision)) == Set(budget.records.map(\.revision)) else { throw LedgerError.conflict }
-            let goalIDs = Set(try goals(scope: budget.scope, asOf: now).map(\.id))
             guard Set(reserves.map(\.id)).count == reserves.count,
-                  reserves.allSatisfy({ !goalIDs.contains($0.id) && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+                  reserves.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
                 throw BudgetError.invalidPlan
             }
-            let goalReserves = current.snapshot.reserves.filter { goalIDs.contains($0.id) }
-            let removed = current.snapshot.reserves.filter { !goalIDs.contains($0.id) && !reserves.map(\.id).contains($0.id) }
+            let removed = current.snapshot.reserves.filter { !reserves.map(\.id).contains($0.id) }
                 .map { ProtectedReserve(id: $0.id, name: $0.name, openingAmount: Money(minorUnits: 0), isRegularPayment: $0.isRegularPayment) }
-            let all = reserves + goalReserves + removed
+            let all = reserves + removed
             let protected = try all.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
             let oldResult = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
             let oldProtected = try current.snapshot.reserves.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
@@ -316,10 +313,7 @@ public final class BudgetRepository {
             if closeCurrent, payday != nil {
                 period = try BudgetPeriod(start: now, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
             }
-            let goalReserves = try goals(scope: scope, asOf: now).map {
-                ProtectedReserve(id: $0.id, name: $0.name, openingAmount: $0.balance)
-            }
-            let allReserves = reserves + goalReserves
+            let allReserves = reserves
             _ = try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period,
                 monthlyFreePlan: monthlyPlan, openingFunds: available, reserves: allReserves), asOf: now)
             // A period that still covers today blocks a new one, unless asked to close it now.
@@ -385,10 +379,6 @@ public final class BudgetRepository {
             let period = try object("BudgetPeriod", id: budget.periodID)
             guard let household = period.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
             try validateScope(budget, household: household)
-            if case .reserve(let reserveID) = record.transaction.funding,
-               try goals(scope: budget.scope, asOf: now).contains(where: { $0.id == reserveID }) {
-                throw BudgetError.invalidTransaction // Savings move only through paired contribution events.
-            }
             let matches = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", record.id as NSUUID))
             let object: NSManagedObject
             if let existing = matches.first {
@@ -442,127 +432,6 @@ public final class BudgetRepository {
             period.setValue(end, forKey: "endsAt")
             guard let updated = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
             _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
-            try commit()
-        } catch { context.rollback(); throw error }
-    }
-
-    public func goals(scope: BudgetScope = .family, asOf now: Date = .now) throws -> [SavingsGoalSnapshot] {
-        let roots = try households(in: scope)
-        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
-        guard let household = roots.first else { return [] }
-        try validateGoalTransfers(household: household, asOf: now)
-        let goals = try fetch("Goal", predicate: NSPredicate(format: "household == %@", household))
-        let contributions = try fetch("GoalContribution", predicate: NSPredicate(format: "household == %@ AND date <= %@", household, now as NSDate))
-        return try goals.map { goal in
-            let id: UUID = try goal.required("id")
-            var balance = Money(minorUnits: 0)
-            for contribution in contributions where contribution.value(forKey: "goalID") as? UUID == id {
-                let amount = Money(minorUnits: try contribution.required("amount"))
-                let direction: String = try contribution.required("direction")
-                guard amount.minorUnits > 0, ["contribution", "withdrawal"].contains(direction) else { throw LedgerError.corruptStore }
-                balance = try direction == "contribution" ? balance.adding(amount) : balance.subtracting(amount)
-            }
-            guard balance.minorUnits >= 0 else { throw LedgerError.corruptStore }
-            let target = Money(minorUnits: try goal.required("target"))
-            guard target.minorUnits > 0 else { throw LedgerError.corruptStore }
-            return SavingsGoalSnapshot(id: id, name: try goal.required("name"), target: target, balance: balance)
-        }.sorted { $0.id.uuidString < $1.id.uuidString }
-    }
-
-    public func createGoal(name: String, target: Money, in budget: StoredBudget, asOf now: Date) throws {
-        try writable()
-        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, target.currency == .rub, target.minorUnits > 0,
-              budget.snapshot.period.contains(now) else { throw BudgetError.invalidAmount }
-        do {
-            let household = try object("Household", id: budget.snapshot.id)
-            try validateScope(budget, household: household)
-            guard let store = household.objectID.persistentStore, container.canModifyManagedObjects(in: store) else { throw LedgerError.accessDenied }
-            let period = try object("BudgetPeriod", id: budget.periodID)
-            guard period.value(forKey: "household") as? NSManagedObject == household else { throw LedgerError.accessDenied }
-            let id = UUID()
-            let goal = insert("Goal", id: id, household: household)
-            goal.setValue(name, forKey: "name")
-            goal.setValue(target.minorUnits, forKey: "target")
-            let reserve = insert("Reserve", id: id, household: household)
-            reserve.setValue(name, forKey: "name")
-            reserve.setValue(Int64(0), forKey: "openingAmount")
-            reserve.setValue(period, forKey: "period")
-            try commit()
-        } catch { context.rollback(); throw error }
-    }
-
-    private func validateGoalTransfers(household: NSManagedObject, asOf now: Date) throws {
-        let goalIDs = Set(try fetch("Goal", predicate: NSPredicate(format: "household == %@", household))
-            .map { try $0.required("id") as UUID })
-        let contributions = try fetch("GoalContribution", predicate: NSPredicate(format: "household == %@ AND date <= %@", household, now as NSDate))
-        let transactions = try fetch("Transaction", predicate: NSPredicate(format: "household == %@ AND date <= %@", household, now as NSDate))
-        var paired = Set<UUID>()
-        for contribution in contributions {
-            let id: UUID = try contribution.required("id")
-            let goalID: UUID = try contribution.required("goalID")
-            let amount: Int64 = try contribution.required("amount")
-            let direction: String = try contribution.required("direction")
-            let expectedKind = direction == "contribution" ? "reserveAllocation" : "reserveRelease"
-            let matching = transactions.filter { $0.value(forKey: "id") as? UUID == id }
-            guard amount > 0, ["contribution", "withdrawal"].contains(direction),
-                  goalIDs.contains(goalID), paired.insert(id).inserted, matching.count == 1,
-                  let transaction = matching.first,
-                  transaction.value(forKey: "kind") as? String == expectedKind,
-                  transaction.value(forKey: "funding") as? String == "reserve",
-                  transaction.value(forKey: "reserveID") as? UUID == goalID,
-                  transaction.value(forKey: "amount") as? Int64 == amount,
-                  transaction.value(forKey: "authorID") as? UUID == contribution.value(forKey: "memberID") as? UUID,
-                  transaction.value(forKey: "date") as? Date == contribution.value(forKey: "date") as? Date,
-                  transaction.value(forKey: "tombstone") as? Bool == false else { throw LedgerError.corruptStore }
-        }
-        for transaction in transactions {
-            guard let reserveID = transaction.value(forKey: "reserveID") as? UUID, goalIDs.contains(reserveID) else { continue }
-            let id: UUID = try transaction.required("id")
-            guard paired.contains(id) else { throw LedgerError.corruptStore }
-        }
-    }
-
-    /// One save contains both the savings event and its matching reserve transfer.
-    public func transferToGoal(_ id: UUID, amount: Money, withdrawal: Bool, in budget: StoredBudget, asOf now: Date, operationID: UUID = UUID()) throws {
-        try writable()
-        guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
-        do {
-            let household = try object("Household", id: budget.snapshot.id)
-            try validateScope(budget, household: household)
-            guard let store = household.objectID.persistentStore, container.canModifyManagedObjects(in: store),
-                  let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.accessDenied }
-            let author = try authorID(in: current)
-            let existing = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID))
-            if let previous = existing.first {
-                guard existing.count == 1, previous.value(forKey: "household") as? NSManagedObject == household,
-                      previous.value(forKey: "reserveID") as? UUID == id,
-                      previous.value(forKey: "amount") as? Int64 == amount.minorUnits,
-                      previous.value(forKey: "authorID") as? UUID == author,
-                      previous.value(forKey: "kind") as? String == (withdrawal ? "reserveRelease" : "reserveAllocation") else { throw LedgerError.conflict }
-                return
-            }
-            guard let goal = try goals(scope: budget.scope, asOf: now).first(where: { $0.id == id }) else { throw LedgerError.missingRecord }
-            if withdrawal && amount.minorUnits > goal.balance.minorUnits { throw BudgetError.insufficientReserve }
-            if !withdrawal {
-                let available = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).monthlyRemaining
-                guard amount.minorUnits <= available.minorUnits else { throw BudgetError.insufficientReserve }
-            }
-            let period = try object("BudgetPeriod", id: current.periodID)
-            let record = LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: amount,
-                kind: withdrawal ? .reserveRelease : .reserveAllocation, funding: .reserve(id),
-                date: now, authorID: author, payerID: author),
-                title: withdrawal ? String(localized: "Из накоплений: \(goal.name)", bundle: .module) : String(localized: "В накопления: \(goal.name)", bundle: .module))
-            _ = try LedgerRules.replacing(record, in: current, asOf: now)
-            let transaction = insert("Transaction", id: record.id, household: household)
-            transaction.setValue(period, forKey: "period")
-            encode(record, into: transaction, updatedAt: now)
-            let contribution = insert("GoalContribution", id: record.id, household: household)
-            contribution.setValue(id, forKey: "goalID")
-            contribution.setValue(author, forKey: "memberID")
-            contribution.setValue(amount.minorUnits, forKey: "amount")
-            contribution.setValue(withdrawal ? "withdrawal" : "contribution", forKey: "direction")
-            contribution.setValue(now, forKey: "date")
             try commit()
         } catch { context.rollback(); throw error }
     }

@@ -32,11 +32,6 @@ struct BudgetSetupView: View {
     private var minimumPayday: Date {
         session.calendar.date(byAdding: .day, value: 1, to: session.calendar.startOfDay(for: session.referenceDate))!
     }
-    private var goalFunds: Money {
-        let source = editingCurrent ? session.household?.reserves.filter { reserve in session.goals.contains { $0.id == reserve.id } }.map(\.openingAmount)
-            : session.goals.map(\.balance)
-        return (try? (source ?? []).reduce(Money(minorUnits: 0)) { try $0.adding($1) }) ?? Money(minorUnits: 0)
-    }
     private var values: (funds: Money, free: Money, reserves: [ProtectedReserve])? {
         guard let funds = try? MoneyText.parse(available), funds.minorUnits >= 0 else { return nil }
         var reserves: [ProtectedReserve] = []
@@ -47,7 +42,7 @@ struct BudgetSetupView: View {
                 reserves.append(reserve)
             }
         }
-        guard let protected = try? reserves.reduce(goalFunds, { try $0.adding($1.openingAmount) }),
+        guard let protected = try? reserves.reduce(Money(minorUnits: 0), { try $0.adding($1.openingAmount) }),
               let free = try? funds.subtracting(protected), free.minorUnits >= 0 else { return nil }
         return (funds, free, reserves)
     }
@@ -92,8 +87,7 @@ struct BudgetSetupView: View {
                                 drafts.append(ReserveDraft(name: String(localized: "Копилка"), isRegularPayment: false))
                             }
                         }
-                        if goalFunds.minorUnits > 0 { LabeledContent("В целях накоплений", value: MoneyText.whole(goalFunds)) }
-                    } header: { Text("Сколько отложить") } footer: { Text("Копилка и цели не входят в кольца расходов.") }
+                    } header: { Text("Сколько отложить") } footer: { Text("Конверты не входят в дневной остаток.") }
                 }
                 if let values, !editingCurrent {
                     Section("На повседневные траты") {
@@ -164,7 +158,7 @@ struct BudgetSetupView: View {
         payday = session.calendar.date(byAdding: .month, value: 1, to: session.referenceDate) ?? minimumPayday
         planning = editingCurrent
         if editingCurrent { available = session.result.map { MoneyText.input($0.totalFunds) } ?? "" }
-        drafts = (session.household?.reserves ?? []).filter { reserve in !session.goals.contains { $0.id == reserve.id } }
+        drafts = (session.household?.reserves ?? [])
             .filter { $0.openingAmount.minorUnits > 0 || $0.dueDate != nil }
             .map { ReserveDraft(id: editingCurrent ? $0.id : UUID(), name: $0.name,
                 amount: MoneyText.input($0.openingAmount), isRegularPayment: $0.isRegularPayment, dueDate: $0.dueDate, targetAmount: $0.targetAmount) }

@@ -12,7 +12,6 @@ struct BudgetDayOverview {
 @MainActor @Observable
 final class BudgetSession {
     let scope: BudgetScope
-    private(set) var goals: [SavingsGoalSnapshot] = []
     private(set) var catalog = CategoryCatalog()
     private(set) var household: HouseholdSnapshot?
     private(set) var periods: [BudgetPeriod] = []
@@ -78,7 +77,6 @@ final class BudgetSession {
                 periods = try repository.periods(scope: scope)
                 allRecords = stored?.records ?? []
                 historyRecords = try repository.history(scope: scope)
-                goals = try repository.goals(scope: scope, asOf: referenceDate)
                 catalog = try repository.catalog(scope: scope)
                 members = stored?.members ?? []
                 if let stored {
@@ -172,7 +170,7 @@ final class BudgetSession {
         if let household {
             let previous = try DailyBudgetCalculator.calculate(household, asOf: household.period.endExclusive.addingTimeInterval(-0.001))
             funds = previous.totalFunds; freePlan = previous.monthlyRemaining.nonnegative
-            reserves = household.reserves.filter { reserve in !goals.contains { $0.id == reserve.id } }.map {
+            reserves = household.reserves.map {
                 ProtectedReserve(id: $0.id, name: $0.name, openingAmount: previous.reserveBalances[$0.id] ?? Money(minorUnits: 0),
                                  isRegularPayment: $0.isRegularPayment, dueDate: $0.dueDate, targetAmount: $0.targetAmount)
             }
@@ -209,7 +207,7 @@ final class BudgetSession {
         if household?.reserves.contains(where: { $0.id == id }) == true { return }
         let reserve = ProtectedReserve(id: id, name: name, openingAmount: reserveNow ? amount : Money(minorUnits: 0),
             isRegularPayment: true, dueDate: dueDate, targetAmount: amount)
-        let existing = (household?.reserves ?? []).filter { item in !goals.contains { $0.id == item.id } }
+        let existing = (household?.reserves ?? [])
         guard let expected = storedBudget else { throw LedgerError.unavailable }
         try updateSalaryPlan(available: result.totalFunds, reserves: existing + [reserve], expected: expected)
     }
@@ -294,17 +292,6 @@ final class BudgetSession {
         let draft = try draft(amount: entry.amount, title: record.title, payerID: entry.payerID, date: entry.date,
             kind: entry.kind, categoryID: record.categoryID, funding: entry.funding, editing: record, deleted: deleted)
         try save(draft, editing: record)
-    }
-    func createGoal(name: String, target: Money) throws {
-        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
-        try repository.createGoal(name: name, target: target, in: budget, asOf: referenceDate)
-        refresh()
-    }
-    func transfer(goal: SavingsGoalSnapshot, amount: Money, withdrawal: Bool, operationID: UUID) throws {
-        overviewCache = [:]
-        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
-        try repository.transferToGoal(goal.id, amount: amount, withdrawal: withdrawal, in: budget, asOf: referenceDate, operationID: operationID)
-        refresh()
     }
     /// Today's and the month's numbers after a transfer that is not a ledger form: a contribution side or a savings move.
     func previewTransfer(_ amount: Money, kind: TransactionKind, funding: BudgetFunding = .flexible) -> DailyBudgetSnapshot? {
