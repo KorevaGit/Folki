@@ -5,10 +5,10 @@ import FolkiDuoCore
 extension CategoryColor {
     var title: String {
         switch self {
-        case .blue: "Синий"; case .sky: "Голубой"; case .cyan: "Бирюзовый"
-        case .indigo: "Индиго"; case .purple: "Фиолетовый"; case .lavender: "Лавандовый"
-        case .pink: "Розовый"; case .plum: "Сливовый"; case .brown: "Коричневый"
-        case .slate: "Серо-синий"; case .gray: "Серый"
+        case .blue: String(localized: "Синий"); case .sky: String(localized: "Голубой"); case .cyan: String(localized: "Бирюзовый")
+        case .indigo: String(localized: "Индиго"); case .purple: String(localized: "Фиолетовый"); case .lavender: String(localized: "Лавандовый")
+        case .pink: String(localized: "Розовый"); case .plum: String(localized: "Сливовый"); case .brown: String(localized: "Коричневый")
+        case .slate: String(localized: "Серо-синий"); case .gray: String(localized: "Серый")
         }
     }
 
@@ -53,42 +53,42 @@ struct CategoryIcon: View {
 }
 
 enum CategorySymbols {
-    static func title(for symbol: String) -> String { titles[symbol] ?? "Значок категории" }
+    static func title(for symbol: String) -> String { titles[symbol] ?? String(localized: "Значок категории") }
     private static let titles = [
-        "cart.fill": "Продуктовая тележка", "basket.fill": "Корзина", "fork.knife": "Еда", "cup.and.saucer.fill": "Кофе",
-        "takeoutbag.and.cup.and.straw.fill": "Еда с собой", "birthday.cake.fill": "Торт", "wineglass.fill": "Бокал",
-        "carrot.fill": "Овощи", "fish.fill": "Рыба", "house.fill": "Дом", "sofa.fill": "Мебель", "bed.double.fill": "Кровать",
-        "lightbulb.fill": "Электричество", "drop.fill": "Вода", "flame.fill": "Отопление", "wrench.and.screwdriver.fill": "Ремонт",
-        "washer.fill": "Бытовая техника", "key.fill": "Ключи", "car.fill": "Автомобиль", "bus.fill": "Автобус",
-        "tram.fill": "Трамвай", "bicycle": "Велосипед", "fuelpump.fill": "Топливо", "airplane": "Самолёт", "ferry.fill": "Паром",
-        "parkingsign": "Парковка", "cross.case.fill": "Медицина", "pills.fill": "Лекарства", "heart.fill": "Здоровье",
-        "stethoscope": "Врач", "dumbbell.fill": "Спортзал", "figure.run": "Бег", "figure.yoga": "Йога",
-        "figure.and.child.holdinghands": "Семья", "stroller.fill": "Коляска", "teddybear.fill": "Игрушки",
-        "graduationcap.fill": "Образование", "book.fill": "Книги", "pawprint.fill": "Животные", "gift.fill": "Подарки",
-        "person.2.fill": "Люди", "theatermasks.fill": "Театр", "film.fill": "Кино", "gamecontroller.fill": "Игры",
-        "music.note": "Музыка", "ticket.fill": "Билеты", "beach.umbrella.fill": "Пляж", "tent.fill": "Поход",
-        "camera.fill": "Фото", "paintpalette.fill": "Творчество", "bag.fill": "Покупки", "tshirt.fill": "Одежда",
-        "shoe.fill": "Обувь", "sparkles": "Уход за собой", "scissors": "Парикмахерская", "eyeglasses": "Очки",
-        "laptopcomputer": "Компьютер", "iphone": "Телефон", "headphones": "Наушники", "creditcard.fill": "Банковская карта",
-        "banknote.fill": "Наличные", "building.columns.fill": "Банк", "chart.line.uptrend.xyaxis": "Финансы",
-        "percent": "Проценты", "doc.text.fill": "Документы", "wifi": "Интернет", "tv.fill": "Телевидение",
-        "phone.fill": "Связь", "tag.fill": "Категория", "ellipsis": "Другое"
+        "cart.fill": String(localized: "Продуктовая тележка"), "basket.fill": String(localized: "Корзина"), "fork.knife": String(localized: "Еда"), "cup.and.saucer.fill": String(localized: "Кофе"),
+        "takeoutbag.and.cup.and.straw.fill": String(localized: "Еда с собой"), "birthday.cake.fill": String(localized: "Торт"), "wineglass.fill": String(localized: "Бокал"),
+        "carrot.fill": String(localized: "Овощи"), "fish.fill": String(localized: "Рыба"), "house.fill": String(localized: "Дом"), "sofa.fill": String(localized: "Мебель"), "bed.double.fill": String(localized: "Кровать"),
+        "lightbulb.fill": String(localized: "Электричество"), "drop.fill": String(localized: "Вода"), "flame.fill": String(localized: "Отопление"), "wrench.and.screwdriver.fill": String(localized: "Ремонт"),
+        "washer.fill": String(localized: "Бытовая техника"), "key.fill": String(localized: "Ключи"), "car.fill": String(localized: "Автомобиль"), "bus.fill": String(localized: "Автобус"),
+        "tram.fill": String(localized: "Трамвай"), "bicycle": String(localized: "Велосипед"), "fuelpump.fill": String(localized: "Топливо"), "airplane": String(localized: "Самолёт"), "ferry.fill": String(localized: "Паром"),
+        "parkingsign": String(localized: "Парковка"), "cross.case.fill": String(localized: "Медицина"), "pills.fill": String(localized: "Лекарства"), "heart.fill": String(localized: "Здоровье"),
+        "stethoscope": String(localized: "Врач"), "dumbbell.fill": String(localized: "Спортзал"), "figure.run": String(localized: "Бег"), "figure.yoga": String(localized: "Йога"),
+        "figure.and.child.holdinghands": String(localized: "Семья"), "stroller.fill": String(localized: "Коляска"), "teddybear.fill": String(localized: "Игрушки"),
+        "graduationcap.fill": String(localized: "Образование"), "book.fill": String(localized: "Книги"), "pawprint.fill": String(localized: "Животные"), "gift.fill": String(localized: "Подарки"),
+        "person.2.fill": String(localized: "Люди"), "theatermasks.fill": String(localized: "Театр"), "film.fill": String(localized: "Кино"), "gamecontroller.fill": String(localized: "Игры"),
+        "music.note": String(localized: "Музыка"), "ticket.fill": String(localized: "Билеты"), "beach.umbrella.fill": String(localized: "Пляж"), "tent.fill": String(localized: "Поход"),
+        "camera.fill": String(localized: "Фото"), "paintpalette.fill": String(localized: "Творчество"), "bag.fill": String(localized: "Покупки"), "tshirt.fill": String(localized: "Одежда"),
+        "shoe.fill": String(localized: "Обувь"), "sparkles": String(localized: "Уход за собой"), "scissors": String(localized: "Парикмахерская"), "eyeglasses": String(localized: "Очки"),
+        "laptopcomputer": String(localized: "Компьютер"), "iphone": String(localized: "Телефон"), "headphones": String(localized: "Наушники"), "creditcard.fill": String(localized: "Банковская карта"),
+        "banknote.fill": String(localized: "Наличные"), "building.columns.fill": String(localized: "Банк"), "chart.line.uptrend.xyaxis": String(localized: "Финансы"),
+        "percent": String(localized: "Проценты"), "doc.text.fill": String(localized: "Документы"), "wifi": String(localized: "Интернет"), "tv.fill": String(localized: "Телевидение"),
+        "phone.fill": String(localized: "Связь"), "tag.fill": String(localized: "Категория"), "ellipsis": String(localized: "Другое")
     ]
 
     static let groups: [(String, [String])] = [
-        ("Еда", ["cart.fill", "basket.fill", "fork.knife", "cup.and.saucer.fill", "takeoutbag.and.cup.and.straw.fill",
+        (String(localized: "Еда"), ["cart.fill", "basket.fill", "fork.knife", "cup.and.saucer.fill", "takeoutbag.and.cup.and.straw.fill",
                  "birthday.cake.fill", "wineglass.fill", "carrot.fill", "fish.fill"]),
-        ("Дом", ["house.fill", "sofa.fill", "bed.double.fill", "lightbulb.fill", "drop.fill", "flame.fill",
+        (String(localized: "Дом"), ["house.fill", "sofa.fill", "bed.double.fill", "lightbulb.fill", "drop.fill", "flame.fill",
                  "wrench.and.screwdriver.fill", "washer.fill", "key.fill"]),
-        ("Транспорт", ["car.fill", "bus.fill", "tram.fill", "bicycle", "fuelpump.fill", "airplane", "ferry.fill", "parkingsign"]),
-        ("Здоровье", ["cross.case.fill", "pills.fill", "heart.fill", "stethoscope", "dumbbell.fill", "figure.run", "figure.yoga"]),
-        ("Дети и семья", ["figure.and.child.holdinghands", "stroller.fill", "teddybear.fill", "graduationcap.fill",
+        (String(localized: "Транспорт"), ["car.fill", "bus.fill", "tram.fill", "bicycle", "fuelpump.fill", "airplane", "ferry.fill", "parkingsign"]),
+        (String(localized: "Здоровье"), ["cross.case.fill", "pills.fill", "heart.fill", "stethoscope", "dumbbell.fill", "figure.run", "figure.yoga"]),
+        (String(localized: "Дети и семья"), ["figure.and.child.holdinghands", "stroller.fill", "teddybear.fill", "graduationcap.fill",
                           "book.fill", "pawprint.fill", "gift.fill", "person.2.fill"]),
-        ("Отдых", ["theatermasks.fill", "film.fill", "gamecontroller.fill", "music.note", "ticket.fill",
+        (String(localized: "Отдых"), ["theatermasks.fill", "film.fill", "gamecontroller.fill", "music.note", "ticket.fill",
                    "beach.umbrella.fill", "tent.fill", "camera.fill", "paintpalette.fill"]),
-        ("Покупки", ["bag.fill", "tshirt.fill", "shoe.fill", "sparkles", "scissors", "eyeglasses", "laptopcomputer",
+        (String(localized: "Покупки"), ["bag.fill", "tshirt.fill", "shoe.fill", "sparkles", "scissors", "eyeglasses", "laptopcomputer",
                      "iphone", "headphones"]),
-        ("Финансы и связь", ["creditcard.fill", "banknote.fill", "building.columns.fill", "chart.line.uptrend.xyaxis",
+        (String(localized: "Финансы и связь"), ["creditcard.fill", "banknote.fill", "building.columns.fill", "chart.line.uptrend.xyaxis",
                              "percent", "doc.text.fill", "wifi", "tv.fill", "phone.fill", "tag.fill", "ellipsis"])
     ].map { ($0.0, $0.1.filter { UIImage(systemName: $0) != nil }) }
 }
@@ -111,7 +111,7 @@ struct CategoriesView: View {
                 Button("Новая категория", systemImage: "plus.circle.fill") { creating = true }
                     .disabled(session.result == nil || session.isDemo)
             } header: { Text("Свои") } footer: {
-                Text(session.scope == .personal ? "Их видишь только ты 🤫" : "Их видит вся семья 💚")
+                Text(session.scope == .personal ? String(localized: "Их видишь только ты 🤫") : String(localized: "Их видит вся семья 💚"))
             }
             // Built-ins grouped by kind, so the tag on every row is not needed.
             Section("Обязательное") {
@@ -133,7 +133,7 @@ struct CategoriesView: View {
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
         }
         .folkiFormLayout()
-        .navigationTitle(session.scope == .personal ? "Личные категории" : "Семейные категории")
+        .navigationTitle(session.scope == .personal ? String(localized: "Личные категории") : String(localized: "Семейные категории"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $creating) { CategoryEditorView(session: session, category: nil) }
         .sheet(item: $editing) { CategoryEditorView(session: session, category: $0) }
@@ -145,15 +145,15 @@ struct CategoriesView: View {
             Text(category.name)
             Spacer()
             if showsKind {
-                Text(category.isEssential ? "обязательное" : "желание").font(.caption).foregroundStyle(.secondary)
+                Text(category.isEssential ? String(localized: "обязательное") : String(localized: "желание")).font(.caption).foregroundStyle(.secondary)
             }
         }.frame(minHeight: 40).contentShape(Rectangle())
     }
 
     private func setArchived(_ category: SpendingCategory, _ archived: Bool) {
         do { try session.setCategoryArchived(category, archived: archived); errorMessage = nil }
-        catch LedgerError.duplicateCategory { errorMessage = "Активная категория с таким названием уже есть. Переименуй её, чтобы вернуть эту." }
-        catch { errorMessage = "Не получилось изменить категорию. Обнови экран и попробуй снова." }
+        catch LedgerError.duplicateCategory { errorMessage = String(localized: "Активная категория с таким названием уже есть. Переименуй её, чтобы вернуть эту.") }
+        catch { errorMessage = String(localized: "Не получилось изменить категорию. Обнови экран и попробуй снова.") }
     }
 }
 
@@ -224,7 +224,7 @@ struct CategoryEditorView: View {
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
             .folkiFormLayout()
-            .navigationTitle(category == nil ? "Новая категория" : "Категория").toolbarTitleDisplayMode(.inlineLarge)
+            .navigationTitle(category == nil ? String(localized: "Новая категория") : String(localized: "Категория")).toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -243,8 +243,8 @@ struct CategoryEditorView: View {
             }
             FolkiFeedback.saved()
             dismiss()
-        } catch LedgerError.duplicateCategory { errorMessage = "Категория с таким названием уже есть." }
-        catch LedgerError.conflict { errorMessage = "Категорию уже изменили на другом устройстве. Закрой и открой её снова." }
-        catch { errorMessage = "Не получилось сохранить категорию. Попробуй снова." }
+        } catch LedgerError.duplicateCategory { errorMessage = String(localized: "Категория с таким названием уже есть.") }
+        catch LedgerError.conflict { errorMessage = String(localized: "Категорию уже изменили на другом устройстве. Закрой и открой её снова.") }
+        catch { errorMessage = String(localized: "Не получилось сохранить категорию. Попробуй снова.") }
     }
 }

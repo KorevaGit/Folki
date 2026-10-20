@@ -119,8 +119,8 @@ struct BudgetRingsCard: View {
                     .frame(width: 160, height: 160).accessibilityHidden(true)
                 Button(action: togglePeriod) {
                     VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                        accessibleAmount(personal, title: "Личный")
-                        accessibleAmount(family, title: "Семейный")
+                        accessibleAmount(personal, title: String(localized: "Личный"))
+                        accessibleAmount(family, title: String(localized: "Семейный"))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.buttonStyle(.plain).accessibilityHint("Переключить остатки дня и месяца")
             }
@@ -132,9 +132,9 @@ struct BudgetRingsCard: View {
                         .padding(diameter * 0.06)
                     Button(action: togglePeriod) { center(diameter: diameter) }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(showsMonth ? "Остатки месяца" : "Остатки дня")
+                        .accessibilityLabel(showsMonth ? String(localized: "Остатки месяца") : String(localized: "Остатки дня"))
                         .accessibilityValue("Личный: \(periodValue(personal)). Семейный: \(periodValue(family)).")
-                        .accessibilityHint(showsMonth ? "Показать остатки дня" : "Показать остатки месяца")
+                        .accessibilityHint(showsMonth ? String(localized: "Показать остатки дня") : String(localized: "Показать остатки месяца"))
                         .frame(width: diameter * 0.48, height: diameter * 0.42)
                 }.frame(width: geometry.size.width, height: geometry.size.height)
             }
@@ -143,7 +143,7 @@ struct BudgetRingsCard: View {
     }
 
     private func periodValue(_ result: DailyBudgetSnapshot?) -> String {
-        guard let result else { return "не настроен" }
+        guard let result else { return String(localized: "не настроен") }
         return MoneyText.whole(showsMonth ? result.monthlyRemaining : result.todayRemaining)
     }
 
@@ -151,7 +151,7 @@ struct BudgetRingsCard: View {
         let money = showsMonth ? result?.monthlyRemaining : result?.todayRemaining
         return VStack(alignment: .leading, spacing: 6) {
             Text("\(title) · \(showsMonth ? "месяц" : "день")").font(.subheadline).foregroundStyle(.secondary)
-            Text(money.map(MoneyText.whole) ?? "Не настроен")
+            Text(money.map(MoneyText.whole) ?? String(localized: "Не настроен"))
                 .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.4)
                 .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.red : Color.folkiInk)
@@ -169,9 +169,9 @@ struct BudgetRingsCard: View {
 
     private func center(diameter: CGFloat) -> some View {
         VStack(spacing: 4) {
-            Text(showsMonth ? "Личный · месяц" : "Личный").font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
+            Text(showsMonth ? String(localized: "Личный · месяц") : String(localized: "Личный")).font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
             amount(showsMonth ? personal?.monthlyRemaining : personal?.todayRemaining, size: min(amountSize, diameter * 0.13), width: diameter * 0.48)
-            Text(showsMonth ? "Семейный · месяц" : "Семейный").font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
+            Text(showsMonth ? String(localized: "Семейный · месяц") : String(localized: "Семейный")).font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
             amount(showsMonth ? family?.monthlyRemaining : family?.todayRemaining, size: min(amountSize * 0.65, diameter * 0.085), width: diameter * 0.48)
         }
         .lineLimit(1).minimumScaleFactor(0.3)
@@ -206,7 +206,7 @@ struct BudgetRingsCard: View {
     }
 
     private func note(for scope: BudgetScope, result: DailyBudgetSnapshot) -> (BudgetScope, AnyView)? {
-        let name = scope == .personal ? "Личный" : "Семейный"
+        let name = scope == .personal ? String(localized: "Личный") : String(localized: "Семейный")
         if result.monthlyRemaining.minorUnits < 0 {
             let over = Money(minorUnits: -result.monthlyRemaining.minorUnits).roundedUpToWholeUnits
             return (scope, AnyView(HStack(alignment: .firstTextBaseline) {
@@ -245,13 +245,13 @@ struct BudgetRingsCard: View {
 
     private func monthValue(_ result: DailyBudgetSnapshot?, scope: BudgetScope) -> some View {
         let value = result?.monthlyRemaining.roundedDownToWholeUnits
-        return Text(value.map(MoneyText.whole) ?? "не настроен")
+        return Text(value.map(MoneyText.whole) ?? String(localized: "не настроен"))
             .fontWeight(.semibold)
             .foregroundStyle(value.map { $0.minorUnits < 0 } == true ? Color.red : Color.budget(scope))
     }
 
     private func spoken(_ result: DailyBudgetSnapshot?) -> String {
-        guard let result else { return "не настроен" }
-        return "сегодня \(MoneyText.whole(result.todayRemaining.roundedDownToWholeUnits)), месяц \(MoneyText.whole(result.monthlyRemaining.roundedDownToWholeUnits))"
+        guard let result else { return String(localized: "не настроен") }
+        return String(localized: "сегодня \(MoneyText.whole(result.todayRemaining.roundedDownToWholeUnits)), месяц \(MoneyText.whole(result.monthlyRemaining.roundedDownToWholeUnits))")
     }
 }

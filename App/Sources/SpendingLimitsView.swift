@@ -45,7 +45,7 @@ struct SpendingLimitsView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 LabeledContent("Уже потрачено из свободных денег", value: MoneyText.whole(stats.flexibleNetSpending))
                                 if let limit, let left = try? limit.subtracting(stats.flexibleNetSpending) {
-                                    LabeledContent(left.minorUnits < 0 ? "Новый план уже превышен" : "Останется от нового плана") {
+                                    LabeledContent(left.minorUnits < 0 ? String(localized: "Новый план уже превышен") : String(localized: "Останется от нового плана")) {
                                         Text(MoneyText.whole(left)).monospacedDigit()
                                             .foregroundStyle(left.minorUnits < 0 ? Color.red : .primary)
                                     }
@@ -77,8 +77,8 @@ struct SpendingLimitsView: View {
     private func save() {
         guard let limit, let expected else { return }
         do { try session.updateSpendingLimit(limit, expected: expected); FolkiFeedback.saved(); dismiss() }
-        catch LedgerError.conflict { errorMessage = "План уже изменился. Закрой экран и открой его снова." }
-        catch { errorMessage = "Не получилось сохранить план. Проверь сумму и доступ к бюджету." }
+        catch LedgerError.conflict { errorMessage = String(localized: "План уже изменился. Закрой экран и открой его снова.") }
+        catch { errorMessage = String(localized: "Не получилось сохранить план. Проверь сумму и доступ к бюджету.") }
     }
     private func reload() {
         expected = session.storedBudget

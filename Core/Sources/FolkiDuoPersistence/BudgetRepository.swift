@@ -37,12 +37,12 @@ public final class BudgetRepository {
     public var privateStore: NSPersistentStore { container.persistentStoreCoordinator.persistentStores.first! }
     public var sharedStore: NSPersistentStore? { container.persistentStoreCoordinator.persistentStores.dropFirst().first }
     public var statusText: String {
-        if accountLocked { return "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki." }
+        if accountLocked { return String(localized: "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki.", bundle: .module) }
         if let syncError { return syncError }
-        if cloudIdentifier == nil { return "Сохранено на iPhone · iCloud не подключён" }
-        if pendingExport { return "Сохранено на iPhone · ожидает отправки" }
-        if lastCloudUpdate != nil { return "Обмен с iCloud выполнен" }
-        return "Сохранено на iPhone · ожидание iCloud"
+        if cloudIdentifier == nil { return String(localized: "Сохранено на iPhone · iCloud не подключён", bundle: .module) }
+        if pendingExport { return String(localized: "Сохранено на iPhone · ожидает отправки", bundle: .module) }
+        if lastCloudUpdate != nil { return String(localized: "Обмен с iCloud выполнен", bundle: .module) }
+        return String(localized: "Сохранено на iPhone · ожидание iCloud", bundle: .module)
     }
 
     private init(container: NSPersistentCloudKitContainer, cloudIdentifier: String?, localMemberID: UUID) {
@@ -224,11 +224,11 @@ public final class BudgetRepository {
             else {
                 household = insert("Household")
                 household.setValue(scope.rawValue, forKey: "scope")
-                household.setValue(scope == .personal ? "Личный бюджет" : "Семейный бюджет", forKey: "name")
+                household.setValue(scope == .personal ? String(localized: "Личный бюджет", bundle: .module) : String(localized: "Семейный бюджет", bundle: .module), forKey: "name")
                 household.setValue(timeZone, forKey: "timeZone")
                 household.setValue(now, forKey: "createdAt")
                 try context.obtainPermanentIDs(for: [household])
-                for (id, name) in (scope == .personal ? [(localMemberID, "Я")] : [(localMemberID, "Я"), (UUID(), "Партнёр")]) {
+                for (id, name) in (scope == .personal ? [(localMemberID, String(localized: "Я", bundle: .module))] : [(localMemberID, String(localized: "Я", bundle: .module)), (UUID(), String(localized: "Партнёр", bundle: .module))]) {
                     let member = insert("Member", id: id, household: household)
                     member.setValue(name, forKey: "name")
                     if id == localMemberID { member.setValue(cloudIdentity, forKey: "cloudIdentity") }
@@ -438,7 +438,7 @@ public final class BudgetRepository {
             let record = LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: amount,
                 kind: withdrawal ? .reserveRelease : .reserveAllocation, funding: .reserve(id),
                 date: now, authorID: author, payerID: author),
-                title: withdrawal ? "Из накоплений: \(goal.name)" : "В накопления: \(goal.name)")
+                title: withdrawal ? String(localized: "Из накоплений: \(goal.name)", bundle: .module) : String(localized: "В накопления: \(goal.name)", bundle: .module))
             _ = try LedgerRules.replacing(record, in: current, asOf: now)
             let transaction = insert("Transaction", id: record.id, household: household)
             transaction.setValue(period, forKey: "period")
@@ -499,9 +499,9 @@ public final class BudgetRepository {
             let personalAuthor = try authorID(in: currentPersonal), familyAuthor = try authorID(in: currentFamily)
             let sides = [
                 (LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionOut, date: now,
-                    authorID: personalAuthor, payerID: personalAuthor), title: "В семейный бюджет", linkID: linkID), currentPersonal, personalRoot),
+                    authorID: personalAuthor, payerID: personalAuthor), title: String(localized: "В семейный бюджет", bundle: .module), linkID: linkID), currentPersonal, personalRoot),
                 (LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionIn, date: now,
-                    authorID: familyAuthor, payerID: familyAuthor), title: "Взнос в семейный бюджет", linkID: linkID), currentFamily, familyRoot)
+                    authorID: familyAuthor, payerID: familyAuthor), title: String(localized: "Взнос в семейный бюджет", bundle: .module), linkID: linkID), currentFamily, familyRoot)
             ]
             for (record, budget, root) in sides {
                 _ = try LedgerRules.replacing(record, in: budget, asOf: now)
@@ -562,8 +562,10 @@ public final class BudgetRepository {
     }
     private func validateCategoryFields(name: String, symbol: String, household: NSManagedObject, excluding id: UUID?) throws -> String {
         guard let clean = SpendingCategory.validName(name), !symbol.isEmpty, symbol.count <= 64 else { throw LedgerError.invalidCategory }
-        let taken = BuiltInCategory.all + (try customCategories(household: household)).filter { !$0.isArchived && $0.id != id }
-        guard !taken.contains(where: { $0.name.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
+        // Built-ins count in both languages, so a family on mixed iPhone languages never gets two "Groceries".
+        let taken = BuiltInCategory.allCases.flatMap { [$0.category.name, $0.sourceName] }
+            + (try customCategories(household: household)).filter { !$0.isArchived && $0.id != id }.map(\.name)
+        guard !taken.contains(where: { $0.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
             throw LedgerError.duplicateCategory
         }
         return clean
@@ -745,7 +747,7 @@ public final class BudgetRepository {
         observers.append(NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.accountLocked = true
-                self?.syncError = "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki."
+                self?.syncError = String(localized: "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki.", bundle: .module)
                 self?.changeToken = UUID()
             }
         })
@@ -765,7 +767,7 @@ public final class BudgetRepository {
             persistSyncMetadata()
         } else {
             if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue { exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: false) }
-            syncError = "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть."
+            syncError = String(localized: "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть.", bundle: .module)
         }
         changeToken = UUID()
     }
@@ -788,7 +790,7 @@ public final class BudgetRepository {
                [.networkUnavailable, .networkFailure, .serviceUnavailable].contains(cloudError.code) {
                 cloudIdentity = container.persistentStoreCoordinator.metadata(for: privateStore)["FolkiCloudIdentity"] as? String
             }
-            syncError = "iCloud недоступен или изменился Apple ID. Локальные записи сохранены."
+            syncError = String(localized: "iCloud недоступен или изменился Apple ID. Локальные записи сохранены.", bundle: .module)
         }
         changeToken = UUID()
     }
@@ -824,7 +826,7 @@ public final class BudgetRepository {
             }
         }
         share.publicPermission = .none
-        share[CKShare.SystemFieldKey.title] = "Общий бюджет Folki" as CKRecordValue
+        share[CKShare.SystemFieldKey.title] = String(localized: "Общий бюджет Folki", bundle: .module) as CKRecordValue
         try await persist(share: share, store: household.objectID.persistentStore!)
         return share
     }
@@ -910,11 +912,11 @@ public final class BudgetRepository {
         changeToken = UUID()
     }
     public func reportSharingError() {
-        syncError = "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова."
+        syncError = String(localized: "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова.", bundle: .module)
     }
     public func sharingStopped() {
         context.refreshAllObjects()
-        syncError = "Общий доступ отключён. Проверьте статус пространства."
+        syncError = String(localized: "Общий доступ отключён. Проверьте статус пространства.", bundle: .module)
         changeToken = UUID()
     }
     public func close() throws {

@@ -3,7 +3,7 @@ import Foundation
 public enum AnalyticsPeriod: String, CaseIterable, Identifiable, Sendable {
     case day, week, month
     public var id: String { rawValue }
-    public var title: String { switch self { case .day: "День"; case .week: "Неделя"; case .month: "Месяц" } }
+    public var title: String { switch self { case .day: String(localized: "День", bundle: .module); case .week: String(localized: "Неделя", bundle: .module); case .month: String(localized: "Месяц", bundle: .module) } }
 }
 
 public struct AnalyticsBucket: Identifiable, Sendable {

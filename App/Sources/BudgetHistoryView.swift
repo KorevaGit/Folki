@@ -23,9 +23,9 @@ struct BudgetHistoryView: View {
     }
     private func dayTitle(_ day: Date) -> String {
         let calendar = session.calendar
-        if calendar.isDate(day, inSameDayAs: session.referenceDate) { return "Сегодня" }
+        if calendar.isDate(day, inSameDayAs: session.referenceDate) { return String(localized: "Сегодня") }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: session.referenceDate),
-           calendar.isDate(day, inSameDayAs: yesterday) { return "Вчера" }
+           calendar.isDate(day, inSameDayAs: yesterday) { return String(localized: "Вчера") }
         return day.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
 
@@ -70,12 +70,12 @@ struct BudgetHistoryView: View {
         .id(showDeleted)
         .overlay {
             if records.isEmpty {
-                ContentUnavailableView(showDeleted ? "Удалённых записей нет" : "Записей пока нет",
+                ContentUnavailableView(showDeleted ? String(localized: "Удалённых записей нет") : String(localized: "Записей пока нет"),
                     systemImage: "list.bullet.rectangle",
-                    description: Text(showDeleted ? "Здесь можно восстановить удалённые записи." : "Добавь первую запись в бюджете."))
+                    description: Text(showDeleted ? String(localized: "Здесь можно восстановить удалённые записи.") : String(localized: "Добавь первую запись в бюджете.")))
             }
         }
-        .navigationTitle(showDeleted ? "Удалённые" : "История")
+        .navigationTitle(showDeleted ? String(localized: "Удалённые") : String(localized: "История"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -98,11 +98,11 @@ struct BudgetHistoryView: View {
 
     private func cancelContribution(_ record: LedgerRecord) {
         do { try session.cancelContribution(record); FolkiFeedback.boundary() }
-        catch { errorMessage = "Не получилось отменить взнос. Обнови историю и повтори." }
+        catch { errorMessage = String(localized: "Не получилось отменить взнос. Обнови историю и повтори.") }
     }
 
     private func setDeleted(_ deleted: Bool, record: LedgerRecord) {
         do { try session.setDeleted(deleted, record: record); FolkiFeedback.boundary() }
-        catch { errorMessage = "Не получилось изменить запись. Обнови историю и повтори." }
+        catch { errorMessage = String(localized: "Не получилось изменить запись. Обнови историю и повтори.") }
     }
 }

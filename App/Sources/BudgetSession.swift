@@ -67,7 +67,7 @@ final class BudgetSession {
                     authorID = try repository.authorID(in: stored)
                 } else { authorID = nil }
             } catch {
-                result = nil; errorMessage = "Не получилось прочитать бюджет или подтвердить доступ. Локальные данные сохранены."
+                result = nil; errorMessage = String(localized: "Не получилось прочитать бюджет или подтвердить доступ. Локальные данные сохранены.")
                 return
             }
         }
@@ -76,9 +76,9 @@ final class BudgetSession {
             result = try DailyBudgetCalculator.calculate(household, asOf: referenceDate)
             errorMessage = nil
         } catch BudgetError.dateOutsidePeriod {
-            result = nil; errorMessage = "Период закончился. Создай новый план месяца. История сохранится."
+            result = nil; errorMessage = String(localized: "Период закончился. Создай новый план месяца. История сохранится.")
         } catch {
-            result = nil; errorMessage = "Не получилось рассчитать бюджет. Проверь суммы и резервы."
+            result = nil; errorMessage = String(localized: "Не получилось рассчитать бюджет. Проверь суммы и резервы.")
         }
     }
 
@@ -87,7 +87,7 @@ final class BudgetSession {
         let calendar = household?.period.calendar ?? Calendar.current
         let start = calendar.startOfDay(for: day)
         guard let nextDay = calendar.date(byAdding: .day, value: 1, to: start) else {
-            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не получилось определить дату.")
+            return BudgetDayOverview(result: nil, records: [], errorMessage: String(localized: "Не получилось определить дату."))
         }
         let cutoff = min(referenceDate, nextDay.addingTimeInterval(-0.001))
         let selectedRecords: ([LedgerRecord]) -> [LedgerRecord] = { records in
@@ -117,7 +117,7 @@ final class BudgetSession {
             let result = try snapshot.map { try DailyBudgetCalculator.calculate($0, asOf: cutoff) }
             return BudgetDayOverview(result: result, records: selectedRecords(records), errorMessage: nil)
         } catch {
-            return BudgetDayOverview(result: nil, records: [], errorMessage: "Не получилось прочитать выбранный день. Попробуй ещё раз.")
+            return BudgetDayOverview(result: nil, records: [], errorMessage: String(localized: "Не получилось прочитать выбранный день. Попробуй ещё раз."))
         }
     }
 
@@ -215,9 +215,9 @@ final class BudgetSession {
         } else {
             guard isDemo, let authorID, let familyAuthor = family.authorID else { throw LedgerError.unavailable }
             let out = LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionOut, date: referenceDate,
-                authorID: authorID, payerID: authorID), title: "В семейный бюджет", linkID: linkID)
+                authorID: authorID, payerID: authorID), title: String(localized: "В семейный бюджет"), linkID: linkID)
             let into = LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionIn, date: referenceDate,
-                authorID: familyAuthor, payerID: familyAuthor), title: "Взнос в семейный бюджет", linkID: linkID)
+                authorID: familyAuthor, payerID: familyAuthor), title: String(localized: "Взнос в семейный бюджет"), linkID: linkID)
             let personalNext = try LedgerRules.replacing(out, in: personalBudget, asOf: referenceDate)
             let familyNext = try LedgerRules.replacing(into, in: familyBudget, asOf: referenceDate)
             apply(personalNext); family.apply(familyNext)
@@ -285,10 +285,10 @@ final class BudgetSession {
         memberName(record.transaction.payerID)
     }
     func memberName(_ id: UUID) -> String {
-        guard let member = members.first(where: { $0.id == id }) else { return "Участник" }
+        guard let member = members.first(where: { $0.id == id }) else { return String(localized: "Участник") }
         guard !isDemo else { return member.name }
-        if id == authorID { return "Я" }
-        return member.name == "Я" ? "Партнёр" : member.name
+        if id == authorID { return String(localized: "Я") }
+        return member.name == String(localized: "Я") ? String(localized: "Партнёр") : member.name
     }
 }
 

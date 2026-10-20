@@ -50,7 +50,8 @@ public enum BuiltInCategory: Int, CaseIterable, Sendable {
 
     public static func named(_ id: UUID) -> BuiltInCategory? { allCases.first { $0.id == id } }
 
-    var name: String {
+    /// The Russian name; it is also the key in the String Catalog.
+    public var sourceName: String {
         switch self {
         case .housing: "Жильё и коммуналка"
         case .groceries: "Продукты"
@@ -68,6 +69,9 @@ public enum BuiltInCategory: Int, CaseIterable, Sendable {
         case .other: "Другое"
         }
     }
+
+    /// The name in the user's language.
+    var name: String { Bundle.module.localizedString(forKey: sourceName, value: nil, table: nil) }
 
     var symbol: String {
         switch self {

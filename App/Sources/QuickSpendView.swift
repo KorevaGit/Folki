@@ -100,7 +100,7 @@ struct QuickSpendView: View {
         NavigationStack {
             FolkiEntryLayout(hidesKeypad: descriptionFocused) { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
-                    FolkiSegmentedPicker(title: "Бюджет", selection: scopeSelection,
+                    FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
                         options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
                     .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; recordID = UUID() }
@@ -145,7 +145,7 @@ struct QuickSpendView: View {
                     VStack(spacing: 12) {
                         AmountKeypad(text: $amount)
                         Button(action: save) {
-                            Text(isIncome ? "Внести деньги" : "Записать").font(.system(.title3, design: .rounded, weight: .bold))
+                            Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.system(.title3, design: .rounded, weight: .bold))
                                 .frame(maxWidth: .infinity).frame(minHeight: 60)
                                 .foregroundStyle(.white)
                                 .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
@@ -154,7 +154,7 @@ struct QuickSpendView: View {
                 }
             }
             .background { FolkiBackground() }
-            .navigationTitle(isIncome ? "Внести" : "Потратить").toolbarTitleDisplayMode(.inlineLarge)
+            .navigationTitle(isIncome ? String(localized: "Внести") : String(localized: "Потратить")).toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -203,7 +203,7 @@ struct QuickSpendView: View {
             FolkiFeedback.saved(overspending: overspends)
             dismiss()
         } catch {
-            errorMessage = "Не получилось записать. Сумма осталась здесь, попробуй ещё раз."
+            errorMessage = String(localized: "Не получилось записать. Сумма осталась здесь, попробуй ещё раз.")
         }
     }
 }
@@ -226,7 +226,7 @@ struct AmountKeypad: View {
                     .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.92))
-                .accessibilityLabel(key == "⌫" ? "Стереть" : key == "," ? "Запятая" : key)
+                .accessibilityLabel(key == "⌫" ? String(localized: "Стереть") : key == "," ? String(localized: "Запятая") : key)
             }
         }
     }

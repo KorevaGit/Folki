@@ -36,11 +36,11 @@ struct ContributionView: View {
                         VStack(spacing: 16) {
                             ImpactLines(before: personalBefore,
                                         after: money.flatMap { personal.previewTransfer($0, kind: .contributionOut) },
-                                        label: "Личный")
+                                        label: String(localized: "Личный"))
                             Divider()
                             ImpactLines(before: familyBefore,
                                         after: money.flatMap { family.previewTransfer($0, kind: .contributionIn) },
-                                        label: "Семейный")
+                                        label: String(localized: "Семейный"))
                         }.budgetCard()
                     }
                     if !amount.isEmpty && money == nil {
@@ -73,7 +73,7 @@ struct ContributionView: View {
     private func transfer() {
         guard let money else { return }
         do { try personal.contribute(money, to: family, linkID: linkID); FolkiFeedback.saved(); dismiss() }
-        catch BudgetError.insufficientReserve { errorMessage = "В личном бюджете недостаточно свободных денег." }
-        catch { errorMessage = "Не получилось перевести. Сумма осталась здесь; попробуй снова." }
+        catch BudgetError.insufficientReserve { errorMessage = String(localized: "В личном бюджете недостаточно свободных денег.") }
+        catch { errorMessage = String(localized: "Не получилось перевести. Сумма осталась здесь; попробуй снова.") }
     }
 }

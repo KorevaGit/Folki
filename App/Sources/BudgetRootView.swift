@@ -124,7 +124,7 @@ struct BudgetRootView: View {
     private var headerActions: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
             NavigationLink {
-                ScopedScreen(personal: personal, family: family, title: "Аналитика") {
+                ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика")) {
                     BudgetAnalyticsSection(session: $0, date: selectedDay ?? personal.referenceDate)
                 }
             } label: {
@@ -230,8 +230,8 @@ private struct BudgetCalculationView: View {
         NavigationStack {
             Form {
                 Section { Text(date, format: .dateTime.day().month(.wide).year()) }
-                calculation(personal, title: "Личный бюджет")
-                calculation(family, title: "Семейный бюджет")
+                calculation(personal, title: String(localized: "Личный бюджет"))
+                calculation(family, title: String(localized: "Семейный бюджет"))
                 Section("Кольца") {
                     Text("Снаружи — твой день, внутри — семейный. Тратишь — кольцо тает 🍩")
                     Text("Накопления сюда не входят. Прогноз — если сегодня больше ничего не тратить.")
@@ -263,9 +263,9 @@ struct LedgerRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var kindTitle: String {
         switch record.transaction.kind {
-        case .expense: "Трата"; case .refund: "Возврат"; case .income: "Поступление"
-        case .reserveAllocation: "В накопления"; case .reserveRelease: "Из накоплений"
-        case .contributionOut: "Взнос в семейный"; case .contributionIn: "Взнос участника"
+        case .expense: String(localized: "Трата"); case .refund: String(localized: "Возврат"); case .income: String(localized: "Поступление")
+        case .reserveAllocation: String(localized: "В накопления"); case .reserveRelease: String(localized: "Из накоплений")
+        case .contributionOut: String(localized: "Взнос в семейный"); case .contributionIn: String(localized: "Взнос участника")
         }
     }
 
@@ -299,9 +299,9 @@ struct LedgerRow: View {
                 .lineLimit(1).minimumScaleFactor(0.65).layoutPriority(1)
         }.font(.subheadline).padding(.vertical, 10)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel([kindTitle, record.title.isEmpty ? category?.name ?? "Другое" : record.title,
+            .accessibilityLabel([kindTitle, record.title.isEmpty ? category?.name ?? String(localized: "Другое") : record.title,
                 session.payerName(for: record), record.transaction.date.formatted(.dateTime.day().month(.wide).year()),
-                record.transaction.isDeleted ? "Удалённая запись" : ""].filter { !$0.isEmpty }.joined(separator: ", "))
+                record.transaction.isDeleted ? String(localized: "Удалённая запись") : ""].filter { !$0.isEmpty }.joined(separator: ", "))
             .accessibilityValue(MoneyText.string(record.transaction.amount))
     }
 }

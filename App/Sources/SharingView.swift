@@ -17,7 +17,7 @@ struct SharingView: View {
         NavigationStack {
             Form {
                 Section("Хранение") {
-                    Text(session.repository?.statusText ?? "Демонстрационный режим")
+                    Text(session.repository?.statusText ?? String(localized: "Демонстрационный режим"))
                     if let repository = session.repository, repository.cloudIdentifier != nil {
                         Button("Проверить iCloud") { Task { await repository.verifyAccount(); session.refresh() } }
                     }
@@ -41,17 +41,17 @@ struct SharingView: View {
                         Button("Создать семейный бюджет") { creatingBudget = true }
                     }
                 } else {
-                    Section(session.repository?.cloudIdentifier == nil ? "Добавить участника" : "Пригласить по Apple ID") {
+                    Section(session.repository?.cloudIdentifier == nil ? String(localized: "Добавить участника") : String(localized: "Пригласить по Apple ID")) {
                         TextField("Имя", text: $name)
                         if session.repository?.cloudIdentifier != nil {
                             TextField("Email Apple ID", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
-                            Button(preparing ? "Готовим…" : "Создать приглашение") {
+                            Button(preparing ? String(localized: "Готовим…") : String(localized: "Создать приглашение")) {
                                 guard let repository = session.repository, let budget = session.storedBudget else { return }
                                 preparing = true; invitationURL = nil
                                 Task {
                                     defer { preparing = false }
                                     do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
-                                    catch { errorMessage = "Не получилось 😕 Проверь Apple ID и попробуй ещё раз." }
+                                    catch { errorMessage = String(localized: "Не получилось 😕 Проверь Apple ID и попробуй ещё раз.") }
                                 }
                             }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
                             if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
@@ -59,7 +59,7 @@ struct SharingView: View {
                         } else {
                             Button("Добавить для учёта") {
                                 do { try session.addMember(name: name); name = "" }
-                                catch { errorMessage = "В семье уже 5 человек — это максимум 🙂" }
+                                catch { errorMessage = String(localized: "В семье уже 5 человек — это максимум 🙂") }
                             }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
                             Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
                         }
@@ -77,7 +77,7 @@ struct SharingView: View {
                         guard let repository = session.repository, let budget = session.storedBudget else { return }
                         Task {
                             do { try await repository.removeFamilyMember(member, in: budget, asOf: session.referenceDate); session.refresh() }
-                            catch { errorMessage = "Не получилось убрать участника. Для отзыва облачного доступа нужны права владельца и сеть." }
+                            catch { errorMessage = String(localized: "Не получилось убрать участника. Для отзыва облачного доступа нужны права владельца и сеть.") }
                         }
                     }
                 }
@@ -87,7 +87,7 @@ struct SharingView: View {
                 Button("Сохранить") {
                     guard let member = editingMember else { return }
                     do { try session.renameMember(member, name: editedName) }
-                    catch { errorMessage = "Имя не сохранено." }
+                    catch { errorMessage = String(localized: "Имя не сохранено.") }
                     editingMember = nil
                 }
                 Button("Отмена", role: .cancel) { editingMember = nil }

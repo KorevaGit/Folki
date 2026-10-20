@@ -105,7 +105,7 @@ struct BudgetWeekCalendar: View {
         let isSelected = calendar.isDate(date, inSameDayAs: selected)
         let isToday = calendar.isDate(date, inSameDayAs: today)
         let isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: today)
-        let weekday = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"][calendar.component(.weekday, from: date) - 1]
+        let weekday = date.formatted(.dateTime.weekday(.abbreviated)).lowercased().replacingOccurrences(of: ".", with: "")
         let fractions = isFuture ? (nil, nil) : rings(date)
         return Button { select(date) } label: {
             VStack(spacing: 4) {
@@ -132,14 +132,14 @@ struct BudgetWeekCalendar: View {
             .opacity(isFuture ? 0.3 : 1)
         }
         .buttonStyle(FolkiPressStyle(scale: 0.92)).frame(maxWidth: .infinity).disabled(isFuture)
-        .accessibilityLabel((isToday ? "Сегодня, " : "") + date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
-        .accessibilityValue(isFuture ? "Будущий день" : "Личный: \(spokenFraction(fractions.0)). Семейный: \(spokenFraction(fractions.1)).")
+        .accessibilityLabel((isToday ? String(localized: "Сегодня, ") : "") + date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+        .accessibilityValue(isFuture ? String(localized: "Будущий день") : String(localized: "Личный: \(spokenFraction(fractions.0)). Семейный: \(spokenFraction(fractions.1))."))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func spokenFraction(_ value: Double?) -> String {
-        guard let value else { return "нет плана" }
-        return "осталось \(Int((max(0, min(1, value)) * 100).rounded())) процентов дневного ориентира"
+        guard let value else { return String(localized: "нет плана") }
+        return String(localized: "осталось \(Int((max(0, min(1, value)) * 100).rounded())) процентов дневного ориентира")
     }
 
     private func select(_ date: Date) {

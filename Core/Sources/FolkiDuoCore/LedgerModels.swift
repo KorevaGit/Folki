@@ -3,8 +3,8 @@ import Foundation
 public enum BudgetScope: String, CaseIterable, Identifiable, Sendable {
     case personal, family
     public var id: String { rawValue }
-    public var title: String { self == .personal ? "Личный" : "Семейный" }
-    public var savingsTitle: String { self == .personal ? "Личные накопления" : "Семейные накопления" }
+    public var title: String { self == .personal ? String(localized: "Личный", bundle: .module) : String(localized: "Семейный", bundle: .module) }
+    public var savingsTitle: String { self == .personal ? String(localized: "Личные накопления", bundle: .module) : String(localized: "Семейные накопления", bundle: .module) }
     /// The direction a contribution takes in a budget of this scope.
     public var contributionKind: TransactionKind { self == .personal ? .contributionOut : .contributionIn }
 }

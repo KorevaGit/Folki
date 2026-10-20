@@ -17,16 +17,16 @@ struct BudgetSettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Какой бюджет настроим?").font(.headline)
-                        FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
+                        FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
                             options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 52)
-                        Text(scope == .personal ? "Это только твоё 🤫" : "Это общее для всей семьи 💚")
+                        Text(scope == .personal ? String(localized: "Это только твоё 🤫") : String(localized: "Это общее для всей семьи 💚"))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     plan
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Категории расходов").font(.system(.title2, design: .rounded, weight: .bold))
                         NavigationLink { CategoriesView(session: session).id(scope) } label: {
-                            settingsRow("Настроить категории", subtitle: "Добавить свою, изменить значок или убрать в архив", symbol: "square.grid.2x2")
+                            settingsRow(String(localized: "Настроить категории"), subtitle: String(localized: "Добавить свою, изменить значок или убрать в архив"), symbol: "square.grid.2x2")
                         }.buttonStyle(.plain).budgetCard()
                     }
                     VStack(alignment: .leading, spacing: 12) {

@@ -55,8 +55,8 @@ struct OnboardingView: View {
     // MARK: Pages
 
     private var welcome: some View {
-        page(title: "Всё готово 🎉",
-             text: "Кольцо покажет, сколько можно потратить сегодня: снаружи твой день, внутри семейный. Тратишь — кольцо тает 🍩") {
+        page(title: String(localized: "Всё готово 🎉"),
+             text: String(localized: "Кольцо покажет, сколько можно потратить сегодня: снаружи твой день, внутри семейный. Тратишь — кольцо тает 🍩")) {
             DemoRings(outer: 0.7, inner: 0.45).frame(width: 200, height: 200)
         }
     }
@@ -67,9 +67,9 @@ struct OnboardingView: View {
                 Text("Твой личный план").font(.system(.largeTitle, design: .rounded, weight: .bold))
                 Text("Две цифры — и Folki посчитает твой день ✨ Всё можно поменять потом.")
                     .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                amountField("Сколько денег у тебя сейчас", hint: "Всё, что есть на картах и наличными",
+                amountField(String(localized: "Сколько денег у тебя сейчас"), hint: String(localized: "Всё, что есть на картах и наличными"),
                             text: $available, field: .available)
-                amountField("Сколько готов потратить за месяц", hint: "Без крупных обязательных платежей, если они уже отложены",
+                amountField(String(localized: "Сколько готов потратить за месяц"), hint: String(localized: "Без крупных обязательных платежей, если они уже отложены"),
                             text: $monthly, field: .monthly)
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }.padding(.horizontal, FolkiSpacing.page).padding(.top, 24)
@@ -77,8 +77,8 @@ struct OnboardingView: View {
     }
 
     private var familyPage: some View {
-        page(title: "Начнём с семьи",
-             text: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.") {
+        page(title: String(localized: "Начнём с семьи"),
+             text: String(localized: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.")) {
             Image(systemName: "person.2.circle.fill").font(.system(size: 120))
                 .foregroundStyle(Color.budget(.family), Color.budget(.family).opacity(0.2))
         }
@@ -129,7 +129,7 @@ struct OnboardingView: View {
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             Button("Добавлю позже") { go(1) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
         case 1:
-            Button(personal.result == nil ? "Создать план" : "Дальше") { createPlan() }
+            Button(personal.result == nil ? String(localized: "Создать план") : String(localized: "Дальше")) { createPlan() }
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
                 .disabled(personal.result == nil && plan == nil)
             Button("Сделаю позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
@@ -145,7 +145,7 @@ struct OnboardingView: View {
             try personal.createPlan(monthlyPlan: monthlyPlan, available: funds, reserves: [])
             FolkiFeedback.saved(); errorMessage = nil; focused = nil; go(2)
         } catch {
-            errorMessage = "Не получилось сохранить план. Проверь суммы и попробуй снова."
+            errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и попробуй снова.")
         }
     }
 }

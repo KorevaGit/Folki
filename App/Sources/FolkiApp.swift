@@ -33,7 +33,7 @@ final class FolkiApplication {
             personalSession = BudgetSession(scope: .personal, repository: repository)
             session = BudgetSession(scope: .family, repository: repository)
             await acceptPendingInvitations()
-        } catch { openingError = "Не получилось открыть хранилище Folki. Данные не удалены. Попробуй ещё раз." }
+        } catch { openingError = String(localized: "Не получилось открыть хранилище Folki. Данные не удалены. Попробуй ещё раз.") }
         #endif
     }
     func receive(_ metadata: CKShare.Metadata) {
@@ -51,7 +51,7 @@ final class FolkiApplication {
                 invitationError = nil
                 session?.refresh()
             } catch {
-                invitationError = "Приглашение не принято. Для вступления нужно пустое пространство и доступный iCloud. Локальный бюджет не заменён."
+                invitationError = String(localized: "Приглашение не принято. Для вступления нужно пустое пространство и доступный iCloud. Локальный бюджет не заменён.")
                 return
             }
         }
@@ -106,9 +106,8 @@ struct FolkiApp: App {
                     } description: { Text(error) } actions: {
                         Button("Повторить") { Task { await model.open() } }
                     }
-                } else { ProgressView("Открываем Folki…") }
+                } else { ProgressView(String(localized: "Открываем Folki…")) }
             }
-            .environment(\.locale, Locale(identifier: "ru_RU"))
             .task { await model.open() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.session?.refresh(); model.personalSession?.refresh() }

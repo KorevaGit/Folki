@@ -12,42 +12,42 @@ struct SummaryCards: View {
         let personalWeek = week(personal)
         VStack(alignment: .leading, spacing: 12) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: date) } } label: {
-                    tile("Сегодня", symbol: "flame.fill", tint: Color.budget(.personal)) {
-                        value(spentToday(personal)); caption("семья \(spentToday(family))")
+                NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика")) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
+                    tile(String(localized: "Сегодня"), symbol: "flame.fill", tint: Color.budget(.personal)) {
+                        value(spentToday(personal)); caption(String(localized: "семья \(spentToday(family))"))
                     }
                 }
-                NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: date) } } label: {
-                    tile("Неделя", symbol: "chart.bar.fill", tint: Color.budget(.personal)) {
+                NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика")) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
+                    tile(String(localized: "Неделя"), symbol: "chart.bar.fill", tint: Color.budget(.personal)) {
                         value(personalWeek.map { MoneyText.whole((try? $0.netSpending) ?? $0.expenses) } ?? "—")
                         bars(personalWeek)
                     }
                 }
-                NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика") { BudgetAnalyticsSection(session: $0, date: date) } } label: {
-                    tile("Категории", symbol: "square.grid.2x2.fill", tint: Color.folkiAccent) {
+                NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика")) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
+                    tile(String(localized: "Категории"), symbol: "square.grid.2x2.fill", tint: Color.folkiAccent) {
                         topCategories(personalMonth)
                     }
                 }
-                NavigationLink { ScopedScreen(personal: personal, family: family, title: "Накопления") { session in
+                NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Накопления")) { session in
                     VStack(spacing: 14) { SavingsSection(session: session) }
                 } } label: {
-                    tile("Накопления", symbol: "flag.fill", tint: Color.budget(.family)) {
+                    tile(String(localized: "Накопления"), symbol: "flag.fill", tint: Color.budget(.family)) {
                         let goals = personal.goals + family.goals
                         value(goals.isEmpty ? "—" : MoneyText.whole(goals.reduce(Money(minorUnits: 0)) { (try? $0.adding($1.balance)) ?? $0 }))
-                        caption(goals.isEmpty ? "создай первую цель" : "\(goals.count) \(goals.count == 1 ? "цель" : "цели")")
+                        caption(goals.isEmpty ? String(localized: "создай первую цель") : String(localized: "\(goals.count) \(goals.count == 1 ? "цель" : "цели")"))
                     }
                 }
                 NavigationLink { HistoryScreen(personal: personal, family: family) } label: {
-                    tile("История", symbol: "clock.arrow.circlepath", tint: .secondary) {
+                    tile(String(localized: "История"), symbol: "clock.arrow.circlepath", tint: .secondary) {
                         let last = (personal.records + family.records).max { $0.transaction.date < $1.transaction.date }
                         value(last.map { MoneyText.whole($0.transaction.amount) } ?? "—")
-                        caption(last.map { $0.title.isEmpty ? (personal.category(for: $0) ?? family.category(for: $0))?.name ?? "" : $0.title } ?? "записей пока нет")
+                        caption(last.map { $0.title.isEmpty ? (personal.category(for: $0) ?? family.category(for: $0))?.name ?? "" : $0.title } ?? String(localized: "записей пока нет"))
                     }
                 }
-                NavigationLink { ScopedScreen(personal: personal, family: family, title: "Аналитика", initial: .family) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
-                    tile("Взносы", symbol: "person.2.fill", tint: Color.budget(.family)) {
+                NavigationLink { ScopedScreen(personal: personal, family: family, title: String(localized: "Аналитика"), initial: .family) { BudgetAnalyticsSection(session: $0, date: date) } } label: {
+                    tile(String(localized: "Взносы"), symbol: "person.2.fill", tint: Color.budget(.family)) {
                         value(familyMonth.map { MoneyText.whole($0.contributions) } ?? "—")
-                        caption("за месяц")
+                        caption(String(localized: "за месяц"))
                     }
                 }
             }
@@ -89,7 +89,7 @@ struct SummaryCards: View {
     }
     @ViewBuilder private func topCategories(_ result: BudgetAnalyticsSnapshot?) -> some View {
         let items = Array((result?.categories ?? []).prefix(3))
-        if items.isEmpty { caption("пока без трат") }
+        if items.isEmpty { caption(String(localized: "пока без трат")) }
         ForEach(items) { item in
             let category = personal.catalog.category(for: item.categoryID)
             HStack(spacing: 6) {
@@ -129,7 +129,7 @@ struct HistoryScreen: View {
     var body: some View {
         BudgetHistoryView(session: scope == .personal ? personal : family).id(scope)
             .safeAreaInset(edge: .top) {
-                FolkiSegmentedPicker(title: "Бюджет", selection: $scope,
+                FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
                     options: BudgetScope.allCases.map { ($0.title, $0) }).padding(.horizontal, FolkiSpacing.page).padding(.vertical, 8)
             }
             .toolbar(.visible, for: .navigationBar)
@@ -149,7 +149,7 @@ struct ScopedScreen<Content: View>: View {
         let current = scope ?? initial
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                FolkiSegmentedPicker(title: "Бюджет", selection: Binding(get: { current }, set: { scope = $0 }),
+                FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: Binding(get: { current }, set: { scope = $0 }),
                     options: BudgetScope.allCases.map { ($0.title, $0) })
                 content(current == .personal ? personal : family).id(current)
             }.folkiPagePadding()

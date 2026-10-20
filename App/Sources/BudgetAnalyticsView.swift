@@ -30,7 +30,7 @@ struct BudgetAnalyticsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // A single day is already on the main screen's calendar.
-            FolkiSegmentedPicker(title: "Период аналитики", selection: $period,
+            FolkiSegmentedPicker(title: String(localized: "Период аналитики"), selection: $period,
                 options: [AnalyticsPeriod.week, .month].map { ($0.title, $0) })
             if let result = try? BudgetAnalytics.calculate(records: session.historyRecords, period: period,
                 anchor: anchor, asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog) {
@@ -98,7 +98,7 @@ struct BudgetAnalyticsSection: View {
     private func overview(_ result: BudgetAnalyticsSnapshot) -> some View {
         let net = (try? result.netSpending) ?? result.expenses
         return VStack(alignment: .leading, spacing: 16) {
-            Text(net.minorUnits < 0 ? "Вернули больше, чем потрачено" : "Потрачено")
+            Text(net.minorUnits < 0 ? String(localized: "Вернули больше, чем потрачено") : String(localized: "Потрачено"))
                 .font(.headline).foregroundStyle(.secondary)
             Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.4)
@@ -110,8 +110,8 @@ struct BudgetAnalyticsSection: View {
     @ViewBuilder private func extraRows(_ result: BudgetAnalyticsSnapshot) -> some View {
         if result.refunds.minorUnits > 0 || result.income.minorUnits > 0 {
             Divider()
-            if result.refunds.minorUnits > 0 { amountRow("Вернули деньги", result.refunds) }
-            if result.income.minorUnits > 0 { amountRow("Пришло денег", result.income) }
+            if result.refunds.minorUnits > 0 { amountRow(String(localized: "Вернули деньги"), result.refunds) }
+            if result.income.minorUnits > 0 { amountRow(String(localized: "Пришло денег"), result.income) }
         }
     }
 
@@ -141,7 +141,7 @@ struct BudgetAnalyticsSection: View {
             if plan > 0 {
                 PaceBar(spent: spentFraction, expected: finished ? nil : expectedFraction,
                         over: net.minorUnits > plan)
-                Text(finished ? "Месяц завершён" : "Прошло \(passed) из \(days) дней")
+                Text(finished ? String(localized: "Месяц завершён") : String(localized: "Прошло \(passed) из \(days) дней"))
                     .font(.footnote).foregroundStyle(.secondary)
                 Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, snapshot: snapshot))
                     .font(.subheadline.weight(.semibold))
@@ -153,15 +153,15 @@ struct BudgetAnalyticsSection: View {
     }
 
     private func verdict(ahead: Int64, overPlan: Int64, finished: Bool, snapshot: DailyBudgetSnapshot) -> String {
-        if overPlan > 0 { return "План превышен на \(MoneyText.whole(Money(minorUnits: overPlan).roundedUpToWholeUnits))" }
+        if overPlan > 0 { return String(localized: "План превышен на \(MoneyText.whole(Money(minorUnits: overPlan).roundedUpToWholeUnits))") }
         // Round to 100 ₽: an estimate should not look more exact than it is.
         let gap = MoneyText.whole(Money(minorUnits: abs(ahead) / 10_000 * 10_000))
-        if finished { return "Уложился в план, осталось \(gap) 🎉" }
-        if ahead <= 0 { return "Идёшь с запасом \(gap) — так держать 💪" }
+        if finished { return String(localized: "Уложился в план, осталось \(gap) 🎉") }
+        if ahead <= 0 { return String(localized: "Идёшь с запасом \(gap) — так держать 💪") }
         if let next = snapshot.futureAllocation {
-            return "Тратишь быстрее плана на \(gap). Дальше лучше держаться около \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день"
+            return String(localized: "Тратишь быстрее плана на \(gap). Дальше лучше держаться около \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день")
         }
-        return "Тратишь быстрее плана на \(gap)"
+        return String(localized: "Тратишь быстрее плана на \(gap)")
     }
 
     /// Categories that changed noticeably against the same stretch of the previous period.
@@ -182,7 +182,7 @@ struct BudgetAnalyticsSection: View {
             if !items.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Что изменилось").font(.headline)
-                    Text(period == .month ? "По сравнению с тем же днём прошлого месяца" : "По сравнению с прошлой неделей на этот день")
+                    Text(period == .month ? String(localized: "По сравнению с тем же днём прошлого месяца") : String(localized: "По сравнению с прошлой неделей на этот день"))
                         .font(.footnote).foregroundStyle(.secondary)
                     ForEach(Array(items), id: \.0) { id, diff, old in
                         let category = session.catalog.category(for: id)
@@ -247,14 +247,14 @@ struct BudgetAnalyticsSection: View {
                 Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(.secondary)
             }.font(.caption).labelStyle(.titleAndIcon).imageScale(.small)
             Chart {
-                LineMark(x: .value("Дата", result.interval.start), y: .value("План", 0), series: .value("Ряд", "план"))
+                LineMark(x: .value(String(localized: "Дата"), result.interval.start), y: .value(String(localized: "План"), 0), series: .value(String(localized: "Ряд"), String(localized: "план")))
                     .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                LineMark(x: .value("Дата", end), y: .value("План", planned), series: .value("Ряд", "план"))
+                LineMark(x: .value(String(localized: "Дата"), end), y: .value(String(localized: "План"), planned), series: .value(String(localized: "Ряд"), String(localized: "план")))
                     .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
                 ForEach(points) { point in
-                    AreaMark(x: .value("Дата", point.date), y: .value("Рубли", point.value))
+                    AreaMark(x: .value(String(localized: "Дата"), point.date), y: .value(String(localized: "Рубли"), point.value))
                         .foregroundStyle(Color.folkiAccent.opacity(0.12)).interpolationMethod(.monotone)
-                    LineMark(x: .value("Дата", point.date), y: .value("Рубли", point.value), series: .value("Ряд", "факт"))
+                    LineMark(x: .value(String(localized: "Дата"), point.date), y: .value(String(localized: "Рубли"), point.value), series: .value(String(localized: "Ряд"), String(localized: "факт")))
                         .foregroundStyle(Color.folkiAccent).lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                         .interpolationMethod(.monotone)
                 }
@@ -275,9 +275,9 @@ struct BudgetAnalyticsSection: View {
             PlotPoint(date: $0.start, value: Double($0.expenses.minorUnits - $0.refunds.minorUnits) / 100)
         }
         return VStack(alignment: .leading, spacing: 12) {
-            Text(period == .day ? "Траты по часам" : "Траты по дням").font(.headline)
+            Text(period == .day ? String(localized: "Траты по часам") : String(localized: "Траты по дням")).font(.headline)
             Chart(points) { point in
-                BarMark(x: .value("Дата", point.date, unit: period == .day ? .hour : .day), y: .value("Рубли", point.value))
+                BarMark(x: .value(String(localized: "Дата"), point.date, unit: period == .day ? .hour : .day), y: .value(String(localized: "Рубли"), point.value))
                     .foregroundStyle(Color.folkiAccent).cornerRadius(4)
             }
             .chartXScale(domain: result.interval.start...result.interval.end)
@@ -288,7 +288,7 @@ struct BudgetAnalyticsSection: View {
                 }
             }
             .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 240 : 180)
-            .accessibilityLabel(period == .day ? "Расходы по часам с учётом возвратов" : "Расходы по дням с учётом возвратов")
+            .accessibilityLabel(period == .day ? String(localized: "Расходы по часам с учётом возвратов") : String(localized: "Расходы по дням с учётом возвратов"))
         }
     }
 
@@ -364,7 +364,7 @@ struct BudgetAnalyticsSection: View {
                 }
             }
             if sorted.count > 5 {
-                Button(showsAllCategories ? "Свернуть" : "Все категории (\(sorted.count))") {
+                Button(showsAllCategories ? String(localized: "Свернуть") : String(localized: "Все категории (\(sorted.count))")) {
                     FolkiFeedback.selection(); withAnimation(.snappy) { showsAllCategories.toggle() }
                 }.buttonStyle(FolkiSoftButtonStyle()).frame(maxWidth: .infinity)
             }
@@ -380,9 +380,9 @@ struct BudgetAnalyticsSection: View {
         let total = needs + wants + saved
         if total > 0 {
             let parts: [(String, String, Int64, Int, Color)] = [
-                ("Обязательное", "жильё, еда, транспорт", needs, 50, Color.budget(.family)),
-                ("Желания", "кафе, покупки, развлечения", wants, 30, Color.budget(.personal)),
-                ("Отложено", "в накопления", saved, 20, Color.folkiAccent)]
+                (String(localized: "Обязательное"), String(localized: "жильё, еда, транспорт"), needs, 50, Color.budget(.family)),
+                (String(localized: "Желания"), String(localized: "кафе, покупки, развлечения"), wants, 30, Color.budget(.personal)),
+                (String(localized: "Отложено"), String(localized: "в накопления"), saved, 20, Color.folkiAccent)]
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Баланс месяца").font(.headline)
@@ -411,20 +411,20 @@ struct BudgetAnalyticsSection: View {
 
     private func balanceAdvice(needs: Int64, wants: Int64, saved: Int64, total: Int64) -> String {
         let wantsShare = Double(wants) / Double(total), savedShare = Double(saved) / Double(total)
-        if saved == 0 { return "Пока ничего не отложено. Начни с малого — даже 5% уже привычка 🌱" }
-        if wantsShare > 0.35 { return "Желаний больше ориентира — не страшно, просто держи в голове 😉" }
-        if savedShare >= 0.2 { return "Откладываешь 20% и больше — огонь 🔥" }
-        return "Хороший баланс 👍 Если получится, откладывай чуть больше."
+        if saved == 0 { return String(localized: "Пока ничего не отложено. Начни с малого — даже 5% уже привычка 🌱") }
+        if wantsShare > 0.35 { return String(localized: "Желаний больше ориентира — не страшно, просто держи в голове 😉") }
+        if savedShare >= 0.2 { return String(localized: "Откладываешь 20% и больше — огонь 🔥") }
+        return String(localized: "Хороший баланс 👍 Если получится, откладывай чуть больше.")
     }
 
     private func transfers(_ result: BudgetAnalyticsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Взносы и накопления").font(.headline)
             if result.contributions.minorUnits > 0 {
-                amountRow(session.scope == .personal ? "Переведено в семейный" : "Взносы в семейный", result.contributions)
+                amountRow(session.scope == .personal ? String(localized: "Переведено в семейный") : String(localized: "Взносы в семейный"), result.contributions)
             }
             if result.reserveTransfers.minorUnits != 0 {
-                amountRow(result.reserveTransfers.minorUnits > 0 ? "Отложено в накопления" : "Взято из накоплений",
+                amountRow(result.reserveTransfers.minorUnits > 0 ? String(localized: "Отложено в накопления") : String(localized: "Взято из накоплений"),
                           Money(minorUnits: abs(result.reserveTransfers.minorUnits)))
             }
             if !result.contributionsByMember.isEmpty {
@@ -460,7 +460,7 @@ private struct PaceBar: View {
         .frame(height: 12).padding(.vertical, 4)
         .accessibilityElement()
         .accessibilityLabel("Потрачено \(Int((spent * 100).rounded())) процентов плана")
-        .accessibilityValue(expected.map { "К сегодняшнему дню по плану \(Int(($0 * 100).rounded())) процентов" } ?? "")
+        .accessibilityValue(expected.map { String(localized: "К сегодняшнему дню по плану \(Int(($0 * 100).rounded())) процентов") } ?? "")
     }
 }
 
