@@ -37,7 +37,7 @@ struct OnboardingView: View {
     @ViewBuilder private var page: some View {
         switch step {
         case .hello: HelloPage { go(.start) }
-        case .start: StartPage { choice in
+        case .start: StartPage(family: family) { choice in
             switch choice {
             case .fresh: invited = false; go(.budget)
             case .invited: go(.invited)
@@ -128,9 +128,9 @@ private struct HelloPage: View {
             VStack(spacing: FolkiSpacing.large) {
                 AnimatedHouse().frame(width: 220, height: 220)
                 VStack(spacing: FolkiSpacing.item) {
-                    Text("Привет! Я Folki — твой помощник с деньгами")
+                    Text("Привет! Я Folki 👋")
                         .font(.largeTitle.bold()).rise(8)
-                    Text("Ты тратишь, я считаю. Каждый день покажу, сколько ещё можно")
+                    Text("Твой помощник с финансами")
                         .font(.body).foregroundStyle(.secondary).rise(9)
                 }.multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             }.padding(.bottom, FolkiSpacing.huge)
@@ -143,37 +143,31 @@ private struct HelloPage: View {
 private enum StartChoice { case fresh, invited, restore }
 
 private struct StartPage: View {
+    let family: BudgetSession
     let choose: (StartChoice) -> Void
     var body: some View {
-        OnboardingPage {
-            VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-                Text("Как начнёшь?").font(.largeTitle.bold())
-                Text("Я подстроюсь под твой вариант").font(.body).foregroundStyle(.secondary)
+        OnboardingPage(centered: true) {
+            VStack(spacing: FolkiSpacing.large) {
+                FamilyBubbles(family: family) { FolkiFeedback.selection(); choose(.invited) }.frame(height: 290)
                 VStack(spacing: FolkiSpacing.item) {
-                    card("sparkles", "Начать с нуля", "Личный бюджет за минуту", .fresh).rise(1)
-                    card("envelope", "Меня пригласили", "Присоединиться к семейному бюджету", .invited).rise(2)
-                    card("icloud.and.arrow.down", "Восстановить из iCloud", "Если Folki уже был на другом iPhone", .restore).rise(3)
-                }.padding(.top, FolkiSpacing.large)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
-        } actions: { EmptyView() }
-    }
-
-    private func card(_ symbol: String, _ title: LocalizedStringKey, _ text: LocalizedStringKey, _ choice: StartChoice) -> some View {
-        Button { FolkiFeedback.selection(); choose(choice) } label: {
-            HStack(spacing: FolkiSpacing.item) {
-                Image(systemName: symbol).font(.title3).foregroundStyle(Color.folkiAccent)
-                    .frame(width: 44, height: 44).background(Color.folkiAccent.opacity(0.12), in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.headline).foregroundStyle(Color.folkiInk)
-                    Text(text).font(.subheadline).foregroundStyle(.secondary)
-                }.multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-            .padding(FolkiSpacing.card).frame(minHeight: 88)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-            .contentShape(RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-        }.buttonStyle(FolkiPressStyle(scale: 0.97))
+                    Text("Вместе с близкими").font(.largeTitle.bold())
+                    Text("Общие траты — вместе. Личные — только твои").font(.body).foregroundStyle(.secondary)
+                }.multilineTextAlignment(.center).rise(3)
+            }.padding(.bottom, FolkiSpacing.large)
+        } actions: {
+            Button("Начать с нуля") { FolkiFeedback.selection(); choose(.fresh) }
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).rise(4)
+            Button { FolkiFeedback.selection(); choose(.invited) } label: {
+                Label { Text("Меня пригласили") } icon: {
+                    Image(systemName: "envelope").overlay {
+                        Image(systemName: "heart.fill").font(.system(size: 7)).foregroundStyle(RingPalette.family.start)
+                            .padding(2).background(Color(uiColor: .systemBackground), in: Circle())
+                    }
+                }.frame(maxWidth: .infinity)
+            }.buttonStyle(FolkiSoftButtonStyle()).rise(5)
+            Button("Восстановить из iCloud") { choose(.restore) }
+                .font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44).rise(6)
+        }
     }
 }
 
@@ -221,6 +215,7 @@ private struct BudgetStartPage: View {
                                displayedComponents: .date)
                         .font(.body).padding(.top, FolkiSpacing.item)
                 }
+                VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                     Text(amount.isEmpty ? "0" : MoneyText.grouped(amount))
                         .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
@@ -228,11 +223,10 @@ private struct BudgetStartPage: View {
                         .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
                     Text(MoneyText.symbol).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.tertiary)
                 }
-                .lineLimit(1).minimumScaleFactor(0.4)
+                .lineLimit(1).minimumScaleFactor(0.4).fixedSize(horizontal: false, vertical: true)
                 .keyframeAnimator(initialValue: 0.0, trigger: shakes) { view, offset in view.offset(x: offset) } keyframes: { _ in
                     KeyframeTrack { SpringKeyframe(-10, duration: 0.08); SpringKeyframe(10, duration: 0.08); SpringKeyframe(-6, duration: 0.08); SpringKeyframe(0, duration: 0.1) }
                 }
-                .padding(.top, FolkiSpacing.large)
                 .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
                 Group {
                     if let perDay {
@@ -241,7 +235,11 @@ private struct BudgetStartPage: View {
                     } else {
                         Text("Я разделю сумму на \(days) дн.").foregroundStyle(.secondary)
                     }
-                }.font(.body.weight(.medium)).foregroundStyle(Color.folkiAccent).padding(.top, FolkiSpacing.xs)
+                }.font(.body.weight(.medium)).foregroundStyle(Color.folkiAccent)
+                }
+                .padding(FolkiSpacing.page).frame(maxWidth: .infinity, alignment: .leading)
+                .glassEffect(.regular.tint(Color.folkiAccent.opacity(0.08)).interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                .padding(.top, FolkiSpacing.large)
                 if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.top, FolkiSpacing.item) }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
         } actions: {
@@ -256,10 +254,10 @@ private struct BudgetStartPage: View {
             FolkiFeedback.selection()
             withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { length = value }
         } label: {
-            Text(title).font(.subheadline.weight(.medium))
-                .padding(.horizontal, FolkiSpacing.item).frame(minHeight: 36)
-                .foregroundStyle(selected ? Color.folkiAccent : Color.folkiInk)
-                .background(selected ? Color.folkiAccent.opacity(0.12) : Color.folkiSoft, in: Capsule())
+            Text(title).font(.subheadline.weight(.semibold))
+                .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 40)
+                .foregroundStyle(selected ? Color.white : Color.folkiInk)
+                .glassEffect(.regular.tint(selected ? Color.folkiAccent : .clear).interactive(), in: Capsule())
         }.buttonStyle(FolkiPressStyle()).accessibilityAddTraits(selected ? .isSelected : [])
     }
 

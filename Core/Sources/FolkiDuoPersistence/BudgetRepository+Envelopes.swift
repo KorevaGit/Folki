@@ -26,7 +26,8 @@ extension BudgetRepository {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 80, size.currency == .rub else { throw BudgetError.invalidPlan }
         let envelope = try RecurringEnvelope(id: id, name: trimmed, size: size, dueDay: dueDay,
-                                             nextDue: budget.snapshot.period.calendar.startOfDay(for: nextDue), isMandatory: isMandatory)
+                                             nextDue: budget.snapshot.period.calendar.startOfDay(for: nextDue), isMandatory: isMandatory,
+                                             categoryID: categoryID)
         do {
             let root = try writableRoot(budget, now: now)
             if let categoryID { try validateCategory(categoryID, household: root, allowArchived: false) }
@@ -126,8 +127,7 @@ extension BudgetRepository {
             try write(records, in: current, root: root, now: now)
             let calendar = current.snapshot.period.calendar
             let next = try EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, calendar: calendar)
-            try encodeEnvelope(RecurringEnvelope(id: envelope.id, name: envelope.name, size: envelope.size, dueDay: envelope.dueDay,
-                                                 nextDue: next, isMandatory: envelope.isMandatory), into: item)
+            try encodeEnvelope(envelope.with(nextDue: next), into: item)
             try commit()
         } catch { context.rollback(); throw error }
     }
@@ -139,7 +139,8 @@ extension BudgetRepository {
             size: Money(minorUnits: item.required("size")),
             dueDay: Int(item.value(forKey: "dueDay") as? Int16 ?? 1),
             nextDue: item.required("nextDue"),
-            isMandatory: item.value(forKey: "mandatory") as? Bool ?? true)
+            isMandatory: item.value(forKey: "mandatory") as? Bool ?? true,
+            categoryID: item.value(forKey: "categoryID") as? UUID)
     }
 
     private func encodeEnvelope(_ envelope: RecurringEnvelope, into item: NSManagedObject) {

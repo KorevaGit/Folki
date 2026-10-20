@@ -28,8 +28,15 @@ struct FolkiRootView: View {
             }
             .transition(.opacity)
         } else {
-            BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
-                .tint(Color.folkiAccent).transition(.opacity)
+            TabView {
+                Tab("Бюджет", systemImage: "wallet.bifold") {
+                    BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
+                }
+                Tab("Конверты", systemImage: "tray.full") {
+                    EnvelopesView(personal: personal, family: family)
+                }
+            }
+            .tint(Color.folkiAccent).transition(.opacity)
         }
     }
 }

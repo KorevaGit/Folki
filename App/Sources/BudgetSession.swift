@@ -21,6 +21,8 @@ final class BudgetSession {
     private(set) var errorMessage: String?
     private(set) var members: [Member]
     private(set) var authorID: UUID?
+    /// Recurring payments of this budget, nearest first.
+    private(set) var envelopes: [RecurringEnvelope] = []
     private var periodID = UUID()
     let repository: BudgetRepository?
     let demoDate: Date?
@@ -78,6 +80,7 @@ final class BudgetSession {
                 allRecords = stored?.records ?? []
                 historyRecords = try repository.history(scope: scope)
                 catalog = try repository.catalog(scope: scope)
+                envelopes = try repository.envelopes(scope: scope)
                 members = stored?.members ?? []
                 if let stored {
                     periodID = stored.periodID
@@ -198,6 +201,59 @@ final class BudgetSession {
         let record = try draft(amount: amount, title: "", payerID: authorID, date: referenceDate,
             kind: .income, categoryID: BuiltInCategory.other.id, funding: .flexible, newRecordID: operationID)
         try save(record, addIncomeToPlan: true)
+    }
+
+    // MARK: Envelopes
+
+    func envelopeBalance(_ envelope: RecurringEnvelope) -> Money {
+        result?.reserveBalances[envelope.id] ?? Money(minorUnits: 0)
+    }
+    func envelopeUrgency(_ envelope: RecurringEnvelope) -> EnvelopeUrgency {
+        (try? EnvelopeSchedule.urgency(of: envelope, balance: envelopeBalance(envelope), now: referenceDate, calendar: calendar)) ?? .calm
+    }
+    func daysUntil(_ envelope: RecurringEnvelope) -> Int {
+        EnvelopeSchedule.daysUntil(envelope.nextDue, from: referenceDate, calendar: calendar)
+    }
+    /// The most urgent short envelope, for the banner on the main screen.
+    var mostUrgentEnvelope: RecurringEnvelope? {
+        envelopes.filter { envelopeUrgency($0) >= .attention }
+            .max { (envelopeUrgency($0), -daysUntil($0)) < (envelopeUrgency($1), -daysUntil($1)) }
+    }
+    func createEnvelope(name: String, size: Money, nextDue: Date, isMandatory: Bool, categoryID: UUID?) throws -> RecurringEnvelope {
+        try ensureDailyPeriod()
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        let day = calendar.component(.day, from: nextDue)
+        let envelope = try repository.createEnvelope(name: name, size: size, dueDay: day, nextDue: nextDue, isMandatory: isMandatory,
+                                                     categoryID: categoryID, in: budget, asOf: referenceDate)
+        refresh()
+        return envelope
+    }
+    func updateEnvelope(_ envelope: RecurringEnvelope) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.updateEnvelope(envelope, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    func fundEnvelope(_ envelope: RecurringEnvelope, amount: Money, operationID: UUID = UUID()) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.fundEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
+        refresh()
+    }
+    func payEnvelope(_ envelope: RecurringEnvelope, amount: Money, operationID: UUID = UUID()) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.payEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
+        refresh()
+    }
+    func archiveEnvelope(_ envelope: RecurringEnvelope) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.archiveEnvelope(envelope.id, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    /// Records that moved money in or out of one envelope, newest first.
+    func envelopeHistory(_ envelope: RecurringEnvelope) -> [LedgerRecord] {
+        historyRecords.filter { record in
+            if case .reserve(let id) = record.transaction.funding { return id == envelope.id && !record.transaction.isDeleted }
+            return false
+        }.reversed()
     }
 
     /// Onboarding and new periods: `amount` to live on until `end` (the start of the first day after the period).
