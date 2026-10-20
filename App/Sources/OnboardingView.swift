@@ -14,6 +14,7 @@ struct OnboardingView: View {
     @State private var split: [UUID: String] = [:]
     @State private var errorMessage: String?
     @State private var showingFamily = false
+    @State private var showingJoin = false
     /// The amount the keypad is typing into; nil hides the keypad.
     @State private var active: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -64,6 +65,7 @@ struct OnboardingView: View {
             .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: active == nil)
         }
         .background { FolkiBackground() }
+        .sheet(isPresented: $showingJoin) { JoinFamilyView(family: family).presentationDetents([.medium]) }
         .sheet(isPresented: $showingFamily, onDismiss: { if family.members.filter(\.isActive).count > 1 { FolkiFeedback.success() } }) {
             SharingView(session: family)
         }
@@ -134,7 +136,10 @@ struct OnboardingView: View {
         page(title: String(localized: "Начнём с семьи"),
              text: String(localized: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.")) {
             FamilyBubbles(family: family) { FolkiFeedback.tap(); showingFamily = true }
-                .frame(height: 290)
+                .frame(height: 270)
+        } extra: {
+            Button("Меня пригласили 💌") { FolkiFeedback.tap(); showingJoin = true }
+                .buttonStyle(FolkiSoftButtonStyle())
         }
     }
 
@@ -218,14 +223,16 @@ struct OnboardingView: View {
 
     // MARK: Parts
 
-    private func page<Art: View>(title: String, text: String, @ViewBuilder art: () -> Art) -> some View {
-        VStack(spacing: 28) {
+    private func page<Art: View, Extra: View>(title: String, text: String, @ViewBuilder art: () -> Art,
+                                              @ViewBuilder extra: () -> Extra = { EmptyView() }) -> some View {
+        VStack(spacing: 24) {
             Spacer(minLength: 12)
             art()
             VStack(spacing: 12) {
                 Text(title).font(.system(.largeTitle, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
                 Text(text).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                extra()
             }
             Spacer(minLength: 12)
         }.padding(.horizontal, 28)
@@ -336,6 +343,43 @@ struct OnboardingView: View {
             FolkiFeedback.saved(); errorMessage = nil; active = nil; go(4)
         } catch {
             errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и попробуй снова.")
+        }
+    }
+}
+
+/// How to join someone else's family budget: open their invite link, and Folki connects on its own.
+private struct JoinFamilyView: View {
+    let family: BudgetSession
+    @Environment(\.dismiss) private var dismiss
+    private var joined: Bool { family.members.filter(\.isActive).count > 1 }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                if family.repository?.cloudIdentifier == nil {
+                    Label("Эта сборка работает без iCloud, поэтому присоединиться к семье в ней нельзя. В версии из App Store всё заработает 🙂",
+                          systemImage: "icloud.slash").font(.subheadline).foregroundStyle(.secondary)
+                } else if joined {
+                    Label("Готово! Ты в семейном бюджете 🎉", systemImage: "checkmark.circle.fill")
+                        .font(.headline).foregroundStyle(Color.folkiAccent)
+                } else {
+                    row(1, "Попроси того, кто ведёт семейный бюджет, нажать «Пригласить» и отправить тебе ссылку.")
+                    row(2, "Открой ссылку на этом iPhone — Folki сам подключит тебя к семье.")
+                    row(3, "Свой личный бюджет ты настроишь дальше — его увидишь только ты 🤫")
+                }
+                Spacer()
+            }
+            .padding(FolkiSpacing.page)
+            .navigationTitle("Меня пригласили").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Понятно") { dismiss() } } }
+        }
+    }
+
+    private func row(_ number: Int, _ text: LocalizedStringKey) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)").font(.headline).foregroundStyle(.white)
+                .frame(width: 30, height: 30).background(Color.folkiAccent, in: Circle())
+            Text(text).font(.body).fixedSize(horizontal: false, vertical: true)
         }
     }
 }

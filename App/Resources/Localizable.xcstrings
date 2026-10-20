@@ -4740,6 +4740,86 @@
           }
         }
       }
+    },
+    "Меня пригласили 💌": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I was invited 💌"
+          }
+        }
+      }
+    },
+    "Меня пригласили": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I was invited"
+          }
+        }
+      }
+    },
+    "Понятно": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        }
+      }
+    },
+    "Эта сборка работает без iCloud, поэтому присоединиться к семье в ней нельзя. В версии из App Store всё заработает 🙂": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build works without iCloud, so you can't join a family here. It will work in the App Store version 🙂"
+          }
+        }
+      }
+    },
+    "Готово! Ты в семейном бюджете 🎉": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done! You're in the family budget 🎉"
+          }
+        }
+      }
+    },
+    "Попроси того, кто ведёт семейный бюджет, нажать «Пригласить» и отправить тебе ссылку.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask whoever runs the family budget to tap “Invite” and send you the link."
+          }
+        }
+      }
+    },
+    "Открой ссылку на этом iPhone — Folki сам подключит тебя к семье.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the link on this iPhone — Folki will connect you to the family."
+          }
+        }
+      }
+    },
+    "Свой личный бюджет ты настроишь дальше — его увидишь только ты 🤫": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You'll set up your personal budget next — only you will see it 🤫"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
