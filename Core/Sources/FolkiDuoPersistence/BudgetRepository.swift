@@ -33,7 +33,7 @@ public final class BudgetRepository {
     private var observers: [NSObjectProtocol] = []
     private var exports = ExportTracker()
     private let localMemberID: UUID
-    private var context: NSManagedObjectContext { container.viewContext }
+    var context: NSManagedObjectContext { container.viewContext }
     public var privateStore: NSPersistentStore { container.persistentStoreCoordinator.persistentStores.first! }
     public var sharedStore: NSPersistentStore? { container.persistentStoreCoordinator.persistentStores.dropFirst().first }
     public var statusText: String {
@@ -138,18 +138,18 @@ public final class BudgetRepository {
     }
     #endif
 
-    private func fetch(_ entity: String, predicate: NSPredicate? = nil, stores: [NSPersistentStore]? = nil) throws -> [NSManagedObject] {
+    func fetch(_ entity: String, predicate: NSPredicate? = nil, stores: [NSPersistentStore]? = nil) throws -> [NSManagedObject] {
         let request = NSFetchRequest<NSManagedObject>(entityName: entity)
         request.predicate = predicate
         request.affectedStores = stores
         return try context.fetch(request)
     }
-    private func object(_ entity: String, id: UUID) throws -> NSManagedObject {
+    func object(_ entity: String, id: UUID) throws -> NSManagedObject {
         let results = try fetch(entity, predicate: NSPredicate(format: "id == %@", id as NSUUID))
         guard results.count == 1, let first = results.first else { throw LedgerError.missingRecord }
         return first
     }
-    private func insert(_ entity: String, id: UUID = UUID(), household: NSManagedObject? = nil) -> NSManagedObject {
+    func insert(_ entity: String, id: UUID = UUID(), household: NSManagedObject? = nil) -> NSManagedObject {
         let object = NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
         object.setValue(id, forKey: "id")
         if let household {
@@ -159,7 +159,7 @@ public final class BudgetRepository {
         return object
     }
 
-    private func households(in scope: BudgetScope) throws -> [NSManagedObject] {
+    func households(in scope: BudgetScope) throws -> [NSManagedObject] {
         try fetch("Household", predicate: NSPredicate(format: "scope == %@", scope.rawValue),
                   stores: scope == .personal ? [privateStore] : nil)
     }
@@ -437,7 +437,7 @@ public final class BudgetRepository {
     }
 
     /// The household of a budget whose current period accepts writes from this device.
-    private func writableRoot(_ budget: StoredBudget, now: Date) throws -> NSManagedObject {
+    func writableRoot(_ budget: StoredBudget, now: Date) throws -> NSManagedObject {
         try writable()
         let root = try object("Household", id: budget.snapshot.id)
         try validateScope(budget, household: root)
@@ -449,7 +449,7 @@ public final class BudgetRepository {
         _ = try authorID(in: current)
         return root
     }
-    private func writableItem(_ entity: String, id: UUID, budget: StoredBudget) throws -> NSManagedObject {
+    func writableItem(_ entity: String, id: UUID, budget: StoredBudget) throws -> NSManagedObject {
         let item = try object(entity, id: id)
         guard let root = item.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
         try validateScope(budget, household: root)
@@ -536,7 +536,7 @@ public final class BudgetRepository {
                 revision: item.value(forKey: "revision") as? UUID)
         }.sorted { $0.name == $1.name ? $0.id.uuidString < $1.id.uuidString : $0.name < $1.name }
     }
-    private func validateCategory(_ id: UUID, household: NSManagedObject, allowArchived: Bool) throws {
+    func validateCategory(_ id: UUID, household: NSManagedObject, allowArchived: Bool) throws {
         if BuiltInCategory.named(id) != nil { return }
         guard let category = try customCategories(household: household).first(where: { $0.id == id }) else {
             throw LedgerError.missingCategory
@@ -655,10 +655,10 @@ public final class BudgetRepository {
         return try candidate.required("id")
     }
 
-    private func writable() throws {
+    func writable() throws {
         guard !accountLocked else { throw LedgerError.accountChanged }
     }
-    private func commit() throws {
+    func commit() throws {
         let changed = Array(context.insertedObjects.union(context.updatedObjects).union(context.deletedObjects))
         try context.save()
         if cloudIdentifier != nil {
@@ -703,7 +703,7 @@ public final class BudgetRepository {
             title: try object.required("title"), categoryID: try object.required("categoryID"), revision: try object.required("revision"),
             linkID: object.value(forKey: "linkID") as? UUID)
     }
-    private func encode(_ record: LedgerRecord, into object: NSManagedObject, updatedAt: Date) {
+    func encode(_ record: LedgerRecord, into object: NSManagedObject, updatedAt: Date) {
         let entry = record.transaction
         let kind: String = switch entry.kind {
         case .expense: "expense"; case .refund: "refund"; case .income: "income"
@@ -927,7 +927,7 @@ public final class BudgetRepository {
     }
 }
 
-private extension NSManagedObject {
+extension NSManagedObject {
     func required<T>(_ key: String) throws -> T {
         guard let value = value(forKey: key) as? T else { throw LedgerError.corruptStore }
         return value
