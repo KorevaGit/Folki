@@ -4590,6 +4590,156 @@
           }
         }
       }
+    },
+    "Назад": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "Сначала — копилка": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Savings first"
+          }
+        }
+      }
+    },
+    "Скажи, сколько хочешь отложить, а остальное Folki сам разложит по тратам ✨": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell us how much you want to save, and Folki will split the rest across your spending ✨"
+          }
+        }
+      }
+    },
+    "Сколько хочешь отложить в этом месяце": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much you want to save this month"
+          }
+        }
+      }
+    },
+    "Эти деньги не попадут в траты на день 🐷": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This money won't count toward daily spending 🐷"
+          }
+        }
+      }
+    },
+    "На жизнь останется": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Left for living"
+          }
+        }
+      }
+    },
+    "Отложить можно меньше, чем есть сейчас 🙂": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can save less than you have right now 🙂"
+          }
+        }
+      }
+    },
+    "Твой план на месяц": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your monthly plan"
+          }
+        }
+      }
+    },
+    "Разложили по обычным долям. Поправь любую сумму, если у тебя по-другому.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split by typical shares. Change any amount if yours is different."
+          }
+        }
+      }
+    },
+    "Копилка": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Savings"
+          }
+        }
+      }
+    },
+    "Не распределено: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not assigned: %@"
+          }
+        }
+      }
+    },
+    "Больше, чем есть, на %@ — поправь суммы 🙏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ more than you have — adjust the amounts 🙏"
+          }
+        }
+      }
+    },
+    "Разложить по тратам": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split my spending"
+          }
+        }
+      }
+    },
+    "Траты и копилка больше, чем есть сейчас. Поправь суммы 🙏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spending and savings are more than you have. Adjust the amounts 🙏"
+          }
+        }
+      }
+    },
+    "Шаг %lld из %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld of %lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

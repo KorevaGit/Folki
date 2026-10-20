@@ -10,7 +10,17 @@ struct FolkiRootView: View {
     @State private var selectedDay: Date?
     @State private var selection: FolkiTab = .budget
     @AppStorage("FolkiOnboarded") private var onboarded = false
-    @State private var showsOnboarding = false
+    /// The step reached so far; survives a relaunch (for example after changing the app language).
+    @AppStorage("FolkiOnboardingStep") private var onboardingStep = 0
+    @State private var finishedOnboarding = false
+
+    /// Decided before anything is drawn, so the main screen never flashes behind the onboarding.
+    private var needsOnboarding: Bool {
+        guard !finishedOnboarding else { return false }
+        // `-FolkiShowOnboarding YES` forces it for checks.
+        if UserDefaults.standard.bool(forKey: "FolkiShowOnboarding") { return true }
+        return !onboarded && !personal.isDemo && (onboardingStep > 0 || personal.result == nil)
+    }
 
     private var tabSelection: Binding<FolkiTab> {
         Binding(get: { selection }, set: select)
@@ -22,6 +32,19 @@ struct FolkiRootView: View {
         withTransaction(transaction) { selection = tab }
     }
     var body: some View {
+        if needsOnboarding {
+            OnboardingView(personal: personal, family: family) {
+                onboarded = true
+                onboardingStep = 0
+                withAnimation(.smooth(duration: 0.4)) { finishedOnboarding = true }
+            }
+            .transition(.opacity)
+        } else {
+            tabs.transition(.opacity)
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: tabSelection) {
             Tab("Сводка", systemImage: "square.grid.2x2.fill", value: FolkiTab.summary) {
                 FolkiSummaryView(personal: personal, family: family) { select(.budget) }
@@ -30,17 +53,6 @@ struct FolkiRootView: View {
                 BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
             }
         }.tint(Color.folkiAccent)
-        .onAppear {
-            // New users only; `-FolkiShowOnboarding YES` forces it for checks.
-            let forced = UserDefaults.standard.bool(forKey: "FolkiShowOnboarding")
-            showsOnboarding = forced || (!onboarded && personal.result == nil && !personal.isDemo)
-        }
-        .fullScreenCover(isPresented: $showsOnboarding) {
-            OnboardingView(personal: personal, family: family) {
-                onboarded = true
-                showsOnboarding = false
-            }
-        }
     }
 }
 

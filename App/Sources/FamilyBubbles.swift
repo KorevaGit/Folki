@@ -11,7 +11,7 @@ struct FamilyBubbles: View {
 
     /// Five places around the plus: size and centre as fractions of the area.
     private let slots: [(size: CGFloat, x: CGFloat, y: CGFloat)] = [
-        (0.40, 0.68, 0.30), (0.27, 0.24, 0.26), (0.20, 0.44, 0.04), (0.18, 0.17, 0.66), (0.12, 0.70, 0.02)
+        (0.40, 0.64, 0.26), (0.27, 0.31, 0.22), (0.19, 0.47, 0.03), (0.18, 0.27, 0.56), (0.12, 0.70, 0.04)
     ]
     private let tints: [Color] = [
         Color.budget(.family), Color.budget(.personal), Color(red: 0.55, green: 0.47, blue: 0.86),
@@ -38,7 +38,7 @@ struct FamilyBubbles: View {
                         .glassEffect(.regular.interactive(), in: Circle())
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.9))
-                .position(x: geo.size.width / 2, y: geo.size.height - side * 0.15)
+                .position(x: geo.size.width / 2 + side * 0.03, y: geo.size.height - side * 0.2)
                 .modifier(Pop(shown: shown || reduceMotion, delay: 0.45))
                 .accessibilityLabel("Пригласить")
             }

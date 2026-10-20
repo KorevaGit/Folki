@@ -317,7 +317,7 @@ struct BudgetAnalyticsSection: View {
         let history = plan == nil ? [:] : previousMonths(before: result)
         let hint: (UUID) -> Money? = { id in
             guard let plan else { return nil }
-            return CategoryGuide.recommended(categoryID: id, monthlyPlan: plan.monthlyPlan, previousMonths: history[id] ?? [])
+            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.monthlyPlan, history: history[id] ?? [])
         }
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
