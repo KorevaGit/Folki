@@ -49,11 +49,12 @@ struct BudgetRootView: View {
                         let height = viewport.size.height
                         ZStack(alignment: .top) {
                             VStack(spacing: 12) {
+                                if selectedDay == nil { envelopeBanner }
                                 interactiveRings(card.rings).frame(maxHeight: .infinity)
-                                entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                 distributionLine
+                                entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                 Button { showHistory(true) } label: {
-                                    Label("Траты за день", systemImage: "chevron.down")
+                                    Label("Траты за период", systemImage: "chevron.down")
                                         .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
                                 }.buttonStyle(.plain).foregroundStyle(.secondary)
                             }
@@ -138,16 +139,43 @@ struct BudgetRootView: View {
             }
     }
 
+    /// "≈ 1 970 ₽/день до 19 нояб." — tap to change the period.
     private var distributionLine: some View {
-        VStack(spacing: 12) {
-            if personal.hasFunding {
+        Group {
+            if personal.hasFunding, let result = personal.result, let end = personal.household?.period.endExclusive {
+                let last = end.addingTimeInterval(-1).formatted(.dateTime.day().month(.abbreviated))
                 Button {
                     selectedScope = .personal; sheet = .distribution
                 } label: {
-                    Text(personal.periodTitle).font(.footnote).foregroundStyle(.secondary)
+                    Text("≈ \(MoneyText.whole(result.todayGuide.roundedDownToWholeUnits))/день до \(last)")
+                        .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }.buttonStyle(.plain)
             }
+        }
+    }
 
+    /// The most urgent short envelope of either budget: red at 0–2 days, amber at 3–7.
+    @ViewBuilder private var envelopeBanner: some View {
+        let candidates = [personal, family].compactMap { session in session.mostUrgentEnvelope.map { (session, $0) } }
+        if let (session, envelope) = candidates.max(by: { session0, session1 in
+            (session0.0.envelopeUrgency(session0.1), -session0.0.daysUntil(session0.1)) < (session1.0.envelopeUrgency(session1.1), -session1.0.daysUntil(session1.1))
+        }) {
+            let urgency = session.envelopeUrgency(envelope)
+            let missing = (try? envelope.shortfall(balance: session.envelopeBalance(envelope)).roundedUpToWholeUnits) ?? envelope.size
+            let days = session.daysUntil(envelope)
+            let when = days <= 0 ? String(localized: "сегодня") : days == 1 ? String(localized: "завтра")
+                : days == 2 ? String(localized: "послезавтра") : String(localized: "через \(days) дн.")
+            Label {
+                Text("\(envelope.name) \(when) — не хватает \(MoneyText.whole(missing))").lineLimit(2)
+            } icon: {
+                Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(urgency == .serious ? Color.red : Color.folkiWarning)
+            .padding(.vertical, FolkiSpacing.item).padding(.horizontal, FolkiSpacing.card)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(urgency == .serious ? Color.red.opacity(0.12) : Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: 16))
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
