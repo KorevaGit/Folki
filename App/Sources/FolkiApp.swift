@@ -32,6 +32,10 @@ final class FolkiApplication {
                 .flatMap { $0.hasPrefix("iCloud.") ? $0 : nil }
             let repository = try await BudgetRepository.open(directory: directory, cloudIdentifier: identifier, localMemberID: memberID)
             await repository.verifyAccount()
+            #if DEBUG
+            // `-FolkiInitializeCloudSchema YES` pushes the whole schema to the development container.
+            if UserDefaults.standard.bool(forKey: "FolkiInitializeCloudSchema") { try? repository.initializeCloudSchema() }
+            #endif
             personalSession = BudgetSession(scope: .personal, repository: repository)
             session = BudgetSession(scope: .family, repository: repository)
             await acceptPendingInvitations()

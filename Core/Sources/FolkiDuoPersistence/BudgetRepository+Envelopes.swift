@@ -228,3 +228,12 @@ extension BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 }
+
+extension BudgetRepository {
+    /// Creates every record type of the model in the development CloudKit schema, including types the UI has not
+    /// saved yet. Development builds only: it uploads sample records and takes a few seconds.
+    public func initializeCloudSchema() throws {
+        guard cloudIdentifier != nil else { throw LedgerError.cloudNotConfigured }
+        try container.initializeCloudKitSchema(options: [])
+    }
+}
