@@ -12,11 +12,17 @@ struct OnboardingPayment: Codable, Equatable, Identifiable {
     @MainActor var money: Money? { try? MoneyText.parse(amount) }
 }
 
+/// The thirteen built-in categories, with a separate custom-envelope action.
+@MainActor enum PaymentTemplates {
+    static let all = BuiltInCategory.allCases.filter { $0 != .other }.map(\.category)
+}
+
 struct OnboardingPaymentView: View {
     let hasFamily: Bool
     let available: (BudgetScope) -> Money
     let save: (OnboardingPayment) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var choosingTemplate = true
     @State private var name = ""
     @State private var amount = ""
     @State private var date = Date.now
@@ -29,6 +35,37 @@ struct OnboardingPaymentView: View {
     }
     var body: some View {
         NavigationStack {
+            Group {
+                if choosingTemplate { templates }
+                else { details }
+            }
+        }.tint(Color.folkiAccent)
+    }
+    private var templates: some View {
+        List {
+            Section {
+                Button {
+                    name = ""; choosingTemplate = false
+                } label: { Label("Создать свой конверт", systemImage: "plus") }
+            }
+            Section("Готовые конверты") {
+                ForEach(PaymentTemplates.all) { preset in
+                    Button {
+                        name = preset.name; choosingTemplate = false
+                    } label: {
+                        HStack(spacing: 12) {
+                            CategoryIcon(category: preset, size: 32)
+                            Text(preset.name).foregroundStyle(Color.folkiInk)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                        }.padding(.vertical, 5)
+                    }.buttonStyle(.plain)
+                }
+            }
+        }.folkiFormLayout().navigationTitle("Выбери конверт").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } } }
+    }
+    private var details: some View {
             Form {
                 if hasFamily { Picker("Бюджет", selection: $scope) {
                     ForEach(BudgetScope.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -56,7 +93,7 @@ struct OnboardingPaymentView: View {
                 }
             }.folkiFormLayout().navigationTitle("Конверт").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Назад") { choosingTemplate = true } }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(reserveNow ? "Учесть" : "Добавить с датой") {
                             guard valid else { return }
@@ -66,6 +103,5 @@ struct OnboardingPaymentView: View {
                         }.disabled(!valid)
                     }
                 }.onAppear { reserveNow = available(scope).minorUnits > 0 }
-        }
     }
 }

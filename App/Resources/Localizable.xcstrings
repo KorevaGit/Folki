@@ -6570,6 +6570,36 @@
           }
         }
       }
+    },
+    "Создать свой конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create your own envelope"
+          }
+        }
+      }
+    },
+    "Готовые конверты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready-made envelopes"
+          }
+        }
+      }
+    },
+    "Выбери конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an envelope"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

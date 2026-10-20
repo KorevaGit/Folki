@@ -44,7 +44,7 @@ struct OnboardingView: View {
                     VStack(spacing: 0) { footer }.id(page).allowsHitTesting(!transitioning)
                 }
 
-            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 28)
+            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 12)
                 .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: editingScope)
         }
         .background { FolkiBackground() }
@@ -87,7 +87,7 @@ struct OnboardingView: View {
         case 2: moneyPage
         default:
             illustration(title: "Начнём считать", text: "Запиши первую трату — остальное Folki посчитает.") {
-                FirstExpensePreview().frame(height: 210)
+                FirstExpensePreview().frame(height: 230)
             }
         }
     }
@@ -162,21 +162,21 @@ struct OnboardingView: View {
     @ViewBuilder private var footer: some View {
         switch page {
         case 0:
-            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
+            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
             footerSpace
         case 1:
             Button(hasFamily ? "Дальше" : "Создать семью") { hasFamily ? go(2) : createFamily() }
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
-            Button("Настрою позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 14).frame(minHeight: 44)
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
+            Button("Настрою позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
         case 2:
-            Button("Продолжить", action: saveFunds).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
-            Button("Позже") { savePaymentsWithoutFunding() }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Продолжить", action: saveFunds).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
+            Button("Позже") { savePaymentsWithoutFunding() }.font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
         default:
-            Button("Первая трата") { showingExpense = true }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 64))
-            Button("Позже", action: complete).font(.subheadline).foregroundStyle(.secondary).padding(.top, 14).frame(minHeight: 44)
+            Button("Первая трата") { showingExpense = true }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
+            Button("Позже", action: complete).font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
         }
     }
-    private var footerSpace: some View { Text(" ").font(.subheadline).padding(.top, 8).accessibilityHidden(true) }
+    private var footerSpace: some View { Color.clear.frame(height: 44).accessibilityHidden(true) }
     private func go(_ next: Int) {
         guard !transitioning else { return }
         transitioning = true
@@ -364,18 +364,24 @@ private struct IconRoof: Shape {
 private struct FirstExpensePreview: View {
     var body: some View {
         VStack(spacing: 12) {
-            preview("Продукты", icon: "basket.fill", amount: "−1 250 ₽")
-            preview("Обед", icon: "fork.knife", amount: "−450 ₽")
-            preview("Транспорт", icon: "tram.fill", amount: "−80 ₽")
-        }.rotationEffect(.degrees(-5)).opacity(0.42).allowsHitTesting(false).accessibilityHidden(true)
-            .mask(LinearGradient(colors: [.clear, .black, .black, .clear], startPoint: .top, endPoint: .bottom))
+            preview(.groceries, amount: "−1 250 ₽").opacity(0.65)
+            preview(.cafes, amount: "−450 ₽")
+            preview(.transport, amount: "−80 ₽").opacity(0.65)
+        }
+        .frame(maxWidth: 340)
+        .allowsHitTesting(false).accessibilityHidden(true)
+        .folkiAppear(1)
     }
-    private func preview(_ title: LocalizedStringKey, icon: String, amount: String) -> some View {
+    private func preview(_ preset: BuiltInCategory, amount: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).foregroundStyle(Color.folkiAccent).frame(width: 28)
-            Text(title); Spacer(); Text(amount).monospacedDigit()
-        }.font(.subheadline.weight(.semibold)).padding(18)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+            CategoryIcon(category: preset.category, size: 32)
+            Text(preset.category.name).lineLimit(1)
+            Spacer(minLength: 8)
+            Text(amount).monospacedDigit().layoutPriority(1)
+        }
+        .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiInk)
+        .padding(14).frame(maxWidth: .infinity, minHeight: 60)
+        .background(Color.folkiInk.opacity(0.035), in: RoundedRectangle(cornerRadius: 20))
     }
 }
 

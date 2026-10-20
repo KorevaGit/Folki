@@ -75,9 +75,11 @@ struct BudgetSetupView: View {
                         ForEach(drafts.filter(\.isRegularPayment)) { draft in reserveRow(binding(draft.id)) }
                             .onDelete { offsets in delete(offsets, regular: true) }
                         Menu("Добавить конверт", systemImage: "plus") {
-                            ForEach([String(localized: "Жильё и коммуналка"), String(localized: "Связь и подписки"), String(localized: "Кредит"), String(localized: "Свой конверт")], id: \.self) { name in
-                                Button(name) { drafts.append(ReserveDraft(name: name, isRegularPayment: true)) }
+                            ForEach(PaymentTemplates.all) { preset in
+                                Button(preset.name) { drafts.append(ReserveDraft(name: preset.name, isRegularPayment: true)) }
                             }
+                            Divider()
+                            Button("Свой конверт") { drafts.append(ReserveDraft(name: "", isRegularPayment: true)) }
                         }
                     } header: { Text("Конверты") } footer: {
                         Text("Эти деньги не входят в остаток дня.")
