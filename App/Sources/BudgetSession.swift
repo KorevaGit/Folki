@@ -200,6 +200,17 @@ final class BudgetSession {
         try save(record, addIncomeToPlan: true)
     }
 
+    /// Onboarding and new periods: `amount` to live on until `end` (the start of the first day after the period).
+    func startBudget(amount: Money, until end: Date, operationID: UUID = UUID()) throws {
+        guard amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+        try ensureDailyPeriod()
+        if let budget = storedBudget, budget.snapshot.period.endExclusive != end {
+            if let repository { try repository.updatePeriodEnd(end, in: budget, asOf: referenceDate) }
+            refresh()
+        }
+        try addDailyFunds(amount, operationID: operationID)
+    }
+
     func addPayment(id: UUID, name: String, amount: Money, dueDate: Date, reserveNow: Bool) throws {
         try ensureDailyPeriod()
         guard let result, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
@@ -427,6 +438,15 @@ final class BudgetSession {
     }
     static func input(_ money: Money) -> String {
         NSDecimalNumber(decimal: money.decimalValue).stringValue
+    }
+    /// Keypad text with thin-space thousands: "60000,5" → "60 000,5".
+    static func grouped(_ text: String) -> String {
+        let parts = text.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
+        var whole = String(parts.first ?? "")
+        var groups: [String] = []
+        while whole.count > 3 { groups.insert(String(whole.suffix(3)), at: 0); whole.removeLast(3) }
+        groups.insert(whole, at: 0)
+        return groups.joined(separator: "\u{2009}") + (parts.count > 1 ? "," + parts[1] : "")
     }
     static func parse(_ text: String) throws -> Money {
         try Money(parsing: text)

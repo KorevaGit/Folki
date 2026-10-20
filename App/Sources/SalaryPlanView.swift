@@ -185,3 +185,8 @@ struct BudgetSetupView: View {
         }
     }
 }
+
+/// The thirteen built-in categories, with a separate custom-envelope action.
+@MainActor enum PaymentTemplates {
+    static let all = BuiltInCategory.allCases.filter { $0 != .other }.map(\.category)
+}

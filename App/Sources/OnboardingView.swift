@@ -1,315 +1,490 @@
 import SwiftUI
 import FolkiDuoCore
 
-/// Four short pages. Every setup action can be skipped; navigation animates local state.
+/// First launch: hello → how to start → money to live on → what Folki does → the main screen.
+/// Invited people wait for their link; people with a Folki elsewhere restore from iCloud.
 struct OnboardingView: View {
     let personal: BudgetSession
     let family: BudgetSession
+    /// Called when the main screen should appear.
     let finish: () -> Void
-    @AppStorage("FolkiOnboardingStep") private var savedPage = 0
-    @State private var page = min(3, max(0, UserDefaults.standard.integer(forKey: "FolkiOnboardingStep")))
-    @AppStorage("FolkiOnboardingDailyPersonal") private var personalAmount = ""
-    @AppStorage("FolkiOnboardingDailyFamily") private var familyAmount = ""
+
+    enum Step: String { case hello, start, budget, features, invited, restore }
+    @AppStorage("FolkiOnboardingStep") private var savedStep = Step.hello.rawValue
+    @State private var step: Step = .hello
+    @State private var history: [Step] = []
     @State private var forward = true
-    @State private var transitioning = false
-    @State private var editingScope: BudgetScope?
-    @State private var showingFamily = false
-    @State private var showingJoin = false
-    @State private var showingDistribution = false
-    @State private var showingExpense = false
-    @State private var errorMessage: String?
-    @State private var day = 0
-    @State private var payments: [OnboardingPayment] = []
-    @State private var showingPayment = false
-    @AppStorage("FolkiOnboardingPayments") private var savedPayments = ""
+    @State private var invited = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var hasFamily: Bool { family.household != nil }
-    private var step: AnyTransition {
+
+    private var transition: AnyTransition {
         guard !reduceMotion else { return .opacity }
         return .asymmetric(insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
                            removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity))
     }
+
     var body: some View {
         VStack(spacing: 0) {
-            header.frame(height: 56).padding(.top, 12).padding(.horizontal, FolkiSpacing.page)
+            header.frame(height: 56).padding(.horizontal, FolkiSpacing.page)
             ZStack {
-                content.id(page).transition(step).zIndex(1)
+                page.id(step).transition(transition)
             }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
-            if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page) }
-            Group {
-                VStack(spacing: 12) {
-                    if page == 2 {
-                        AmountKeypad(text: editingScope == .family ? $familyAmount : $personalAmount)
-                    }
-                    VStack(spacing: 0) { footer }.id(page).allowsHitTesting(!transitioning)
-                }
-
-            }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, 12)
-                .animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15), value: editingScope)
         }
         .background { FolkiBackground() }
-        .sheet(isPresented: $showingFamily) { SharingView(session: family) }
-        .sheet(isPresented: $showingJoin) { JoinFamilyView(family: family).presentationDetents([.medium]) }
-        .sheet(isPresented: $showingDistribution) {
-            DistributionChoiceView(day: $day, apply: { value in
-                try personal.setDistributionDay(value)
-                if hasFamily { try family.setDistributionDay(value) }
-            })
+        .onAppear { step = Step(rawValue: savedStep) ?? .hello }
+    }
+
+    @ViewBuilder private var page: some View {
+        switch step {
+        case .hello: HelloPage { go(.start) }
+        case .start: StartPage { choice in
+            switch choice {
+            case .fresh: invited = false; go(.budget)
+            case .invited: go(.invited)
+            case .restore: go(.restore)
+            }
         }
-        .sheet(isPresented: $showingExpense) { QuickSpendView(personal: personal, family: family, onSaved: complete) }
-        .sheet(isPresented: $showingPayment) {
-            OnboardingPaymentView(hasFamily: hasFamily, available: availableForPayment) { payments.append($0) }
-        }
-        .onChange(of: payments) { savedPayments = (try? String(data: JSONEncoder().encode(payments), encoding: .utf8)) ?? "" }
-        .onAppear {
-            day = personal.distributionDay
-            payments = savedPayments.data(using: .utf8).flatMap { try? JSONDecoder().decode([OnboardingPayment].self, from: $0) } ?? []
-            if page == 2 { editingScope = .personal }
+        // Money is saved on this step, so there is no way back to it.
+        case .budget: BudgetStartPage(personal: personal, invited: invited) { go(.features, keepingHistory: false) }
+        case .features: FeaturesPage(invited: invited, done: finish)
+        case .invited: InvitedPage(family: family) { joined in invited = joined; go(.budget) }
+        case .restore: RestorePage(personal: personal, done: finish) { go(.budget) }
         }
     }
-    @ViewBuilder private var content: some View {
-        switch page {
-        case 0:
-            illustration(title: "Привет! Это Folki 👋", text: "Твой домашний хаб.") {
-                AnimatedHouse().frame(width: 260, height: 260)
-            }
-        case 1:
-            illustration(title: "Вместе с близкими", text: "Общие траты — вместе. Личные — только твои.") {
-                FamilyBubbles(family: family) { createFamily() }.frame(height: 290)
-            } extra: {
-                Button { showingJoin = true } label: { Label { Text("Меня пригласили") } icon: {
-                    Image(systemName: "envelope").overlay {
-                        Image(systemName: "heart.fill").font(.system(size: 7)).padding(2)
-                            .background(Color(uiColor: .systemBackground), in: Circle())
-                    }
-                } }.buttonStyle(FolkiSoftButtonStyle())
-            }
-        case 2: moneyPage
-        default:
-            illustration(title: "Начнём считать", text: "Запиши первую трату — остальное Folki посчитает.") {
-                FirstExpensePreview().frame(height: 230)
-            }
-        }
-    }
+
     private var header: some View {
-        ZStack {
-            if page > 0 {
-                HStack(spacing: 8) {
-                    ForEach(1...3, id: \.self) { i in
-                        Capsule().fill(i == page ? Color.folkiAccent : Color.folkiInk.opacity(0.12))
-                            .frame(width: i == page ? 24 : 8, height: 8)
-                    }
-                }.animation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.3), value: page)
-                    .accessibilityLabel("Шаг \(page) из 3")
-                HStack {
-                    Button { go(page - 1) } label: {
-                        Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44)
-                    }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Назад")
-                    Spacer()
+        HStack {
+            if !history.isEmpty {
+                Button(action: back) {
+                    Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44)
                 }
+                .buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Назад")
+                .transition(.opacity)
             }
-        }.animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: page > 0)
+            Spacer()
+        }.animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: history.isEmpty)
     }
-    private var moneyPage: some View {
-        pageScroll(centered: false) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Прикинем бюджет").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                if hasFamily {
-                    amountRow("Личные", text: personalAmount, scope: .personal)
-                    amountRow("Семейные", text: familyAmount, scope: .family)
-                } else {
-                    amountRow("Сколько выделишь на повседневные траты?", text: personalAmount, scope: .personal)
-                }
-                Button { showingDistribution = true } label: {
-                    HStack {
-                        Text("Распределить")
-                        Spacer()
-                        Text(distributionTitle(day)).foregroundStyle(.secondary)
-                        Image(systemName: "chevron.down").font(.caption)
-                    }.font(.subheadline)
-                }.buttonStyle(.plain)
-                Button("Есть регулярные платежи?") { showingPayment = true }
-                    .font(.subheadline).foregroundStyle(Color.folkiAccent)
-                ForEach(payments) { payment in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(payment.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                            Text(payment.dueDate, format: .dateTime.day().month()).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(payment.money.map(MoneyText.whole) ?? "").font(.subheadline).monospacedDigit()
-                        Button { payments.removeAll { $0.id == payment.id } } label: { Image(systemName: "xmark.circle.fill") }
-                            .accessibilityLabel("Убрать конверт")
-                    }
-                }
-            }.padding(.vertical, 16).folkiAppear(1)
+
+    private func go(_ next: Step, keepingHistory: Bool = true) {
+        forward = true
+        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) {
+            if keepingHistory { history.append(step) } else { history.removeAll() }
+            step = next
         }
+        savedStep = next.rawValue
     }
-    private func amountRow(_ title: LocalizedStringKey, text: String, scope: BudgetScope) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.headline)
-            Button { edit(scope) } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(text.isEmpty ? "0" : text).font(.system(size: 30, weight: .bold, design: .rounded))
-                        .monospacedDigit().lineLimit(1).minimumScaleFactor(text.isEmpty ? 1 : 0.4).layoutPriority(1)
-                        .contentTransition(text.isEmpty ? .identity : .numericText())
-                    Text(MoneyText.symbol).font(.title).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }.padding(12).glassEffect(.regular.tint(editingScope == scope ? Color.folkiAccent.opacity(0.1) : .clear).interactive(), in: RoundedRectangle(cornerRadius: 20))
-            }.buttonStyle(.plain)
+    private func back() {
+        guard let previous = history.last else { return }
+        forward = false
+        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) {
+            history.removeLast(); step = previous
         }
+        savedStep = previous.rawValue
     }
-    @ViewBuilder private var footer: some View {
-        switch page {
-        case 0:
-            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
-            footerSpace
-        case 1:
-            Button(hasFamily ? "Дальше" : "Создать семью") { hasFamily ? go(2) : createFamily() }
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
-            Button("Настрою позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
-        case 2:
-            Button("Продолжить", action: saveFunds).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
-            Button("Позже") { savePaymentsWithoutFunding() }.font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
-        default:
-            Button("Первая трата") { showingExpense = true }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 56))
-            Button("Позже", action: complete).font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44)
-        }
-    }
-    private var footerSpace: some View { Color.clear.frame(height: 44).accessibilityHidden(true) }
-    private func go(_ next: Int) {
-        guard !transitioning else { return }
-        transitioning = true
-        forward = next > page; FolkiFeedback.selection()
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.45, bounce: 0.15)) { editingScope = next == 2 ? .personal : nil; page = next }
-        savedPage = next; errorMessage = nil
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(500))
-            transitioning = false
-        }
-    }
-    private func edit(_ scope: BudgetScope?) {
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.15)) { editingScope = scope }
-    }
-    private func createFamily() {
-        do { try family.ensureDailyPeriod(); showingFamily = true }
-        catch { errorMessage = String(localized: "Не получилось создать семью. Попробуй ещё раз.") }
-    }
-    private func saveFunds() {
-        do {
-            let entries: [(BudgetSession, String)] = [(personal, personalAmount)] + (hasFamily ? [(family, familyAmount)] : [])
-            // Parse both before saving either; clear each successful input to make retries safe.
-            let parsed = try entries.map { ($0.0, $0.1.isEmpty ? nil : try MoneyText.parse($0.1)) }
-            guard parsed.allSatisfy({ $0.1 == nil || $0.1!.minorUnits > 0 }) else { throw BudgetError.invalidAmount }
-            for (session, amount) in parsed {
-                let reserved = try payments.filter { payment in
-                    payment.scope == session.scope && payment.reserveNow && !(session.household?.reserves.contains { $0.id == payment.id } ?? false)
-                }.compactMap(\.money)
-                    .reduce(Money(minorUnits: 0)) { try $0.adding($1) }
-                let available = try (session.result?.monthlyRemaining ?? Money(minorUnits: 0)).adding(amount ?? Money(minorUnits: 0))
-                guard reserved.minorUnits <= available.minorUnits else { throw BudgetError.insufficientReserve }
+}
+
+// MARK: - Pages
+
+/// A page with content at the top and the actions pinned to the bottom.
+private struct OnboardingPage<Content: View, Actions: View>: View {
+    var centered = false
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GeometryReader { viewport in
+                ScrollView {
+                    content().frame(maxWidth: FolkiSpacing.maxWidth).padding(.horizontal, FolkiSpacing.page)
+                        .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: centered ? .center : .top)
+                }.scrollBounceBehavior(.basedOnSize)
             }
-            for (session, amount) in parsed {
-                try session.setDistributionDay(day)
-                if let amount {
-                    try session.addDailyFunds(amount)
-                    if session.scope == .personal { personalAmount = "" } else { familyAmount = "" }
-                }
-            }
-            try savePayments()
-            go(3)
-        } catch { errorMessage = String(localized: "Проверь сумму и попробуй ещё раз.") }
-    }
-    private func complete() {
-        personalAmount = ""; familyAmount = ""; payments = []; savedPayments = ""
-        finish()
-    }
-    private func availableForPayment(_ scope: BudgetScope) -> Money {
-        let amount = scope == .personal ? personalAmount : familyAmount
-        let session = scope == .personal ? personal : family
-        let incoming = (try? MoneyText.parse(amount)) ?? Money(minorUnits: 0)
-        let pending = payments.filter { $0.scope == scope && $0.reserveNow }.compactMap(\.money)
-        let total = (try? incoming.adding(session.result?.monthlyRemaining ?? Money(minorUnits: 0))) ?? incoming
-        return ((try? pending.reduce(total) { try $0.subtracting($1) }) ?? Money(minorUnits: 0)).nonnegative
-    }
-    private func savePayments() throws {
-        for payment in payments {
-            guard let money = payment.money else { throw BudgetError.invalidAmount }
-            let session = payment.scope == .personal ? personal : family
-            try session.setDistributionDay(day)
-            try session.addPayment(id: payment.id, name: payment.name, amount: money, dueDate: payment.dueDate, reserveNow: payment.reserveNow)
-        }
-        payments = []
-    }
-    private func savePaymentsWithoutFunding() {
-        do {
-            payments = payments.map { var value = $0; value.reserveNow = false; return value }
-            try savePayments(); go(3)
-        } catch { errorMessage = String(localized: "Не получилось сохранить конверт. Попробуй ещё раз.") }
-    }
-    private func pageScroll<Content: View>(centered: Bool, @ViewBuilder content: () -> Content) -> some View {
-        let pageBody = content()
-        return GeometryReader { viewport in
-            ScrollView {
-                pageBody.frame(maxWidth: FolkiSpacing.maxWidth).padding(.horizontal, 28)
-                    .frame(maxWidth: .infinity, minHeight: viewport.size.height, alignment: centered ? .center : .top)
-            }.scrollBounceBehavior(.basedOnSize)
-        }
-    }
-    private func illustration<Art: View, Extra: View>(title: LocalizedStringKey, text: LocalizedStringKey,
-        @ViewBuilder art: () -> Art, @ViewBuilder extra: () -> Extra = { EmptyView() }) -> some View {
-        pageScroll(centered: true) {
-            VStack(spacing: 28) {
-                art()
-                VStack(spacing: 12) {
-                    Text(title).font(.system(.largeTitle, design: .rounded, weight: .bold)).fixedSize(horizontal: false, vertical: true)
-                    Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    extra()
-                }.folkiAppear(page == 0 ? 8 : 3)
-            }.multilineTextAlignment(.center).padding(.vertical, 20)
+            VStack(spacing: FolkiSpacing.item) { actions() }
+                .frame(maxWidth: FolkiSpacing.maxWidth)
+                .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs)
         }
     }
 }
 
-/// How to join someone else's family budget: open their invite link, and Folki connects on its own.
-private struct JoinFamilyView: View {
-    let family: BudgetSession
-    @Environment(\.dismiss) private var dismiss
-    private var joined: Bool { family.members.filter(\.isActive).count > 1 }
+/// Cascading rise: fade in and lift 8 points, one item after another.
+private struct Rise: ViewModifier {
+    let order: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.opacity(shown ? 1 : 0).offset(y: shown || reduceMotion ? 0 : 8)
+            .onAppear {
+                withAnimation(FolkiMotion.resolved(FolkiMotion.hero, reduceMotion: reduceMotion)
+                    .delay(reduceMotion ? 0 : FolkiMotion.cascadeStep * Double(order))) { shown = true }
+            }
+    }
+}
+private extension View { func rise(_ order: Int) -> some View { modifier(Rise(order: order)) } }
+
+private struct HelloPage: View {
+    let next: () -> Void
+    var body: some View {
+        OnboardingPage(centered: true) {
+            VStack(spacing: FolkiSpacing.large) {
+                AnimatedHouse().frame(width: 220, height: 220)
+                VStack(spacing: FolkiSpacing.item) {
+                    Text("Привет! Я Folki — твой помощник с деньгами")
+                        .font(.largeTitle.bold()).rise(8)
+                    Text("Ты тратишь, я считаю. Каждый день покажу, сколько ещё можно")
+                        .font(.body).foregroundStyle(.secondary).rise(9)
+                }.multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            }.padding(.bottom, FolkiSpacing.huge)
+        } actions: {
+            Button("Начать", action: next).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).rise(10)
+        }
+    }
+}
+
+private enum StartChoice { case fresh, invited, restore }
+
+private struct StartPage: View {
+    let choose: (StartChoice) -> Void
+    var body: some View {
+        OnboardingPage {
+            VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+                Text("Как начнёшь?").font(.largeTitle.bold())
+                Text("Я подстроюсь под твой вариант").font(.body).foregroundStyle(.secondary)
+                VStack(spacing: FolkiSpacing.item) {
+                    card("sparkles", "Начать с нуля", "Личный бюджет за минуту", .fresh).rise(1)
+                    card("envelope", "Меня пригласили", "Присоединиться к семейному бюджету", .invited).rise(2)
+                    card("icloud.and.arrow.down", "Восстановить из iCloud", "Если Folki уже был на другом iPhone", .restore).rise(3)
+                }.padding(.top, FolkiSpacing.large)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
+        } actions: { EmptyView() }
+    }
+
+    private func card(_ symbol: String, _ title: LocalizedStringKey, _ text: LocalizedStringKey, _ choice: StartChoice) -> some View {
+        Button { FolkiFeedback.selection(); choose(choice) } label: {
+            HStack(spacing: FolkiSpacing.item) {
+                Image(systemName: symbol).font(.title3).foregroundStyle(Color.folkiAccent)
+                    .frame(width: 44, height: 44).background(Color.folkiAccent.opacity(0.12), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline).foregroundStyle(Color.folkiInk)
+                    Text(text).font(.subheadline).foregroundStyle(.secondary)
+                }.multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(FolkiSpacing.card).frame(minHeight: 88)
+            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .contentShape(RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        }.buttonStyle(FolkiPressStyle(scale: 0.97))
+    }
+}
+
+/// "Сколько денег на жизнь?": a period, an amount and the live daily figure. Mandatory: no skip.
+private struct BudgetStartPage: View {
+    let personal: BudgetSession
+    let invited: Bool
+    let next: () -> Void
+
+    enum Length: String, CaseIterable { case payday, month, week }
+    @State private var length: Length = .month
+    @State private var payday = Date.now.addingTimeInterval(14 * 86_400)
+    @State private var amount = ""
+    @State private var shakes = 0
+    @State private var errorMessage: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var calendar: Calendar { personal.calendar }
+    private var today: Date { calendar.startOfDay(for: personal.referenceDate) }
+    /// The start of the first day after the period.
+    private var end: Date {
+        switch length {
+        case .month: calendar.date(byAdding: .day, value: 30, to: today)!
+        case .week: calendar.date(byAdding: .day, value: 7, to: today)!
+        case .payday: calendar.startOfDay(for: payday)
+        }
+    }
+    private var days: Int { max(1, calendar.dateComponents([.day], from: today, to: end).day ?? 1) }
+    private var money: Money? { (try? MoneyText.parse(amount)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
+    private var perDay: Money? { money.flatMap { try? DailyAllocation(total: $0, days: days).firstDayAmount } }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 18) {
-                if family.repository?.cloudIdentifier == nil {
-                    Label("Эта сборка работает без iCloud, поэтому присоединиться к семье в ней нельзя. В версии из App Store всё заработает 🙂",
-                          systemImage: "icloud.slash").font(.subheadline).foregroundStyle(.secondary)
-                } else if joined {
-                    Label("Готово! Ты в семейном бюджете 🎉", systemImage: "checkmark.circle.fill")
-                        .font(.headline).foregroundStyle(Color.folkiAccent)
-                } else {
-                    row(1, "Попроси того, кто ведёт семейный бюджет, нажать «Пригласить» и отправить тебе ссылку.")
-                    row(2, "Открой ссылку на этом iPhone — Folki сам подключит тебя к семье.")
-                    row(3, "Свой личный бюджет ты настроишь дальше — его увидишь только ты 🤫")
+        OnboardingPage {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(invited ? "Твой личный бюджет" : "Сколько денег на жизнь?").font(.largeTitle.bold())
+                if invited {
+                    Text("Его видишь только ты").font(.body).foregroundStyle(.secondary).padding(.top, FolkiSpacing.xs)
                 }
-                Spacer()
-            }
-            .padding(FolkiSpacing.page)
-            .navigationTitle("Меня пригласили").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Понятно") { dismiss() } } }
+                HStack(spacing: FolkiSpacing.xs) {
+                    chip(.payday, "До зарплаты"); chip(.month, "Месяц"); chip(.week, "Неделя")
+                }.padding(.top, FolkiSpacing.page)
+                if length == .payday {
+                    DatePicker("Зарплата", selection: $payday,
+                               in: calendar.date(byAdding: .day, value: 1, to: today)!...calendar.date(byAdding: .day, value: 62, to: today)!,
+                               displayedComponents: .date)
+                        .font(.body).padding(.top, FolkiSpacing.item)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
+                    Text(amount.isEmpty ? "0" : MoneyText.grouped(amount))
+                        .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
+                        .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
+                    Text(MoneyText.symbol).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.tertiary)
+                }
+                .lineLimit(1).minimumScaleFactor(0.4)
+                .keyframeAnimator(initialValue: 0.0, trigger: shakes) { view, offset in view.offset(x: offset) } keyframes: { _ in
+                    KeyframeTrack { SpringKeyframe(-10, duration: 0.08); SpringKeyframe(10, duration: 0.08); SpringKeyframe(-6, duration: 0.08); SpringKeyframe(0, duration: 0.1) }
+                }
+                .padding(.top, FolkiSpacing.large)
+                .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
+                Group {
+                    if let perDay {
+                        Text("≈ \(MoneyText.whole(perDay)) в день · \(days) дн.")
+                            .contentTransition(.numericText()).animation(FolkiMotion.quick, value: perDay)
+                    } else {
+                        Text("Я разделю сумму на \(days) дн.").foregroundStyle(.secondary)
+                    }
+                }.font(.body.weight(.medium)).foregroundStyle(Color.folkiAccent).padding(.top, FolkiSpacing.xs)
+                if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.top, FolkiSpacing.item) }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
+        } actions: {
+            AmountKeypad(text: $amount)
+            Button("Продолжить", action: save).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
         }
     }
 
-    private func row(_ number: Int, _ text: LocalizedStringKey) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(number)").font(.headline).foregroundStyle(.white)
-                .frame(width: 30, height: 30).background(Color.folkiAccent, in: Circle())
+    private func chip(_ value: Length, _ title: LocalizedStringKey) -> some View {
+        let selected = length == value
+        return Button {
+            FolkiFeedback.selection()
+            withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { length = value }
+        } label: {
+            Text(title).font(.subheadline.weight(.medium))
+                .padding(.horizontal, FolkiSpacing.item).frame(minHeight: 36)
+                .foregroundStyle(selected ? Color.folkiAccent : Color.folkiInk)
+                .background(selected ? Color.folkiAccent.opacity(0.12) : Color.folkiSoft, in: Capsule())
+        }.buttonStyle(FolkiPressStyle()).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func save() {
+        guard let money else { FolkiFeedback.boundary(); shakes += 1; return }
+        do {
+            try personal.startBudget(amount: money, until: end)
+            FolkiFeedback.saved()
+            next()
+        } catch {
+            errorMessage = String(localized: "Не получилось сохранить сумму. Попробуй ещё раз.")
+        }
+    }
+}
+
+/// "Вот что я умею": three rows, each with a small animation that plays once.
+private struct FeaturesPage: View {
+    let invited: Bool
+    let done: () -> Void
+    var body: some View {
+        OnboardingPage {
+            VStack(alignment: .leading, spacing: FolkiSpacing.large) {
+                Text("Вот что я умею").font(.largeTitle.bold())
+                row(SpendDemo(), "Ты тратишь — я пересчитываю", "Запиши трату, и остаток дня сразу поменяется").rise(1)
+                row(RingsDemo(), "Общее и личное",
+                    invited ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
+                        : String(localized: "Семья видит общее, твоё — только ты")).rise(2)
+                row(EnvelopesDemo(), "Раскладываю по конвертам", "Аренда и интернет — отдельно, остальное — на жизнь").rise(3)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
+        } actions: {
+            Button("Перейти к Folki") { FolkiFeedback.saved(); done() }
+                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).rise(4)
+        }
+    }
+    private func row<Art: View>(_ art: Art, _ title: LocalizedStringKey, _ text: String) -> some View {
+        HStack(spacing: FolkiSpacing.card) {
+            art.frame(width: 64, height: 64).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
+                Text(title).font(.headline)
+                Text(text).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// Waiting for the invitation link; joins automatically when it arrives.
+private struct InvitedPage: View {
+    let family: BudgetSession
+    let next: (Bool) -> Void
+    @State private var waitedLong = false
+    @State private var showingHelp = false
+    private var joined: Bool { family.household != nil && family.members.filter(\.isActive).count > 1 }
+    private var cloudless: Bool { family.repository?.cloudIdentifier == nil && !family.isDemo }
+
+    var body: some View {
+        OnboardingPage {
+            VStack(alignment: .leading, spacing: FolkiSpacing.page) {
+                Image(systemName: "envelope.open").font(.system(size: 64)).foregroundStyle(Color.folkiAccent)
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "heart.fill").font(.title3).foregroundStyle(RingPalette.family.start).offset(x: 8, y: -4)
+                    }
+                    .symbolEffect(.bounce, options: .nonRepeating)
+                Text("Открой ссылку из сообщения").font(.largeTitle.bold())
+                if cloudless {
+                    Label("Эта сборка работает без iCloud, присоединиться к семье в ней нельзя.", systemImage: "icloud.slash")
+                        .foregroundStyle(.secondary)
+                } else {
+                    step(1, "Попроси прислать приглашение в Folki")
+                    step(2, "Открой ссылку на этом iPhone")
+                    step(3, "Подключение произойдёт само")
+                    status.padding(.top, FolkiSpacing.xs)
+                    Button("Ссылка уже открыта, а ничего не происходит") { showingHelp.toggle() }
+                        .font(.subheadline).foregroundStyle(Color.folkiAccent)
+                    if showingHelp {
+                        Text("Если Folki ставился по ссылке, открой ссылку из сообщения ещё раз — теперь приложение её примет.")
+                            .font(.subheadline).foregroundStyle(.secondary).transition(.opacity)
+                    }
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
+                .animation(FolkiMotion.quick, value: showingHelp)
+        } actions: {
+            if waitedLong || cloudless {
+                Button("Пока начать с личного бюджета") { next(false) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(10))
+            withAnimation(FolkiMotion.standard) { waitedLong = true }
+        }
+        .onChange(of: joined) { _, now in
+            guard now else { return }
+            FolkiFeedback.saved()
+            Task { try? await Task.sleep(for: .seconds(1)); next(true) }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        if joined {
+            Label("Ты в семейном бюджете", systemImage: "checkmark.circle.fill")
+                .font(.headline).foregroundStyle(Color.folkiAccent).transition(.scale.combined(with: .opacity))
+        } else {
+            HStack(spacing: FolkiSpacing.xs) {
+                Circle().fill(Color.folkiAccent).frame(width: 8, height: 8).symbolEffect(.pulse)
+                    .phaseAnimator([0.3, 1]) { dot, phase in dot.opacity(phase) } animation: { _ in .easeInOut(duration: 0.8) }
+                Text("Жду приглашение…").font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func step(_ number: Int, _ text: LocalizedStringKey) -> some View {
+        HStack(alignment: .top, spacing: FolkiSpacing.item) {
+            Text("\(number)").font(.subheadline.bold()).foregroundStyle(.white)
+                .frame(width: 28, height: 28).background(Color.folkiAccent, in: Circle())
             Text(text).font(.body).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
+/// Waits for this Apple ID's data to arrive from iCloud after a reinstall.
+private struct RestorePage: View {
+    let personal: BudgetSession
+    let done: () -> Void
+    let startFresh: () -> Void
+    @State private var deadline = Date.now.addingTimeInterval(20)
+    @State private var timedOut = false
+    private var found: Bool { personal.household != nil }
+    private var cloudOff: Bool { personal.repository?.cloudIdentity == nil && !personal.isDemo }
+
+    var body: some View {
+        OnboardingPage(centered: true) {
+            VStack(spacing: FolkiSpacing.large) {
+                AnimatedHouse(searching: !found).frame(width: 120, height: 120)
+                VStack(spacing: FolkiSpacing.item) {
+                    Text(title).font(.title2.bold())
+                    if let detail { Text(detail).font(.body).foregroundStyle(.secondary) }
+                }.multilineTextAlignment(.center)
+            }.padding(.bottom, FolkiSpacing.huge)
+        } actions: {
+            if cloudOff {
+                Button("Открыть настройки") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                Button("Начать с нуля", action: startFresh).font(.subheadline).frame(minHeight: 44)
+            } else if timedOut && !found {
+                Button("Подождать ещё") { deadline = .now.addingTimeInterval(30); timedOut = false }
+                    .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                Button("Начать с нуля", action: startFresh).font(.subheadline).frame(minHeight: 44)
+            }
+        }
+        .task(id: deadline) {
+            try? await Task.sleep(until: .now + .seconds(max(0, deadline.timeIntervalSinceNow)))
+            if !found { withAnimation(FolkiMotion.standard) { timedOut = true } }
+        }
+        .onChange(of: found) { _, now in
+            guard now else { return }
+            FolkiFeedback.saved()
+            Task { try? await Task.sleep(for: .seconds(1)); done() }
+        }
+    }
+
+    private var title: String {
+        if cloudOff { return String(localized: "iCloud выключен — данные не восстановить") }
+        if found { return String(localized: "Готово: \(personal.historyRecords.count) трат") }
+        if timedOut { return String(localized: "Пока ничего не вижу") }
+        return String(localized: "Ищу твои данные в iCloud…")
+    }
+    private var detail: String? {
+        if timedOut && !found && !cloudOff {
+            return String(localized: "Проверь, что на этом iPhone тот же Apple ID и для Folki включён iCloud")
+        }
+        return nil
+    }
+}
+
+// MARK: - Mini animations
+
+private struct SpendDemo: View {
+    @State private var spent = false
+    var body: some View {
+        ZStack {
+            Circle().stroke(RingPalette.personal.start.opacity(0.18), lineWidth: 6)
+            Circle().trim(from: 0, to: spent ? 0.45 : 0.75)
+                .stroke(RingPalette.personal.start, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
+            Text(spent ? "790" : "1 240").font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .padding(4)
+        .task { try? await Task.sleep(for: .seconds(0.6)); withAnimation(FolkiMotion.ring) { spent = true } }
+    }
+}
+
+private struct RingsDemo: View {
+    @State private var shown = false
+    var body: some View {
+        ZStack {
+            ring(RingPalette.personal.start, 0.8).padding(4)
+            ring(RingPalette.family.start, 0.55).padding(14)
+        }.task { try? await Task.sleep(for: .seconds(0.7)); withAnimation(FolkiMotion.ring) { shown = true } }
+    }
+    private func ring(_ color: Color, _ value: CGFloat) -> some View {
+        ZStack {
+            Circle().stroke(color.opacity(0.18), lineWidth: 6)
+            Circle().trim(from: 0, to: shown ? value : 0).stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+    }
+}
+
+private struct EnvelopesDemo: View {
+    @State private var split = false
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 2) {
+                RoundedRectangle(cornerRadius: 4).fill(Color.folkiWarning).frame(width: split ? geo.size.width * 0.35 : 0)
+                RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.5)).frame(width: split ? geo.size.width * 0.12 : 0)
+                RoundedRectangle(cornerRadius: 4).fill(Color.folkiAccent)
+            }.frame(height: 20).frame(maxHeight: .infinity)
+        }.task { try? await Task.sleep(for: .seconds(0.8)); withAnimation(FolkiMotion.ring) { split = true } }
+    }
+}
+
 /// The icon's house: the walls stand still, and the two roof stripes fill in like the rings.
 private struct AnimatedHouse: View {
+    /// While searching, the roofs keep filling and emptying.
+    var searching = false
     @State private var outer: CGFloat = 0
     @State private var inner: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -340,6 +515,11 @@ private struct AnimatedHouse: View {
 
     private func play() {
         guard !reduceMotion else { outer = 1; inner = 1; return }
+        if searching {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever()) { outer = 1 }
+            withAnimation(.easeInOut(duration: 1.2).delay(0.3).repeatForever()) { inner = 1 }
+            return
+        }
         withAnimation(.easeInOut(duration: 0.9).delay(0.2)) { outer = 1 }
         withAnimation(.easeInOut(duration: 0.8).delay(0.55)) { inner = 1 }
     }
@@ -359,52 +539,3 @@ private struct IconRoof: Shape {
     }
 }
 
-private struct FirstExpensePreview: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            preview(.groceries, amount: "−1 250 ₽").opacity(0.65)
-            preview(.cafes, amount: "−450 ₽")
-            preview(.transport, amount: "−80 ₽").opacity(0.65)
-        }
-        .frame(maxWidth: 340)
-        .allowsHitTesting(false).accessibilityHidden(true)
-        .folkiAppear(1)
-    }
-    private func preview(_ preset: BuiltInCategory, amount: String) -> some View {
-        HStack(spacing: 12) {
-            CategoryIcon(category: preset.category, size: 32)
-            Text(preset.category.name).lineLimit(1)
-            Spacer(minLength: 8)
-            Text(amount).monospacedDigit().layoutPriority(1)
-        }
-        .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiInk)
-        .padding(14).frame(maxWidth: .infinity, minHeight: 60)
-        .background(Color.folkiInk.opacity(0.035), in: RoundedRectangle(cornerRadius: 20))
-    }
-}
-
-/// Static rings for the last page; they fill once on appear.
-private struct DemoRings: View {
-    let outer: Double
-    let inner: Double
-    @State private var shown = false
-    var body: some View {
-        GeometryReader { geo in
-            let width = geo.size.width * 0.11
-            ZStack {
-                ring(outer, palette: .personal, width: width)
-                ring(inner, palette: .family, width: width).padding(width * 1.2)
-            }
-        }
-        .onAppear { withAnimation(.spring(duration: 1, bounce: 0.15).delay(0.2)) { shown = true } }
-        .accessibilityHidden(true)
-    }
-    private func ring(_ value: Double, palette: RingPalette, width: CGFloat) -> some View {
-        ZStack {
-            Circle().stroke(palette.start.opacity(0.16), lineWidth: width)
-            Circle().trim(from: 0, to: shown ? value : 0)
-                .stroke(palette.start, style: StrokeStyle(lineWidth: width, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }.padding(width / 2)
-    }
-}

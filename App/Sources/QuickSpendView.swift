@@ -104,7 +104,7 @@ struct QuickSpendView: View {
                     .onChange(of: activeScopeRaw) { categoryID = nil; preselectCategory(); recordID = UUID() }
                     }
                     if let before = session.result {
-                        Text("\(amount.isEmpty ? "0" : amount) ₽")
+                        Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
                             .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
                             .foregroundStyle(money == nil ? .tertiary : .primary)
                             .lineLimit(1).minimumScaleFactor(0.3)
