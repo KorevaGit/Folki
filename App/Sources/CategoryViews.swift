@@ -114,11 +114,20 @@ struct CategoriesView: View {
                 Text(session.scope == .personal ? String(localized: "Их видишь только ты 🤫") : String(localized: "Их видит вся семья 💚"))
             }
             // Built-ins grouped by kind, so the tag on every row is not needed.
-            Section("Обязательное") {
-                ForEach(BuiltInCategory.all.filter(\.isEssential)) { row($0, showsKind: false) }
+            Section("Используются") {
+                ForEach(session.catalog.enabledBuiltIns, id: \.self) { builtIn in
+                    row(builtIn.category).swipeActions { Button("Убрать", role: .destructive) { setBuiltIn(builtIn, false) } }
+                }
             }
-            Section("Желания") {
-                ForEach(BuiltInCategory.all.filter { !$0.isEssential }) { row($0, showsKind: false) }
+            let available = session.catalog.availableBuiltIns
+            if !available.isEmpty {
+                Section("Можно добавить") {
+                    ForEach(available, id: \.self) { builtIn in
+                        Button { setBuiltIn(builtIn, true) } label: {
+                            HStack { row(builtIn.category); Image(systemName: "plus.circle.fill").foregroundStyle(Color.folkiAccent) }
+                        }.buttonStyle(.plain)
+                    }
+                }
             }
             let archived = custom.filter(\.isArchived)
             if !archived.isEmpty {
@@ -148,6 +157,11 @@ struct CategoriesView: View {
                 Text(category.isEssential ? String(localized: "обязательное") : String(localized: "желание")).font(.caption).foregroundStyle(.secondary)
             }
         }.frame(minHeight: 40).contentShape(Rectangle())
+    }
+
+    private func setBuiltIn(_ builtIn: BuiltInCategory, _ enabled: Bool) {
+        do { try session.setBuiltInCategory(builtIn, enabled: enabled); FolkiFeedback.selection(); errorMessage = nil }
+        catch { errorMessage = String(localized: "Не получилось изменить категорию. Обнови экран и попробуй снова.") }
     }
 
     private func setArchived(_ category: SpendingCategory, _ archived: Bool) {

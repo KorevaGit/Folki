@@ -50,6 +50,9 @@ public enum BuiltInCategory: Int, CaseIterable, Sendable {
 
     public static func named(_ id: UUID) -> BuiltInCategory? { allCases.first { $0.id == id } }
 
+    /// What a new budget starts with; the rest of the built-ins are added from a list.
+    public static let defaultEnabled: Set<BuiltInCategory> = [.housing, .groceries, .transport, .connectivity, .other]
+
     /// The Russian name; it is also the key in the String Catalog.
     public var sourceName: String {
         switch self {
@@ -125,14 +128,24 @@ public struct CategoryCatalog: Sendable {
     public let all: [SpendingCategory]
     private let byID: [UUID: SpendingCategory]
 
+    /// Built-ins switched on in this budget; a stored row with a built-in's id switches it on or off.
+    public let enabledBuiltIns: [BuiltInCategory]
+
+    /// `custom` may hold rows whose id is a built-in's: those only say whether that built-in is used.
     public init(custom: [SpendingCategory] = []) {
-        all = BuiltInCategory.all + custom
+        let overrides = Dictionary(custom.compactMap { row in BuiltInCategory.named(row.id).map { ($0, !row.isArchived) } },
+                                   uniquingKeysWith: { first, _ in first })
+        enabledBuiltIns = BuiltInCategory.allCases.filter { overrides[$0] ?? BuiltInCategory.defaultEnabled.contains($0) }
+        all = BuiltInCategory.all + custom.filter { BuiltInCategory.named($0.id) == nil }
         byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// Categories a new record can use: built-in ones first, then custom ones by name.
+    /// Built-ins that are not used yet and can be added.
+    public var availableBuiltIns: [BuiltInCategory] { BuiltInCategory.allCases.filter { !enabledBuiltIns.contains($0) } }
+
+    /// Categories a new record can use: enabled built-ins first, then custom ones by name.
     public var selectable: [SpendingCategory] {
-        BuiltInCategory.all + all.filter { !$0.isBuiltIn && !$0.isArchived }.sorted { $0.name < $1.name }
+        enabledBuiltIns.map(\.category) + all.filter { !$0.isBuiltIn && !$0.isArchived }.sorted { $0.name < $1.name }
     }
 
     public func category(for id: UUID) -> SpendingCategory {

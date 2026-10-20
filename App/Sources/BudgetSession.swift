@@ -250,7 +250,7 @@ final class BudgetSession {
         }
         let used = selectable.filter { counts[$0.id] != nil && $0.id != BuiltInCategory.other.id }
             .sorted { counts[$0.id]! == counts[$1.id]! ? $0.name < $1.name : counts[$0.id]! > counts[$1.id]! }
-        let defaults = [BuiltInCategory.groceries, .cafes, .transport].map(\.category)
+        let defaults = [BuiltInCategory.groceries, .cafes, .transport].map(\.category).filter { selectable.contains($0) }
         var result: [SpendingCategory] = []
         for category in used + defaults where !result.contains(category) && result.count < limit { result.append(category) }
         return result
@@ -272,6 +272,11 @@ final class BudgetSession {
     func setCategoryArchived(_ category: SpendingCategory, archived: Bool) throws {
         guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
         try repository.setCategoryArchived(category, archived: archived, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    func setBuiltInCategory(_ builtIn: BuiltInCategory, enabled: Bool) throws {
+        guard let repository, let budget = storedBudget else { throw LedgerError.unavailable }
+        try repository.setBuiltInCategory(builtIn, enabled: enabled, in: budget, asOf: referenceDate)
         refresh()
     }
     func isEditable(_ record: LedgerRecord) -> Bool {

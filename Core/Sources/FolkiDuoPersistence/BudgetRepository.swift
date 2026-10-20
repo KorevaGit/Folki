@@ -580,7 +580,8 @@ public final class BudgetRepository {
         guard let clean = SpendingCategory.validName(name), !symbol.isEmpty, symbol.count <= 64 else { throw LedgerError.invalidCategory }
         // Built-ins count in both languages, so a family on mixed iPhone languages never gets two "Groceries".
         let taken = BuiltInCategory.allCases.flatMap { [$0.category.name, $0.sourceName] }
-            + (try customCategories(household: household)).filter { !$0.isArchived && $0.id != id }.map(\.name)
+            + (try customCategories(household: household))
+                .filter { !$0.isArchived && $0.id != id && BuiltInCategory.named($0.id) == nil }.map(\.name)
         guard !taken.contains(where: { $0.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
             throw LedgerError.duplicateCategory
         }
@@ -626,6 +627,21 @@ public final class BudgetRepository {
             guard item.value(forKey: "revision") as? UUID == category.revision else { throw LedgerError.conflict }
             if !archived { _ = try validateCategoryFields(name: category.name, symbol: category.symbol, household: root, excluding: category.id) }
             item.setValue(archived, forKey: "archived"); item.setValue(UUID(), forKey: "revision")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Switches a built-in category on or off for this budget. Old records keep it either way.
+    public func setBuiltInCategory(_ builtIn: BuiltInCategory, enabled: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try fetch("Category", predicate: NSPredicate(format: "id == %@ AND household == %@", builtIn.id as NSUUID, root)).first
+                ?? insert("Category", id: builtIn.id, household: root)
+            let category = builtIn.category
+            item.setValue(builtIn.sourceName, forKey: "name"); item.setValue(category.symbol, forKey: "symbol")
+            item.setValue(category.color.rawValue, forKey: "color"); item.setValue(category.isEssential, forKey: "essential")
+            item.setValue(!enabled, forKey: "archived"); item.setValue(UUID(), forKey: "revision")
+            if item.value(forKey: "createdAt") == nil { item.setValue(now, forKey: "createdAt") }
             try commit()
         } catch { context.rollback(); throw error }
     }
