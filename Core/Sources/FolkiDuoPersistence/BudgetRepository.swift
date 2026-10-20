@@ -174,6 +174,10 @@ public final class BudgetRepository {
         let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
         let sorted = try periods.map { object -> (NSManagedObject, BudgetPeriod) in
             let month: Date = try object.required("month")
+            // Periods until payday store their end; older ones are calendar months.
+            if let end = object.value(forKey: "endsAt") as? Date {
+                return (object, try BudgetPeriod(start: month, endExclusive: end, timeZoneIdentifier: zone))
+            }
             return (object, try BudgetPeriod(monthContaining: month, timeZoneIdentifier: zone))
         }.sorted { $0.1.start > $1.1.start }
         guard let selected = sorted.first(where: { $0.1.contains(date) }) ?? sorted.first else { return nil }
@@ -210,9 +214,12 @@ public final class BudgetRepository {
         return try objects.map { try decode($0) }.sorted { $0.transaction.date < $1.transaction.date }
     }
 
+    /// Starts a budget period. With `payday`, it runs from today until that date; without, it is the calendar month.
+    /// `closeCurrent` ends a period that still covers today, for when the salary comes early.
     public func createPlan(monthlyPlan: Money, available: Money, asOf now: Date,
                            timeZone: String = TimeZone.current.identifier,
-                           reserves: [ProtectedReserve] = [], scope: BudgetScope = .family) throws {
+                           reserves: [ProtectedReserve] = [], scope: BudgetScope = .family,
+                           payday: Date? = nil, closeCurrent: Bool = false) throws {
         try writable()
         guard monthlyPlan.currency == .rub, available.currency == .rub,
               monthlyPlan.minorUnits > 0, available.minorUnits >= 0 else { throw BudgetError.invalidPlan }
@@ -237,17 +244,26 @@ public final class BudgetRepository {
             let zone: String = try household.required("timeZone")
             guard let store = household.objectID.persistentStore,
                   container.canModifyManagedObjects(in: store) else { throw LedgerError.accessDenied }
-            let period = try BudgetPeriod(monthContaining: now, timeZoneIdentifier: zone)
+            let period = try payday.map { try BudgetPeriod.untilPayday(from: now, payday: $0, timeZoneIdentifier: zone) }
+                ?? BudgetPeriod(monthContaining: now, timeZoneIdentifier: zone)
             let goalReserves = try goals(scope: scope, asOf: now).map {
                 ProtectedReserve(id: $0.id, name: $0.name, openingAmount: $0.balance)
             }
             let allReserves = reserves + goalReserves
             _ = try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period,
                 monthlyFreePlan: monthlyPlan, openingFunds: available, reserves: allReserves), asOf: now)
-            let existing = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@ AND month == %@", household, period.start as NSDate))
-            guard existing.isEmpty else { throw LedgerError.existingPeriod }
+            // A period that still covers today blocks a new one, unless asked to close it now.
+            for existing in try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household)) {
+                let start: Date = try existing.required("month")
+                let monthEnd = try BudgetPeriod(monthContaining: start, timeZoneIdentifier: zone).endExclusive
+                let end = existing.value(forKey: "endsAt") as? Date ?? monthEnd
+                guard start <= now, now < end || start == period.start else { continue }
+                guard closeCurrent, start < now else { throw LedgerError.existingPeriod }
+                existing.setValue(now, forKey: "endsAt")
+            }
             let object = insert("BudgetPeriod", household: household)
             object.setValue(period.start, forKey: "month")
+            if payday != nil { object.setValue(period.endExclusive, forKey: "endsAt") }
             object.setValue(monthlyPlan.minorUnits, forKey: "monthlyPlan")
             object.setValue(available.minorUnits, forKey: "openingFunds")
             object.setValue("RUB", forKey: "currency")

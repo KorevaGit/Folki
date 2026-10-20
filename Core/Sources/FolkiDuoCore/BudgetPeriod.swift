@@ -15,9 +15,27 @@ public struct BudgetPeriod: Equatable, Sendable {
         self.timeZoneIdentifier = timeZoneIdentifier
     }
 
+    /// A stored period with explicit bounds, for example from today until the next payday.
+    public init(start: Date, endExclusive: Date, timeZoneIdentifier: String) throws {
+        guard TimeZone(identifier: timeZoneIdentifier) != nil else { throw BudgetError.invalidTimeZone }
+        guard endExclusive > start else { throw BudgetError.invalidPeriod }
+        self.start = start
+        self.endExclusive = endExclusive
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    /// From the start of today until the start of payday: payday itself begins the next period.
+    public static func untilPayday(from now: Date, payday: Date, timeZoneIdentifier: String) throws -> BudgetPeriod {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else { throw BudgetError.invalidTimeZone }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return try BudgetPeriod(start: calendar.startOfDay(for: now), endExclusive: calendar.startOfDay(for: payday),
+                                timeZoneIdentifier: timeZoneIdentifier)
+    }
+
     public var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        // This identifier is validated by the only public initializer.
+        // The identifier is validated by every initializer.
         calendar.timeZone = TimeZone(identifier: timeZoneIdentifier)!
         return calendar
     }
