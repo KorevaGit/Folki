@@ -53,7 +53,7 @@ struct BudgetAnalyticsSection: View {
                     if period == .month { balance(result).folkiAppear(3) }
                     chart(result, plan: monthPlan).budgetCard().folkiAppear(4)
                     HabitsCard(insights: insights).folkiAppear(5)
-                    categories(result).folkiAppear(6)
+                    categories(result, plan: monthPlan).folkiAppear(6)
                 }
                 if result.contributions.minorUnits > 0 || result.reserveTransfers.minorUnits != 0 {
                     transfers(result)
@@ -295,12 +295,37 @@ struct BudgetAnalyticsSection: View {
     private func net(_ item: CategorySpending) -> Money {
         (try? item.expenses.subtracting(item.refunds)) ?? item.expenses
     }
-    private func categories(_ result: BudgetAnalyticsSnapshot) -> some View {
+    /// Net spending per category in each of the three full months before this one.
+    private func previousMonths(before result: BudgetAnalyticsSnapshot) -> [UUID: [Money]] {
+        var history: [UUID: [Money]] = [:]
+        for offset in 1...3 {
+            guard let day = analyticsCalendar.date(byAdding: .month, value: -offset, to: result.interval.start),
+                  let month = analyticsCalendar.dateInterval(of: .month, for: day),
+                  let past = try? BudgetAnalytics.calculate(records: session.historyRecords, period: .month,
+                      anchor: month.end.addingTimeInterval(-1), asOf: session.referenceDate,
+                      calendar: session.calendar, catalog: session.catalog) else { continue }
+            for item in past.categories { history[item.categoryID, default: []].append(net(item)) }
+        }
+        return history
+    }
+
+    private func categories(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot?) -> some View {
         let sorted = result.categories.sorted { net($0).minorUnits > net($1).minorUnits }
         let positiveTotal = sorted.reduce(Int64(0)) { $0 + max(0, net($1).minorUnits) }
         let items = showsAllCategories ? sorted : Array(sorted.prefix(5))
+        // Monthly hints only: a week is too short to compare with a monthly amount.
+        let history = plan == nil ? [:] : previousMonths(before: result)
+        let hint: (UUID) -> Money? = { id in
+            guard let plan else { return nil }
+            return CategoryGuide.recommended(categoryID: id, monthlyPlan: plan.monthlyPlan, previousMonths: history[id] ?? [])
+        }
         return VStack(alignment: .leading, spacing: 16) {
-            Text("На что ушли деньги").font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("На что ушли деньги").font(.headline)
+                if plan != nil {
+                    Text("Рядом — подсказка, сколько примерно стоит закладывать в месяц 💡").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
             ForEach(items) { item in
                 let category = session.catalog.category(for: item.categoryID)
                 let amount = net(item)
@@ -308,13 +333,28 @@ struct BudgetAnalyticsSection: View {
                     let layout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                         : AnyLayout(HStackLayout(spacing: 12))
+                    let limit = hint(item.categoryID)
+                    let over = limit.map { amount.minorUnits > $0.minorUnits } ?? false
                     layout {
                         Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 32) }
                         if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                        Text(MoneyText.whole(amount)).fontWeight(.semibold).monospacedDigit()
-                            .lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(MoneyText.whole(amount)).fontWeight(.semibold).monospacedDigit()
+                                .foregroundStyle(over ? Color.budget(.personal) : Color.folkiInk)
+                            if let limit {
+                                Text("/ ~\(MoneyText.whole(limit))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                        }.lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
                     }.font(.subheadline).frame(minHeight: 44)
-                    if positiveTotal > 0 {
+                    if let limit, limit.minorUnits > 0 {
+                        // Against the hint: fills up as the month goes, warm when above it.
+                        ProgressView(value: min(1, Double(max(0, amount.minorUnits)) / Double(limit.minorUnits)))
+                            .tint(over ? Color.budget(.personal) : category.color.color)
+                        if over {
+                            Text("Больше подсказки на \(MoneyText.whole(Money(minorUnits: amount.minorUnits - limit.minorUnits).roundedUpToWholeUnits)) — без паники, просто на заметку 🙂")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else if positiveTotal > 0 {
                         ProgressView(value: Double(max(0, amount.minorUnits)) / Double(positiveTotal))
                             .tint(category.color.color)
                     }
