@@ -5770,6 +5770,16 @@
           }
         }
       }
+    },
+    "План готов 🎉": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your plan is ready 🎉"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
