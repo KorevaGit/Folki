@@ -19,7 +19,7 @@ struct FolkiRootView: View {
         guard !finishedOnboarding else { return false }
         // `-FolkiShowOnboarding YES` forces it for checks.
         if UserDefaults.standard.bool(forKey: "FolkiShowOnboarding") { return true }
-        return !onboarded && !personal.isDemo && (onboardingStep > 0 || personal.result == nil)
+        return !onboarded && !personal.isDemo
     }
 
     private var tabSelection: Binding<FolkiTab> {
@@ -102,15 +102,17 @@ struct FolkiSummaryView: View {
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(personal.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).fixedSize(horizontal: true, vertical: false)
+                    if self.family.household != nil {
                     Text("Семейный · сегодня").font(.subheadline.weight(.semibold)).foregroundStyle(Color.budget(.family))
                         .padding(.top, 6)
                     Text(family.map { MoneyText.whole($0.todayRemaining) } ?? "—")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(family.map { $0.todayRemaining.minorUnits < 0 } == true ? Color.red : .primary)
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7).fixedSize(horizontal: true, vertical: false)
+                    }
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                FinancialRings(personal: personal, family: family, compact: true)
+                FinancialRings(personal: personal, family: family, compact: true, showsFamily: self.family.household != nil)
                     .frame(width: 94, height: 94).accessibilityHidden(true)
             }
         }.budgetCard()

@@ -9,7 +9,6 @@ struct SharingView: View {
     @State private var preparing = false
     @State private var invitationURL: URL?
     @State private var errorMessage: String?
-    @State private var creatingBudget = false
     @State private var editingMember: Member?
     @State private var editedName = ""
     @State private var removingMember: Member?
@@ -37,8 +36,10 @@ struct SharingView: View {
                 }
                 if session.household == nil {
                     Section {
-                        Text("Сначала создай семейный план — и зови своих 🙌")
-                        Button("Создать семейный бюджет") { creatingBudget = true }
+                        Button("Создать семью") {
+                            do { try session.ensureDailyPeriod() }
+                            catch { errorMessage = String(localized: "Не получилось создать семью. Попробуй ещё раз.") }
+                        }
                     }
                 } else {
                     Section(session.repository?.cloudIdentifier == nil ? String(localized: "Добавить участника") : String(localized: "Пригласить по Apple ID")) {
@@ -70,7 +71,6 @@ struct SharingView: View {
             .folkiFormLayout()
             .navigationTitle("Семья и доступ").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
-            .sheet(isPresented: $creatingBudget) { BudgetSetupView(session: session) }
             .confirmationDialog("Убрать участника? Его записи сохранятся, облачный доступ будет отозван.", isPresented: Binding(get: { removingMember != nil }, set: { if !$0 { removingMember = nil } }), titleVisibility: .visible) {
                 if let member = removingMember {
                     Button("Убрать \(member.name)", role: .destructive) {

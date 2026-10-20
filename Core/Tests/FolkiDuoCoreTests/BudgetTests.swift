@@ -179,7 +179,7 @@ struct BudgetTests {
     @Test func validatesPlanReservesAndCurrencyBeforeReturningResults() throws {
         let period = try BudgetPeriod(monthContaining: now, timeZoneIdentifier: "Europe/Moscow")
         #expect(throws: BudgetError.invalidPlan) {
-            try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period, monthlyFreePlan: rub(0), openingFunds: rub(1)), asOf: now)
+            try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period, monthlyFreePlan: rub(-1), openingFunds: rub(1)), asOf: now)
         }
         let reserve = ProtectedReserve(name: "Счёт", openingAmount: rub(100))
         #expect(throws: BudgetError.duplicateIdentifier) {

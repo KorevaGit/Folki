@@ -13,6 +13,7 @@ public struct DailyBudgetSnapshot: Equatable, Sendable {
     public let periodRemaining: Money
     public let periodPlan: Money
     public let reserveBalances: [UUID: Money]
+    public let totalFunds: Money
     public let futureAllocation: DailyAllocation?
 
     /// Floating point is used for drawing only, never for money or rounding.
@@ -36,8 +37,7 @@ public enum DailyBudgetCalculator {
         let day = try snapshot.period.startOfDay(containing: now)
         let days = try snapshot.period.remainingDays(including: now)
         let currency = snapshot.monthlyFreePlan.currency
-        guard snapshot.monthlyFreePlan.minorUnits >= 0,
-              snapshot.monthlyFreePlan.minorUnits > 0 || !snapshot.reserves.isEmpty else { throw BudgetError.invalidPlan }
+        guard snapshot.monthlyFreePlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
         guard snapshot.openingFunds.currency == currency else { throw BudgetError.currencyMismatch }
         var ledger = try Ledger(funds: snapshot.openingFunds, reserves: snapshot.reserves)
         var identifiers = Set<UUID>()
@@ -86,7 +86,7 @@ public enum DailyBudgetCalculator {
             todayRemaining: guide.subtracting(todaySpending), monthlyRemaining: free,
             monthlyPlan: snapshot.monthlyFreePlan,
             periodRemaining: free.adding(paymentBalance), periodPlan: snapshot.monthlyFreePlan.adding(paymentPlan),
-            reserveBalances: ledger.reserves,
+            reserveBalances: ledger.reserves, totalFunds: ledger.funds,
             futureAllocation: days > 1 ? DailyAllocation(total: free.nonnegative, days: days - 1) : nil
         )
     }

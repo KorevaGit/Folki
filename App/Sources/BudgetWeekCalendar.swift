@@ -5,6 +5,7 @@ struct BudgetWeekCalendar: View {
     @Binding var selection: Date?
     let today: Date
     let calendar: Calendar
+    var showsFamily = true
     /// Personal and family day-ring fractions for a past or current day; nil where no plan exists.
     var rings: (Date) -> (Double?, Double?) = { _ in (nil, nil) }
     @State private var showingMonth = false
@@ -113,7 +114,7 @@ struct BudgetWeekCalendar: View {
         return Button { select(date) } label: {
             VStack(spacing: 4) {
                 Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
-                MiniRings(personal: fractions.0, family: fractions.1, onAccent: isSelected).frame(width: 30, height: 30)
+                MiniRings(personal: fractions.0, family: fractions.1, onAccent: isSelected, showsFamily: showsFamily).frame(width: 30, height: 30)
                     .accessibilityHidden(true)
                     .padding(3)
                 Text("\(calendar.component(.day, from: date))")
@@ -136,7 +137,9 @@ struct BudgetWeekCalendar: View {
         }
         .buttonStyle(FolkiPressStyle(scale: 0.92)).frame(maxWidth: .infinity).disabled(isFuture)
         .accessibilityLabel((isToday ? String(localized: "Сегодня, ") : "") + date.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
-        .accessibilityValue(isFuture ? String(localized: "Будущий день") : String(localized: "Личный: \(spokenFraction(fractions.0)). Семейный: \(spokenFraction(fractions.1))."))
+        .accessibilityValue(isFuture ? String(localized: "Будущий день") : (showsFamily
+            ? String(localized: "Личный: \(spokenFraction(fractions.0)). Семейный: \(spokenFraction(fractions.1)).")
+            : String(localized: "Личный: \(spokenFraction(fractions.0)).")))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -164,10 +167,11 @@ private struct MiniRings: View {
     let family: Double?
     /// On the selected (green) day both rings turn white so they stay readable.
     var onAccent = false
+    var showsFamily = true
     var body: some View {
         ZStack {
             ring(personal, palette: .personal).padding(0)
-            ring(family, palette: .family).padding(5.5)
+            if showsFamily { ring(family, palette: .family).padding(5.5) }
         }
     }
     private func ring(_ fraction: Double?, palette: RingPalette) -> some View {

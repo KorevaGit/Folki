@@ -38,7 +38,6 @@ struct ImpactLines: View {
             let changeText = Text(change.map { " (\(signed($0)))" } ?? "")
                 .foregroundStyle(change.map { $0.minorUnits < 0 } == true ? Color.red : .secondary)
             Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))\(changeText)").font(.footnote)
-            Text("чтобы уложиться в период, \(future.days) дн.").font(.caption2).foregroundStyle(.secondary)
         } else {
             Text("Последний день периода").font(.footnote).foregroundStyle(.secondary)
         }
@@ -81,7 +80,7 @@ struct QuickSpendView: View {
     }
 
     private var isIncome: Bool { entryKind == .income }
-    private var activeScopeRaw: String { isIncome ? incomeScopeRaw : scopeRaw }
+    private var activeScopeRaw: String { family.household == nil ? BudgetScope.personal.rawValue : (isIncome ? incomeScopeRaw : scopeRaw) }
     private var scopeSelection: Binding<String> { isIncome ? $incomeScopeRaw : $scopeRaw }
     private var scope: BudgetScope { BudgetScope(rawValue: activeScopeRaw) ?? .personal }
     private var session: BudgetSession { scope == .personal ? personal : family }
@@ -102,10 +101,11 @@ struct QuickSpendView: View {
         NavigationStack {
             FolkiEntryLayout(hidesKeypad: descriptionFocused) { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
-                    FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
+                    if family.household != nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
                         options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
                     .onChange(of: activeScopeRaw) { payerID = nil; categoryID = nil; reserveID = nil; recordID = UUID() }
+                    }
                     if let before = session.result {
                         Text("\(amount.isEmpty ? "0" : amount) ₽")
                             .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
@@ -176,7 +176,14 @@ struct QuickSpendView: View {
                 }
             }
             .sheet(isPresented: $showingAllCategories) { CategoryPickerView(session: session, selection: $categoryID) }
-            .sheet(isPresented: $settingUp) { BudgetSetupView(session: session) }
+            .sheet(isPresented: $settingUp) { DailyFundingView(personal: personal, family: family, initialScope: scope) }
+            .onAppear {
+                if UserDefaults.standard.string(forKey: "FolkiLastSpendScope") == nil && family.hasFunding && !personal.hasFunding {
+                    scopeRaw = BudgetScope.family.rawValue
+                }
+                prepareBudget()
+            }
+            .onChange(of: activeScopeRaw) { prepareBudget() }
         }
         .tint(Color.folkiAccent)
     }
@@ -216,6 +223,10 @@ struct QuickSpendView: View {
         } catch {
             errorMessage = String(localized: "Не получилось записать. Сумма осталась здесь, попробуй ещё раз.")
         }
+    }
+    private func prepareBudget() {
+        do { try session.ensureDailyPeriod(); date = session.referenceDate }
+        catch { errorMessage = String(localized: "Не получилось открыть бюджет. Попробуй ещё раз.") }
     }
 }
 

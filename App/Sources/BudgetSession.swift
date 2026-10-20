@@ -25,6 +25,20 @@ final class BudgetSession {
     private var periodID = UUID()
     let repository: BudgetRepository?
     let demoDate: Date?
+    var fullFinanceEnabled = false {
+        didSet { UserDefaults.standard.set(fullFinanceEnabled, forKey: "FolkiFullFinances.\(scope.rawValue)") }
+    }
+    var envelopeOfferDismissed = false {
+        didSet { UserDefaults.standard.set(envelopeOfferDismissed, forKey: "FolkiEnvelopeOfferDismissed.\(scope.rawValue)") }
+    }
+    var distributionDay = 0 {
+        didSet { UserDefaults.standard.set(distributionDay, forKey: "FolkiDistributionDay.\(scope.rawValue)") }
+    }
+    var hasFunding: Bool {
+        (household?.openingFunds.minorUnits ?? 0) > 0 || records.contains {
+            [.income, .contributionIn].contains($0.transaction.kind)
+        }
+    }
     var records: [LedgerRecord] { allRecords.filter { !$0.transaction.isDeleted } }
     var deletedRecords: [LedgerRecord] { allRecords.filter { $0.transaction.isDeleted } }
     var referenceDate: Date { demoDate ?? .now }
@@ -43,6 +57,9 @@ final class BudgetSession {
          members: [Member] = [], demoDate: Date? = nil) {
         self.scope = scope
         self.repository = repository; self.household = household
+        fullFinanceEnabled = UserDefaults.standard.bool(forKey: "FolkiFullFinances.\(scope.rawValue)")
+        envelopeOfferDismissed = UserDefaults.standard.bool(forKey: "FolkiEnvelopeOfferDismissed.\(scope.rawValue)")
+        distributionDay = UserDefaults.standard.integer(forKey: "FolkiDistributionDay.\(scope.rawValue)")
         allRecords = records; self.members = members; self.demoDate = demoDate
         authorID = members.first?.id
         historyRecords = records
@@ -75,6 +92,11 @@ final class BudgetSession {
         }
         if repository == nil { periods = household.map { [$0.period] } ?? [] }
         guard let household else { result = nil; errorMessage = nil; return }
+        if referenceDate >= household.period.endExclusive {
+            do { try ensureDailyPeriod() }
+            catch { result = nil; errorMessage = String(localized: "Не получилось открыть новый период. Попробуй ещё раз.") }
+            return
+        }
         do {
             result = try DailyBudgetCalculator.calculate(household, asOf: referenceDate)
             errorMessage = nil
@@ -138,6 +160,48 @@ final class BudgetSession {
         allRecords = []; refresh()
     }
 
+    func spendingEnd(day: Int? = nil) throws -> Date {
+        let selected = day ?? distributionDay
+        return try (selected == 0 ? SpendingSchedule.monthEnd : .dayOfMonth(selected))
+            .endExclusive(from: referenceDate, calendar: calendar)
+    }
+    /// Opening an entry never requires a salary plan. Carry actual balances across periods.
+    func ensureDailyPeriod() throws {
+        if household?.period.contains(referenceDate) == true { return }
+        var funds = Money(minorUnits: 0), freePlan = Money(minorUnits: 0), reserves: [ProtectedReserve] = []
+        if let household {
+            let previous = try DailyBudgetCalculator.calculate(household, asOf: household.period.endExclusive.addingTimeInterval(-0.001))
+            funds = previous.totalFunds; freePlan = previous.monthlyRemaining.nonnegative
+            reserves = household.reserves.filter { reserve in !goals.contains { $0.id == reserve.id } }.map {
+                ProtectedReserve(id: $0.id, name: $0.name, openingAmount: previous.reserveBalances[$0.id] ?? Money(minorUnits: 0),
+                                 isRegularPayment: $0.isRegularPayment)
+            }
+        }
+        try createPlan(monthlyPlan: freePlan, available: funds,
+                       reserves: reserves, payday: spendingEnd())
+    }
+    func setDistributionDay(_ day: Int) throws {
+        let end = try spendingEnd(day: day)
+        if let budget = storedBudget, budget.snapshot.period.contains(referenceDate), budget.snapshot.period.endExclusive != end {
+            if let repository { try repository.updatePeriodEnd(end, in: budget, asOf: referenceDate) }
+            else if isDemo {
+                let source = budget.snapshot
+                household = HouseholdSnapshot(id: source.id,
+                    period: try BudgetPeriod(start: source.period.start, endExclusive: end, timeZoneIdentifier: calendar.timeZone.identifier),
+                    monthlyFreePlan: source.monthlyFreePlan, openingFunds: source.openingFunds, reserves: source.reserves,
+                    transactions: source.transactions)
+            }
+        }
+        distributionDay = day; refresh()
+    }
+    func addDailyFunds(_ amount: Money, operationID: UUID = UUID()) throws {
+        try ensureDailyPeriod()
+        guard let authorID else { throw LedgerError.invalidMember }
+        let record = try draft(amount: amount, title: "", payerID: authorID, date: referenceDate,
+            kind: .income, categoryID: BuiltInCategory.other.id, funding: .flexible, newRecordID: operationID)
+        try save(record, addIncomeToPlan: true)
+    }
+
     var periodEnded: Bool { household.map { referenceDate >= $0.period.endExclusive } ?? false }
     var periodTitle: String {
         guard let period = household?.period else { return String(localized: "До зарплаты") }
@@ -158,7 +222,7 @@ final class BudgetSession {
     }
     func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], expected: StoredBudget) throws {
         guard let repository else { throw LedgerError.unavailable }
-        try repository.updateSalaryPlan(available: available, reserves: reserves, in: expected, asOf: referenceDate)
+        try repository.updateSalaryPlan(available: available, reserves: reserves, in: expected, asOf: referenceDate, balanceIsCurrent: true)
         refresh()
     }
 
@@ -195,16 +259,20 @@ final class BudgetSession {
         let date = calculationDate(in: budget)
         return try DailyBudgetCalculator.calculate(LedgerRules.replacing(record, in: budget, asOf: date).snapshot, asOf: date)
     }
-    func save(_ record: LedgerRecord, editing: LedgerRecord? = nil) throws {
+    func save(_ record: LedgerRecord, editing: LedgerRecord? = nil, addIncomeToPlan: Bool = false) throws {
         overviewCache = [:]
         let budget = try budget(editing: editing)
         let date = calculationDate(in: budget)
         if let repository {
-            try repository.save(record, in: budget, expectedRevision: editing?.revision, asOf: date)
+            try repository.save(record, in: budget, expectedRevision: editing?.revision, asOf: date, addIncomeToPlan: addIncomeToPlan)
         } else {
             guard isDemo else { throw LedgerError.unavailable }
             let candidate = try LedgerRules.replacing(record, in: budget, asOf: date)
-            household = candidate.snapshot; allRecords = candidate.records; historyRecords = candidate.records
+            let source = candidate.snapshot
+            household = HouseholdSnapshot(id: source.id, period: source.period,
+                monthlyFreePlan: addIncomeToPlan ? try source.monthlyFreePlan.adding(record.transaction.amount) : source.monthlyFreePlan,
+                openingFunds: source.openingFunds, reserves: source.reserves, transactions: source.transactions)
+            allRecords = candidate.records; historyRecords = candidate.records
         }
         refresh()
     }

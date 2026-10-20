@@ -14,7 +14,7 @@ private struct ReserveDraft: Identifiable {
     }
 }
 
-/// The same plan is available after onboarding, in settings and when salary arrives.
+/// Optional full accounting and protected envelopes, independent of income cadence.
 struct BudgetSetupView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
@@ -36,7 +36,7 @@ struct BudgetSetupView: View {
         return (try? (source ?? []).reduce(Money(minorUnits: 0)) { try $0.adding($1) }) ?? Money(minorUnits: 0)
     }
     private var values: (funds: Money, free: Money, reserves: [ProtectedReserve])? {
-        guard let funds = try? MoneyText.parse(available), funds.minorUnits > 0 else { return nil }
+        guard let funds = try? MoneyText.parse(available), funds.minorUnits >= 0 else { return nil }
         var reserves: [ProtectedReserve] = []
         if planning {
             for draft in drafts {
@@ -54,31 +54,31 @@ struct BudgetSetupView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(editingCurrent ? "Деньги на начало периода" : "Сколько денег есть сейчас", text: $available)
+                    TextField(editingCurrent ? "Всего денег сейчас" : "Деньги на повседневные траты", text: $available)
                         .keyboardType(.decimalPad)
                     if editingCurrent {
                         LabeledContent("Период", value: session.periodTitle)
                     } else {
-                        DatePicker("Следующая зарплата", selection: $payday, in: minimumPayday..., displayedComponents: .date)
+                        DatePicker("Распределить по", selection: $payday, in: minimumPayday..., displayedComponents: .date)
                     }
-                } header: { Text(editingCurrent ? "Зарплата и остаток, ₽" : "До зарплаты, ₽") } footer: {
-                    Text(editingCurrent ? "Сумма на начало периода: зарплата, остаток и накопления. Уже записанные траты сохранятся."
+                } header: { Text(editingCurrent ? "Все деньги, ₽" : "На каждый день, ₽") } footer: {
+                    Text(editingCurrent ? "Включая деньги в конвертах. Записи сохранятся."
                          : "Всё, что есть на картах и наличными, включая накопления. В день следующей зарплаты начнётся новый период.")
                 }
                 if !editingCurrent {
-                    Section { Toggle("Составить план по зарплате", isOn: $planning) }
+                    Section { Toggle("Настроить конверты", isOn: $planning) }
                 }
                 if planning {
                     Section {
                         ForEach(drafts.filter(\.isRegularPayment)) { draft in reserveRow(binding(draft.id)) }
                             .onDelete { offsets in delete(offsets, regular: true) }
-                        Menu("Добавить платёж", systemImage: "plus") {
-                            ForEach([String(localized: "Жильё и коммуналка"), String(localized: "Связь и подписки"), String(localized: "Кредит"), String(localized: "Другой платёж")], id: \.self) { name in
+                        Menu("Добавить конверт", systemImage: "plus") {
+                            ForEach([String(localized: "Жильё и коммуналка"), String(localized: "Связь и подписки"), String(localized: "Кредит"), String(localized: "Свой конверт")], id: \.self) { name in
                                 Button(name) { drafts.append(ReserveDraft(name: name, isRegularPayment: true)) }
                             }
                         }
-                    } header: { Text("Регулярные платежи") } footer: {
-                        Text("Folki отложит их отдельно от дневных денег. При оплате выбери платёж в поле «Источник» — дневное кольцо не изменится.")
+                    } header: { Text("Конверты") } footer: {
+                        Text("Эти деньги не входят в остаток дня.")
                     }
                     Section {
                         ForEach(drafts.filter { !$0.isRegularPayment }) { draft in reserveRow(binding(draft.id)) }
@@ -91,7 +91,7 @@ struct BudgetSetupView: View {
                         if goalFunds.minorUnits > 0 { LabeledContent("В целях накоплений", value: MoneyText.whole(goalFunds)) }
                     } header: { Text("Сколько отложить") } footer: { Text("Копилка и цели не входят в кольца расходов.") }
                 }
-                if let values {
+                if let values, !editingCurrent {
                     Section("На повседневные траты") {
                         LabeledContent("На весь период", value: MoneyText.whole(values.free))
                         if !editingCurrent,
@@ -100,10 +100,10 @@ struct BudgetSetupView: View {
                            let days = try? period.remainingDays(including: session.referenceDate),
                            let allocation = try? DailyAllocation(total: values.free, days: days) {
                             LabeledContent("Сегодня можно", value: MoneyText.whole(allocation.firstDayAmount))
-                            Text("До зарплаты \(days) дн.").font(.footnote).foregroundStyle(.secondary)
+                            Text("На каждый день \(days) дн.").font(.footnote).foregroundStyle(.secondary)
                         }
                     }
-                } else if !available.isEmpty {
+                } else if values == nil && !available.isEmpty {
                     Text("Проверь суммы: платежи и накопления должны помещаться в доступные деньги.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -116,7 +116,7 @@ struct BudgetSetupView: View {
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             }
             .folkiFormLayout()
-            .navigationTitle(editingCurrent ? "План по зарплате" : session.periodEnded ? "Пришла зарплата?" : "До зарплаты")
+            .navigationTitle(editingCurrent ? "Все финансы" : session.periodEnded ? "Добавить деньги" : "На каждый день")
             .navigationBarTitleDisplayMode(.inline)
             .environment(\.calendar, session.calendar).environment(\.timeZone, session.calendar.timeZone)
             .toolbar {
@@ -152,7 +152,7 @@ struct BudgetSetupView: View {
         expected = session.storedBudget
         payday = session.calendar.date(byAdding: .month, value: 1, to: session.referenceDate) ?? minimumPayday
         planning = editingCurrent
-        if editingCurrent { available = session.household.map { MoneyText.input($0.openingFunds) } ?? "" }
+        if editingCurrent { available = session.result.map { MoneyText.input($0.totalFunds) } ?? "" }
         drafts = (session.household?.reserves ?? []).filter { reserve in !session.goals.contains { $0.id == reserve.id } }
             .filter { $0.openingAmount.minorUnits > 0 }
             .map { ReserveDraft(id: editingCurrent ? $0.id : UUID(), name: $0.name,

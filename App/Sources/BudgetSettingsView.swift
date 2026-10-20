@@ -10,6 +10,8 @@ struct BudgetSettingsView: View {
     @State private var limitsScope: BudgetScope?
     @State private var salaryScope: BudgetScope?
     @State private var showingFamily = false
+    @State private var showingDistribution = false
+    @State private var errorMessage: String?
     private var session: BudgetSession { scope == .personal ? personal : family }
 
     var body: some View {
@@ -18,12 +20,13 @@ struct BudgetSettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Какой бюджет настроим?").font(.headline)
-                        FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
-                            options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 52)
+                        if family.household != nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
+                            options: BudgetScope.allCases.map { ($0.title, $0) }, minimumHeight: 52) }
                         Text(scope == .personal ? String(localized: "Это только твоё 🤫") : String(localized: "Это общее для всей семьи 💚"))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     plan
+                    if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Категории расходов").font(.system(.title2, design: .rounded, weight: .bold))
                         NavigationLink { CategoriesView(session: session).id(scope) } label: {
@@ -46,47 +49,34 @@ struct BudgetSettingsView: View {
                     Button("Закрыть", systemImage: "xmark") { dismiss() }.tint(Color.folkiInk)
                 }
             }
-            .sheet(item: $setupScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family) }
+            .sheet(item: $setupScope) { scope in DailyFundingView(personal: personal, family: family, initialScope: scope) }
             .sheet(item: $limitsScope) { scope in SpendingLimitsView(personal: personal, family: family, scope: scope) }
             .sheet(item: $salaryScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family, editingCurrent: true) }
+            .sheet(isPresented: $showingDistribution) {
+                DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
+                    apply: { try session.setDistributionDay($0) })
+            }
             .sheet(isPresented: $showingFamily) { SharingView(session: family) }
         }
     }
 
     private var plan: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("До зарплаты").font(.system(.title2, design: .rounded, weight: .bold))
-            if let result = session.result {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(session.periodTitle).font(.subheadline).foregroundStyle(.secondary)
-                    Text(MoneyText.whole(result.periodPlan))
-                        .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
-                        .foregroundStyle(Color.budget(scope)).lineLimit(1).minimumScaleFactor(0.5)
-                    Text("На период, включая регулярные платежи")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    Divider()
-                    LabeledContent("Свободно сейчас", value: MoneyText.whole(result.monthlyRemaining))
-                    ForEach(session.household?.reserves.filter(\.isRegularPayment) ?? []) { reserve in
-                        LabeledContent(reserve.name, value: MoneyText.whole(result.reserveBalances[reserve.id] ?? Money(minorUnits: 0)))
-                    }
-                    Button("План по зарплате", systemImage: "list.bullet.clipboard") { salaryScope = scope }
-                        .buttonStyle(FolkiSoftButtonStyle())
-                    Button { limitsScope = scope } label: {
-                        Label("Изменить план повседневных трат", systemImage: "slider.horizontal.3")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }.buttonStyle(FolkiSoftButtonStyle())
-                }.budgetCard()
-                Button("Пришла зарплата — начать новый период", systemImage: "arrow.clockwise") { setupScope = scope }
-                    .buttonStyle(FolkiSoftButtonStyle())
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(session.periodEnded ? "Пришла зарплата?" : "Период пока не начат").font(.headline)
-                    Text("Введи сумму и дату следующей зарплаты — Folki посчитает твой день ✨")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    Button("Начать период", systemImage: "plus") { setupScope = scope }
-                        .buttonStyle(FolkiSoftButtonStyle()).controlSize(.large)
-                }.budgetCard()
-            }
+            Text("На каждый день").font(.system(.title2, design: .rounded, weight: .bold))
+            VStack(alignment: .leading, spacing: 16) {
+                if let result = session.result, session.hasFunding {
+                    LabeledContent("Сегодня можно", value: MoneyText.whole(result.todayRemaining))
+                    LabeledContent("Осталось", value: MoneyText.whole(result.monthlyRemaining))
+                }
+                Button(distributionTitle(session.distributionDay)) { showingDistribution = true }
+                    .font(.subheadline)
+                Button("Внести деньги", systemImage: "plus") { setupScope = scope }.buttonStyle(FolkiSoftButtonStyle())
+            }.budgetCard()
+            Button("Все финансы и конверты", systemImage: "tray.2") {
+                do {
+                    try session.ensureDailyPeriod(); session.fullFinanceEnabled = true; salaryScope = scope
+                } catch { errorMessage = String(localized: "Не получилось открыть бюджет. Попробуй ещё раз.") }
+            }.buttonStyle(FolkiSoftButtonStyle())
         }
     }
 

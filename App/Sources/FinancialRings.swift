@@ -9,6 +9,7 @@ struct FinancialRings: View {
     let family: DailyBudgetSnapshot?
     var compact = false
     var showsMonth = false
+    var showsFamily = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Rings fill up once when the screen first appears.
     @State private var appeared = false
@@ -27,8 +28,10 @@ struct FinancialRings: View {
             let gap = size * 0.018
             ZStack {
                 FinancialRing(fraction: fractions[0], palette: .personal, lineWidth: width)
-                FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width)
-                    .padding(width + gap)
+                if showsFamily {
+                    FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width)
+                        .padding(width + gap)
+                }
             }
             .frame(width: size, height: size)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -99,6 +102,10 @@ struct BudgetRingsCard: View {
     var isToday = true
     var showsMonth = false
     var togglePeriod: () -> Void = {}
+    var showsFamily = true
+    var personalNeedsFunds = false
+    var familyNeedsFunds = false
+    var addFunds: (BudgetScope) -> Void = { _ in }
     let reviewPlan: (BudgetScope) -> Void
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 40
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -114,26 +121,29 @@ struct BudgetRingsCard: View {
     @ViewBuilder var rings: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(spacing: FolkiSpacing.card) {
-                FinancialRings(personal: personal, family: family, showsMonth: showsMonth)
+                FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily)
                     .frame(width: 160, height: 160).accessibilityHidden(true)
-                Button(action: togglePeriod) {
-                    VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                        accessibleAmount(personal, title: String(localized: "Личный"))
-                        accessibleAmount(family, title: String(localized: "Семейный"))
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }.buttonStyle(.plain).accessibilityHint("Переключить остатки дня и периода")
+                VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+                    if personalNeedsFunds && isToday {
+                        Button("Добавить деньги") { addFunds(.personal) }.font(.headline)
+                    } else { accessibleAmount(personal, title: String(localized: "Личный")) }
+                    if showsFamily {
+                        if familyNeedsFunds && isToday {
+                            Button("Добавить в семейный") { addFunds(.family) }.font(.headline)
+                        } else { accessibleAmount(family, title: String(localized: "Семейный")) }
+                    }
+                    if !personalNeedsFunds { Button("День / период", action: togglePeriod).font(.subheadline) }
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
             GeometryReader { geometry in
                 let diameter = min(geometry.size.width, geometry.size.height)
                 ZStack {
-                    FinancialRings(personal: personal, family: family, showsMonth: showsMonth)
+                    FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily)
                         .padding(diameter * 0.06)
-                    Button(action: togglePeriod) { center(diameter: diameter) }
+                    center(diameter: diameter)
                         .buttonStyle(.plain)
-                        .accessibilityLabel(showsMonth ? String(localized: "Остатки периода") : String(localized: "Остатки дня"))
-                        .accessibilityValue("Личный: \(periodValue(personal)). Семейный: \(periodValue(family)).")
-                        .accessibilityHint(showsMonth ? String(localized: "Показать остатки дня") : String(localized: "Показать остатки периода"))
+                        .accessibilityElement(children: .contain)
                         .frame(width: diameter * 0.48, height: diameter * 0.42)
                 }.frame(width: geometry.size.width, height: geometry.size.height)
             }
@@ -159,7 +169,7 @@ struct BudgetRingsCard: View {
 
     var outlook: some View {
         VStack(alignment: .leading, spacing: 6) {
-            monthLine
+            if showsMonth { monthLine }
             notes
         }
         .padding(.vertical, 8)
@@ -168,12 +178,35 @@ struct BudgetRingsCard: View {
 
     private func center(diameter: CGFloat) -> some View {
         VStack(spacing: 4) {
-            Text(showsMonth ? String(localized: "Личный · период") : String(localized: "Личный")).font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
-            amount(showsMonth ? personal?.periodRemaining : personal?.todayRemaining, size: min(amountSize, diameter * 0.13), width: diameter * 0.48)
-            Text(showsMonth ? String(localized: "Семейный · период") : String(localized: "Семейный")).font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
-            amount(showsMonth ? family?.periodRemaining : family?.todayRemaining, size: min(amountSize * 0.65, diameter * 0.085), width: diameter * 0.48)
-        }
-        .lineLimit(1).minimumScaleFactor(0.3)
+            Text(showsFamily ? String(localized: "Личный") : (showsMonth ? String(localized: "На период") : String(localized: "Сегодня можно")))
+                .font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
+            if personalNeedsFunds && isToday {
+                Button("Добавить деньги") { addFunds(.personal) }
+                    .font(.system(.headline, design: .rounded)).foregroundStyle(Color.folkiAccent)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            } else {
+                Button(action: togglePeriod) {
+                    amount(showsMonth ? personal?.periodRemaining : personal?.todayRemaining,
+                        size: min(amountSize, diameter * 0.13), width: diameter * 0.48)
+                }
+                .accessibilityLabel("Личный")
+                .accessibilityValue(periodValue(personal))
+                .accessibilityHint(showsMonth ? String(localized: "Показать остатки дня") : String(localized: "Показать остатки периода"))
+            }
+            if showsFamily {
+                Text("Семейный").font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
+                if familyNeedsFunds && isToday {
+                    Button("Добавить деньги") { addFunds(.family) }.font(.subheadline).foregroundStyle(Color.folkiAccent)
+                } else {
+                    Button(action: togglePeriod) {
+                        amount(showsMonth ? family?.periodRemaining : family?.todayRemaining,
+                            size: min(amountSize * 0.65, diameter * 0.085), width: diameter * 0.48)
+                    }
+                    .accessibilityLabel("Семейный")
+                    .accessibilityValue(periodValue(family))
+                }
+            }
+        }.minimumScaleFactor(0.5)
     }
 
     private func amount(_ money: Money?, size: CGFloat, width: CGFloat) -> some View {

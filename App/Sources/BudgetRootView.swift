@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, spend, income, expense, contribution, details, settings, limits
+    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes
     var id: String { rawValue }
 }
 
@@ -33,7 +33,10 @@ struct BudgetRootView: View {
             GeometryReader { page in
                 let card = BudgetRingsCard(personal: personalDay.result, family: familyDay.result,
                                            isToday: selectedDay == nil, showsMonth: showsMonth,
-                                           togglePeriod: toggleRingPeriod) { scope in
+                                           togglePeriod: toggleRingPeriod,
+                                           showsFamily: family.household != nil,
+                                           personalNeedsFunds: !personal.hasFunding, familyNeedsFunds: !family.hasFunding,
+                                           addFunds: { scope in selectedScope = scope; sheet = .income }) { scope in
                     selectedScope = scope; sheet = .limits
                 }
                 if page.size.height < 520 || dynamicTypeSize.isAccessibilitySize {
@@ -47,6 +50,7 @@ struct BudgetRootView: View {
                                     .padding(.horizontal, -8)
                             }
                             entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
+                            distributionLine
                             card.outlook.contentShape(Rectangle()).onTapGesture { sheet = .details }
                         }.folkiPagePadding(top: 4)
                     }.scrollBounceBehavior(.basedOnSize)
@@ -58,7 +62,7 @@ struct BudgetRootView: View {
                             BudgetDashboardLayout {
                                 interactiveRings(card.rings).padding(.horizontal, -8)
                                 entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
-                                card.outlook.contentShape(Rectangle()).onTapGesture { sheet = .details }
+                                distributionLine
                             }
                         }
                         .padding(.horizontal, FolkiSpacing.page).padding(.top, 4)
@@ -77,14 +81,39 @@ struct BudgetRootView: View {
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $sheet) { destination in
             switch destination {
-            case .setup: BudgetSetupView(session: session)
+            case .setup: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
             case .spend: QuickSpendView(personal: personal, family: family)
-            case .income: QuickSpendView(personal: personal, family: family, entryKind: .income, initialScope: selectedScope)
+            case .income: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
             case .expense: ExpenseEditorView(session: session, initialKind: entryKind)
             case .contribution: ContributionView(personal: personal, family: family)
             case .limits: SpendingLimitsView(personal: personal, family: family, scope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
+            case .distribution:
+                DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
+                    apply: { try session.setDistributionDay($0) })
+            case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
+            }
+        }
+    }
+
+    private var distributionLine: some View {
+        VStack(spacing: 12) {
+            if personal.hasFunding {
+                Button {
+                    selectedScope = .personal; sheet = .distribution
+                } label: {
+                    Text(personal.periodTitle).font(.footnote).foregroundStyle(.secondary)
+                }.buttonStyle(.plain)
+            }
+            if personal.hasFunding && !personal.envelopeOfferDismissed && !personal.fullFinanceEnabled {
+                HStack {
+                    Button("Настроить конверты") {
+                        selectedScope = .personal; personal.fullFinanceEnabled = true; sheet = .envelopes
+                    }.font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("Позже") { personal.envelopeOfferDismissed = true }.font(.footnote).foregroundStyle(.secondary)
+                }.padding(14).budgetCard()
             }
         }
     }
@@ -114,7 +143,7 @@ struct BudgetRootView: View {
     }
 
     private var weekCalendar: some View {
-        BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar) { day in
+        BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar, showsFamily: family.household != nil) { day in
             (personal.overview(on: day).result?.dayRingFraction, family.overview(on: day).result?.dayRingFraction)
         }
     }
@@ -138,16 +167,6 @@ struct BudgetRootView: View {
         ZStack(alignment: .top) {
             if selectedDay == nil {
                 VStack(spacing: 10) {
-                    ForEach([personal, family].filter(\.periodEnded), id: \.scope) { budget in
-                        Button {
-                            selectedScope = budget.scope; sheet = .setup
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(budget.scope.title): пришла зарплата?").font(.headline)
-                                Text("Введи сумму и дату следующей").font(.footnote)
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                        }.buttonStyle(FolkiSoftButtonStyle())
-                    }
                     spendButton.padding(.horizontal, -8)
                 }.transition(.opacity)
             } else {
@@ -167,7 +186,7 @@ struct BudgetRootView: View {
             Button {
                 FolkiFeedback.tap()
                 returnToToday {
-                    sheet = personal.result == nil && family.result == nil ? .setup : .spend
+                    sheet = .spend
                 }
             } label: {
                 Text("− Потратить").frame(maxWidth: .infinity).frame(minHeight: 70)
@@ -177,11 +196,11 @@ struct BudgetRootView: View {
             .buttonStyle(FolkiPressStyle())
             .frame(minWidth: 104, maxWidth: .infinity)
             Menu {
-                Button("Зарплата — новый личный период", systemImage: "arrow.clockwise") { selectedScope = .personal; sheet = .setup }
-                Button("Зарплата — новый семейный период", systemImage: "arrow.clockwise") { selectedScope = .family; sheet = .setup }
-                Button("Доход в личный", systemImage: "person") { openEntry(.personal, kind: .income) }
-                Button("Доход в семейный", systemImage: "person.2") { openEntry(.family, kind: .income) }
-                Button("Взнос в семейный", systemImage: "arrow.right.circle") { openContribution() }
+                Button("В личный бюджет", systemImage: "person") { selectedScope = .personal; sheet = .income }
+                if family.household != nil {
+                    Button("В семейный бюджет", systemImage: "person.2") { selectedScope = .family; sheet = .income }
+                    Button("Взнос в семейный", systemImage: "arrow.right.circle") { openContribution() }
+                }
             } label: {
                 Text("+ Внести").frame(maxWidth: .infinity, minHeight: 70)
                     .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk)
@@ -213,8 +232,7 @@ struct BudgetRootView: View {
         returnToToday {
             selectedScope = scope
             entryKind = kind
-            let destination = scope == .personal ? personal : family
-            sheet = destination.result == nil ? .setup : (kind == .income ? .income : .expense)
+            sheet = kind == .income ? .income : .expense
         }
     }
 

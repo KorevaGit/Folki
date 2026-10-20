@@ -231,7 +231,8 @@ public final class BudgetRepository {
 
     /// Adjust the opening salary plan without discarding any operations or goal balances.
     /// Removed reserves remain with a zero opening amount so old record references still resolve.
-    public func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], in budget: StoredBudget, asOf now: Date) throws {
+    public func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], in budget: StoredBudget, asOf now: Date,
+                                 balanceIsCurrent: Bool = false) throws {
         do {
             let root = try writableRoot(budget, now: now)
             guard let current = try load(asOf: now, scope: budget.scope),
@@ -249,10 +250,16 @@ public final class BudgetRepository {
                 .map { ProtectedReserve(id: $0.id, name: $0.name, openingAmount: Money(minorUnits: 0), isRegularPayment: $0.isRegularPayment) }
             let all = reserves + goalReserves + removed
             let protected = try all.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
-            let freePlan = try available.subtracting(protected)
-            guard available.currency == .rub, available.minorUnits > 0, freePlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+            let oldResult = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
+            let oldProtected = try current.snapshot.reserves.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
+            let cashChange = try available.subtracting(oldResult.totalFunds)
+            let opening = balanceIsCurrent ? try current.snapshot.openingFunds.adding(cashChange) : available
+            let freePlan = balanceIsCurrent
+                ? try current.snapshot.monthlyFreePlan.adding(cashChange).adding(oldProtected).subtracting(protected)
+                : try available.subtracting(protected)
+            guard available.currency == .rub, available.minorUnits >= 0, freePlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
             let candidate = HouseholdSnapshot(id: current.snapshot.id, period: current.snapshot.period,
-                monthlyFreePlan: freePlan, openingFunds: available, reserves: all, transactions: current.snapshot.transactions)
+                monthlyFreePlan: freePlan, openingFunds: opening, reserves: all, transactions: current.snapshot.transactions)
             let result = try DailyBudgetCalculator.calculate(candidate, asOf: now)
             guard result.monthlyRemaining.minorUnits >= 0 else { throw BudgetError.insufficientReserve }
             let period = try object("BudgetPeriod", id: current.periodID)
@@ -264,7 +271,7 @@ public final class BudgetRepository {
                 item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
                 item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
             }
-            period.setValue(available.minorUnits, forKey: "openingFunds")
+            period.setValue(opening.minorUnits, forKey: "openingFunds")
             period.setValue(freePlan.minorUnits, forKey: "monthlyPlan")
             try commit()
         } catch { context.rollback(); throw error }
@@ -278,7 +285,7 @@ public final class BudgetRepository {
                            payday: Date? = nil, closeCurrent: Bool = false) throws {
         try writable()
         guard monthlyPlan.currency == .rub, available.currency == .rub,
-              monthlyPlan.minorUnits >= 0, available.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+              monthlyPlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
         do {
             let households = try households(in: scope)
             guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
@@ -360,7 +367,8 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
-    public func save(_ record: LedgerRecord, in budget: StoredBudget, expectedRevision: UUID?, asOf now: Date) throws {
+    public func save(_ record: LedgerRecord, in budget: StoredBudget, expectedRevision: UUID?, asOf now: Date,
+                     addIncomeToPlan: Bool = false) throws {
         try writable()
         guard [.expense, .refund, .income].contains(record.transaction.kind) else { throw BudgetError.invalidTransaction }
         _ = try LedgerRules.replacing(record, in: budget, asOf: now)
@@ -397,6 +405,12 @@ public final class BudgetRepository {
             let keepsCategory = expectedRevision != nil && object.value(forKey: "categoryID") as? UUID == record.categoryID
             try validateCategory(record.categoryID, household: household, allowArchived: keepsCategory)
             encode(record, into: object, updatedAt: now)
+            if addIncomeToPlan {
+                guard expectedRevision == nil, record.transaction.kind == .income,
+                      record.transaction.funding == .flexible, !record.transaction.isDeleted else { throw BudgetError.invalidTransaction }
+                let plan = Money(minorUnits: try period.required("monthlyPlan"))
+                period.setValue(try plan.adding(record.transaction.amount).minorUnits, forKey: "monthlyPlan")
+            }
             // Re-read the whole period, including imports, before accepting a write.
             guard let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.conflict }
             if expectedRevision == nil {
@@ -404,6 +418,24 @@ public final class BudgetRepository {
                       record.transaction.authorID == (try authorID(in: current)) else { throw LedgerError.invalidMember }
             }
             _ = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    public func updatePeriodEnd(_ end: Date, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            guard end > now, let current = try load(asOf: now, scope: budget.scope),
+                  current.snapshot.period == budget.snapshot.period else { throw LedgerError.conflict }
+            guard current.records.allSatisfy({ $0.transaction.date < end }) else { throw BudgetError.invalidPeriod }
+            let otherPeriods = try periods(scope: budget.scope).filter { $0.start != current.snapshot.period.start }
+            guard !otherPeriods.contains(where: { $0.start < end && $0.endExclusive > current.snapshot.period.start }) else {
+                throw LedgerError.existingPeriod
+            }
+            let period = try object("BudgetPeriod", id: current.periodID)
+            period.setValue(end, forKey: "endsAt")
+            guard let updated = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
+            _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
             try commit()
         } catch { context.rollback(); throw error }
     }

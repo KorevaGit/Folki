@@ -5780,6 +5780,486 @@
           }
         }
       }
+    },
+    "В личный бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To personal budget"
+          }
+        }
+      }
+    },
+    "Вести все финансы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track all finances"
+          }
+        }
+      }
+    },
+    "Включая деньги в конвертах. Записи сохранятся.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Including envelope balances. Entries will be kept."
+          }
+        }
+      }
+    },
+    "Вместе с близкими": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Better together"
+          }
+        }
+      }
+    },
+    "Все деньги, ₽": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All money, ₽"
+          }
+        }
+      }
+    },
+    "Все финансы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All finances"
+          }
+        }
+      }
+    },
+    "Все финансы и конверты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All finances and envelopes"
+          }
+        }
+      }
+    },
+    "Всего денег сейчас": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Total money available now"
+          }
+        }
+      }
+    },
+    "День / период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day / period"
+          }
+        }
+      }
+    },
+    "Деньги на повседневные траты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money for everyday spending"
+          }
+        }
+      }
+    },
+    "До конца месяца": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until the end of the month"
+          }
+        }
+      }
+    },
+    "Добавить в семейный": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to family budget"
+          }
+        }
+      }
+    },
+    "Добавить деньги": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add money"
+          }
+        }
+      }
+    },
+    "Добавить конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add envelope"
+          }
+        }
+      }
+    },
+    "Записать трату": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record an expense"
+          }
+        }
+      }
+    },
+    "Конверты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envelopes"
+          }
+        }
+      }
+    },
+    "Личные": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal"
+          }
+        }
+      }
+    },
+    "На каждый день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everyday spending"
+          }
+        }
+      }
+    },
+    "На каждый день %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everyday spending for %lld days"
+          }
+        }
+      }
+    },
+    "На каждый день, ₽": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everyday spending, ₽"
+          }
+        }
+      }
+    },
+    "На период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For this period"
+          }
+        }
+      }
+    },
+    "Настроить конверты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up envelopes"
+          }
+        }
+      }
+    },
+    "Настрою позже": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up later"
+          }
+        }
+      }
+    },
+    "Не получилось внести деньги. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not add money. Please try again."
+          }
+        }
+      }
+    },
+    "Не получилось изменить срок. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not change the end date. Please try again."
+          }
+        }
+      }
+    },
+    "Не получилось открыть бюджет. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open the budget. Please try again."
+          }
+        }
+      }
+    },
+    "Не получилось создать семью. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not create a family. Please try again."
+          }
+        }
+      }
+    },
+    "Не получилось открыть новый период. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not start a new period. Please try again."
+          }
+        }
+      }
+    },
+    "Общие траты — вместе. Личные — только твои.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared spending together. Personal spending stays yours."
+          }
+        }
+      }
+    },
+    "Осталось": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaining"
+          }
+        }
+      }
+    },
+    "Первая трата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your first expense"
+          }
+        }
+      }
+    },
+    "По %lld-е число": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Through day %lld"
+          }
+        }
+      }
+    },
+    "Позже": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        }
+      }
+    },
+    "Проверь сумму и попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the amount and try again."
+          }
+        }
+      }
+    },
+    "Продолжить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "Распределение": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution"
+          }
+        }
+      }
+    },
+    "Распределить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spread through"
+          }
+        }
+      }
+    },
+    "Распределить по": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spread through"
+          }
+        }
+      }
+    },
+    "Распределять деньги": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spread your money"
+          }
+        }
+      }
+    },
+    "Свой конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom envelope"
+          }
+        }
+      }
+    },
+    "Семейные": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Family"
+          }
+        }
+      }
+    },
+    "Сколько выделишь на повседневные траты?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much will you set aside for everyday spending?"
+          }
+        }
+      }
+    },
+    "Сколько можно потратить сегодня.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See how much you can spend today."
+          }
+        }
+      }
+    },
+    "Создать семью": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a family"
+          }
+        }
+      }
+    },
+    "Уже что-нибудь потратил сегодня?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Have you spent anything today?"
+          }
+        }
+      }
+    },
+    "Хочу вести все финансы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I want to track all my finances"
+          }
+        }
+      }
+    },
+    "Эти деньги не входят в остаток дня.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This money is excluded from your daily allowance."
+          }
+        }
+      }
+    },
+    "Личный: %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personal: %@."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
