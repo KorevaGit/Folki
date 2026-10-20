@@ -4550,6 +4550,46 @@
           }
         }
       }
+    },
+    "Привет! Это Folki 👋": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hi! This is Folki 👋"
+          }
+        }
+      }
+    },
+    "Семейный бюджет, в котором сразу видно, сколько можно потратить сегодня.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A family budget that shows right away how much you can spend today."
+          }
+        }
+      }
+    },
+    "Поехали": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's go"
+          }
+        }
+      }
+    },
+    "Свободное место": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open spot"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,7 +1,7 @@
 import SwiftUI
 import FolkiDuoCore
 
-/// First launch, step by step: invite the family (or later), set the personal plan, then a short "how it works".
+/// First launch: a hello with the icon, then three setup steps — family (or later), personal plan, how the rings work.
 struct OnboardingView: View {
     let personal: BudgetSession
     let family: BudgetSession
@@ -23,24 +23,31 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Шаг \(page + 1) из 3").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                .contentTransition(.numericText()).padding(.top, 16)
-            dots.padding(.top, 10)
+            Group {
+                if page > 0 {
+                    VStack(spacing: 10) {
+                        Text("Шаг \(page) из 3").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                        dots
+                    }.transition(.opacity)
+                }
+            }.frame(height: 50).padding(.top, 16)
             // Steps move forward only by the buttons, so nothing gets skipped by a stray swipe.
             ZStack {
                 switch page {
-                case 0: familyPage.transition(step)
-                case 1: setup.transition(step)
+                case 0: intro.transition(step)
+                case 1: familyPage.transition(step)
+                case 2: setup.transition(step)
                 default: welcome.transition(step)
                 }
             }.frame(maxHeight: .infinity)
             footer.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
         }
         .background { FolkiBackground() }
-        .sheet(isPresented: $showingFamily, onDismiss: { if family.members.filter(\.isActive).count > 1 { go(1) } }) {
+        .sheet(isPresented: $showingFamily, onDismiss: { if family.members.filter(\.isActive).count > 1 { FolkiFeedback.success() } }) {
             SharingView(session: family)
         }
-        .onChange(of: page) { focused = page == 1 ? .available : nil }
+        .onChange(of: page) { focused = page == 2 ? .available : nil }
     }
 
     private var step: AnyTransition {
@@ -53,6 +60,21 @@ struct OnboardingView: View {
     }
 
     // MARK: Pages
+
+    private var intro: some View {
+        VStack(spacing: 28) {
+            Spacer(minLength: 20)
+            LogoHello()
+            VStack(spacing: 12) {
+                Text("Привет! Это Folki 👋").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .multilineTextAlignment(.center)
+                Text("Семейный бюджет, в котором сразу видно, сколько можно потратить сегодня.")
+                    .font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }.folkiAppear(4)
+            Spacer(minLength: 20)
+        }.padding(.horizontal, 28)
+    }
 
     private var welcome: some View {
         page(title: String(localized: "Всё готово 🎉"),
@@ -79,8 +101,8 @@ struct OnboardingView: View {
     private var familyPage: some View {
         page(title: String(localized: "Начнём с семьи"),
              text: String(localized: "Ты можешь позвать до 4 близких 🏡 Общие траты будут видны всем, а личный бюджет у каждого свой.")) {
-            Image(systemName: "person.2.circle.fill").font(.system(size: 120))
-                .foregroundStyle(Color.budget(.family), Color.budget(.family).opacity(0.2))
+            FamilyBubbles(family: family) { FolkiFeedback.tap(); showingFamily = true }
+                .frame(height: 330)
         }
     }
 
@@ -115,7 +137,7 @@ struct OnboardingView: View {
 
     private var dots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<3) { index in
+            ForEach(1..<4) { index in
                 Capsule().fill(index == page ? Color.folkiAccent : Color.secondary.opacity(0.3))
                     .frame(width: index == page ? 22 : 8, height: 8)
             }
@@ -125,28 +147,60 @@ struct OnboardingView: View {
     @ViewBuilder private var footer: some View {
         switch page {
         case 0:
-            Button("Пригласить", systemImage: "person.badge.plus") { FolkiFeedback.tap(); showingFamily = true }
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-            Button("Добавлю позже") { go(1) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Поехали") { go(1) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            // Keeps the footer height equal on every page.
+            Text(" ").font(.subheadline).padding(.top, 8).accessibilityHidden(true)
         case 1:
+            if family.members.filter(\.isActive).count > 1 {
+                Button("Дальше") { go(2) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            } else {
+                Button("Пригласить", systemImage: "person.badge.plus") { FolkiFeedback.tap(); showingFamily = true }
+                    .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            }
+            Button("Добавлю позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+        case 2:
             Button(personal.result == nil ? String(localized: "Создать план") : String(localized: "Дальше")) { createPlan() }
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
                 .disabled(personal.result == nil && plan == nil)
-            Button("Сделаю позже") { go(2) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+            Button("Сделаю позже") { go(3) }.font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
         default:
             Button("Начать") { FolkiFeedback.success(); finish() }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
         }
     }
 
     private func createPlan() {
-        guard personal.result == nil else { go(2); return }
+        guard personal.result == nil else { go(3); return }
         guard let (monthlyPlan, funds) = plan else { return }
         do {
             try personal.createPlan(monthlyPlan: monthlyPlan, available: funds, reserves: [])
-            FolkiFeedback.saved(); errorMessage = nil; focused = nil; go(2)
+            FolkiFeedback.saved(); errorMessage = nil; focused = nil; go(3)
         } catch {
             errorMessage = String(localized: "Не получилось сохранить план. Проверь суммы и попробуй снова.")
         }
+    }
+}
+
+/// The app icon pops in, then floats gently.
+private struct LogoHello: View {
+    @State private var shown = false
+    @State private var floating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        Image("Logo").resizable().scaledToFit()
+            .frame(width: 168, height: 168)
+            .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 24, y: 12)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.4)
+            .rotationEffect(.degrees(shown || reduceMotion ? 0 : -12))
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(y: floating ? -6 : 6)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.spring(duration: 0.8, bounce: 0.45).delay(0.1)) { shown = true }
+                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true).delay(0.9)) { floating = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { FolkiFeedback.tap() }
+            }
+            .accessibilityHidden(true)
     }
 }
 

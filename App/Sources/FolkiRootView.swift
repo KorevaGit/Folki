@@ -24,7 +24,7 @@ struct FolkiRootView: View {
     var body: some View {
         TabView(selection: tabSelection) {
             Tab("Сводка", systemImage: "square.grid.2x2.fill", value: FolkiTab.summary) {
-                FolkiSummaryView(personal: personal, family: family, selectedDay: $selectedDay) { select(.budget) }
+                FolkiSummaryView(personal: personal, family: family) { select(.budget) }
             }
             Tab("Бюджет", systemImage: "wallet.bifold", value: FolkiTab.budget) {
                 BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
@@ -47,7 +47,6 @@ struct FolkiRootView: View {
 struct FolkiSummaryView: View {
     let personal: BudgetSession
     let family: BudgetSession
-    @Binding var selectedDay: Date?
     let openBudget: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 

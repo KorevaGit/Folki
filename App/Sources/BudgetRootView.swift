@@ -110,9 +110,7 @@ struct BudgetRootView: View {
         guard let target = calendar.date(byAdding: .day, value: offset, to: current) else { return }
         guard target <= today else { FolkiFeedback.boundary(); return }
         FolkiFeedback.selection()
-        withAnimation(animated && !reduceMotion ? .snappy(duration: 0.3) : nil) {
-            selectedDay = calendar.isDate(target, inSameDayAs: today) ? nil : target
-        }
+        selectedDay = calendar.isDate(target, inSameDayAs: today) ? nil : target
     }
 
     private var weekCalendar: some View {
@@ -136,13 +134,17 @@ struct BudgetRootView: View {
         }
     }
 
-    @ViewBuilder private func entryArea(date: Date, personalDay: BudgetDayOverview, familyDay: BudgetDayOverview) -> some View {
-        if selectedDay == nil {
-            spendButton.padding(.horizontal, -8)
-        } else {
-            BudgetDaySpendingSummary(date: date, personal: personal, family: family,
-                                     personalDay: personalDay, familyDay: familyDay)
+    private func entryArea(date: Date, personalDay: BudgetDayOverview, familyDay: BudgetDayOverview) -> some View {
+        ZStack(alignment: .top) {
+            if selectedDay == nil {
+                spendButton.padding(.horizontal, -8).transition(.opacity)
+            } else {
+                BudgetDaySpendingSummary(date: date, personal: personal, family: family,
+                                         personalDay: personalDay, familyDay: familyDay)
+                    .transition(.opacity)
+            }
         }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: selectedDay == nil)
     }
 
     private var spendButton: some View {

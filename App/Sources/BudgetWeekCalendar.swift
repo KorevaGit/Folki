@@ -44,6 +44,7 @@ struct BudgetWeekCalendar: View {
                     }
                 }
             }.foregroundStyle(.secondary)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selection == nil)
             ZStack {
                 HStack(spacing: 2) {
                     ForEach(0..<7, id: \.self) { offset in
@@ -52,9 +53,11 @@ struct BudgetWeekCalendar: View {
                         }
                     }
                 }
+                .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: selected)
                 .id(weekStart)
                 .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
             }.clipped()
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: weekStart)
             .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 if value.translation.width > 0 { moveWeek(-1) }
@@ -86,7 +89,7 @@ struct BudgetWeekCalendar: View {
     }
     private var todayButton: some View {
         Button("Сегодня") {
-            withAnimation(reduceMotion ? nil : .smooth(duration: 0.35)) { select(today) }
+            select(today)
         }
             .font(.caption.weight(.semibold)).frame(minWidth: 60, minHeight: 44)
     }
@@ -146,9 +149,8 @@ struct BudgetWeekCalendar: View {
         let day = calendar.startOfDay(for: date)
         guard !calendar.isDate(day, inSameDayAs: selected) else { return }
         FolkiFeedback.selection()
-        withAnimation(reduceMotion ? nil : .spring(duration: 0.38, bounce: 0.22)) {
-            selection = calendar.isDate(day, inSameDayAs: today) ? nil : day
-        }
+        // No screen-wide animation: each part animates itself, so the switch stays light.
+        selection = calendar.isDate(day, inSameDayAs: today) ? nil : day
     }
     private func moveWeek(_ direction: Int) {
         guard let target = calendar.date(byAdding: .day, value: direction * 7, to: selected) else { return }
