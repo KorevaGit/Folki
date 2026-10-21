@@ -24,6 +24,12 @@ struct BudgetRootView: View {
     /// Switches to the plan tab.
     var openPlan: () -> Void = {}
     @AppStorage("FolkiPlanReady") private var planReady = false
+    /// Set when the onboarding ends: the first-spend tip and one pulse of "Потратить".
+    @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
+    @State private var showsSpendTip = false
+    @State private var spendPulse = 0
+    @State private var tipHeight: CGFloat = 64
+    @State private var rolled = false
     @AppStorage("FolkiPlanOfferDismissed") private var planOfferDismissed = false
     @State private var entryKind: TransactionKind = .expense
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,7 +48,7 @@ struct BudgetRootView: View {
         NavigationStack {
             GeometryReader { _ in
                 let card = BudgetRingsCard(personal: personalDay.result, family: familyDay.result,
-                                           isToday: selectedDay == nil, showsMonth: showsMonth,
+                                           isToday: selectedDay == nil, showsMonth: showsMonth, rolled: rolled,
                                            togglePeriod: toggleRingPeriod,
                                            showsFamily: family.household != nil,
                                            personalNeedsFunds: !personal.hasFunding, familyNeedsFunds: !family.hasFunding,
@@ -101,7 +107,11 @@ struct BudgetRootView: View {
                 }.sharedBackgroundVisibility(.hidden)
                 headerActions
             }
-            .onAppear { FolkiFeedback.prepare() }
+            .onAppear {
+                FolkiFeedback.prepare()
+                guard !rolled else { return }
+                Task { try? await Task.sleep(for: .milliseconds(250)); rolled = true }
+            }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $editingEntry) { ExpenseEditorView(session: $0.session, editing: $0.record) }
@@ -330,6 +340,7 @@ struct BudgetRootView: View {
         return GlassEffectContainer(spacing: 12) {
         layout {
             Button {
+                dismissSpendTip()
                 returnToToday {
                     sheet = .spend
                 }
@@ -339,6 +350,9 @@ struct BudgetRootView: View {
                     .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
             }
             .buttonStyle(FolkiPressStyle())
+            .keyframeAnimator(initialValue: 1.0, trigger: spendPulse) { view, scale in view.scaleEffect(scale) } keyframes: { _ in
+                KeyframeTrack { SpringKeyframe(1.07, duration: 0.22); SpringKeyframe(1, duration: 0.4) }
+            }
             .frame(minWidth: 104, maxWidth: .infinity)
             // One sheet for every deposit; the family share and the family source live inside it.
             Button {
@@ -353,6 +367,41 @@ struct BudgetRootView: View {
         }
         .font(.system(.title3, design: .rounded, weight: .bold)).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.8).buttonStyle(.plain)
         }
+        .overlay(alignment: .topLeading) {
+            if showsSpendTip {
+                Button(action: dismissSpendTip) {
+                    Text("Запиши первую трату — покажу, как поменяется день")
+                        .font(.subheadline.weight(.medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
+                        .padding(.horizontal, FolkiSpacing.card).padding(.vertical, FolkiSpacing.item)
+                        .background(Color.folkiInk, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(alignment: .bottomLeading) {
+                            // The bubble's tail points at "Потратить".
+                            Image(systemName: "arrowtriangle.down.fill").font(.system(size: 14)).foregroundStyle(Color.folkiInk)
+                                .offset(x: 48, y: 10)
+                        }
+                }
+                .buttonStyle(.plain)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 300, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tipHeight = $0 }
+                .offset(y: -tipHeight - 14)
+                .transition(.scale(scale: 0.8, anchor: .bottomLeading).combined(with: .opacity))
+                .accessibilityHint("Скрыть подсказку")
+            }
+        }
+        .task {
+            // The end of the onboarding, frame by frame: rings fill and the figure rolls, then one pulse and the tip.
+            guard firstSpendTip, !personal.records.contains(where: { $0.transaction.kind == .expense }) else { return }
+            try? await Task.sleep(for: .milliseconds(1200))
+            spendPulse += 1
+            try? await Task.sleep(for: .milliseconds(300))
+            withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { showsSpendTip = true }
+        }
+    }
+
+    private func dismissSpendTip() {
+        firstSpendTip = false
+        withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { showsSpendTip = false }
     }
 
     private func returnToToday(then action: @escaping () -> Void = {}) {

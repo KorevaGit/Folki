@@ -9,6 +9,7 @@ struct FolkiRootView: View {
     @AppStorage("FolkiOnboarded") private var onboarded = false
     /// The step reached so far; survives a relaunch (for example after changing the app language).
     @AppStorage("FolkiOnboardingStep") private var onboardingStep = 0
+    @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
     @State private var finishedOnboarding = false
     enum TabID: Hashable { case budget, plan }
     @State private var tab: TabID = .budget
@@ -34,6 +35,7 @@ struct FolkiRootView: View {
             OnboardingView(personal: personal, family: family) {
                 onboarded = true
                 onboardingStep = 0
+                firstSpendTip = true
                 withAnimation(FolkiMotion.standard) { finishedOnboarding = true }
             }
             .transition(.opacity)
@@ -46,7 +48,8 @@ struct FolkiRootView: View {
                     PlanTab(personal: personal, family: family)
                 }
             }
-            .tint(Color.folkiAccent).transition(.opacity)
+            .tint(Color.folkiAccent)
+            .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
             .onChange(of: reminderSignature) { reschedule() }
             .onChange(of: scenePhase) { _, phase in if phase == .active { reschedule() } }
             .task { reschedule() }

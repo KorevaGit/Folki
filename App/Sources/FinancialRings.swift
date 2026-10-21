@@ -109,6 +109,8 @@ struct BudgetRingsCard: View {
     let family: DailyBudgetSnapshot?
     var isToday = true
     var showsMonth = false
+    /// False shows zero, so the figures roll up once together with the rings filling.
+    var rolled = true
     var togglePeriod: () -> Void = {}
     var showsFamily = true
     var personalNeedsFunds = false
@@ -224,7 +226,7 @@ struct BudgetRingsCard: View {
     }
 
     private func amount(_ money: Money?, size: CGFloat, width: CGFloat) -> some View {
-        let whole = money?.roundedDownToWholeUnits
+        let whole = rolled || reduceMotion ? money?.roundedDownToWholeUnits : money.map { Money(minorUnits: 0, currency: $0.currency) }
         let text = whole.map(MoneyText.whole) ?? "—"
         // Measure the complete amount including minus, grouping spaces and currency.
         // Fit to the clear center of the rings before SwiftUI lays out the label.

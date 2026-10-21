@@ -8470,6 +8470,46 @@
           }
         }
       }
+    },
+    "Завтра ≈ %@ в день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomorrow ≈ %@ a day"
+          }
+        }
+      }
+    },
+    "Скрыть подсказку": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide the tip"
+          }
+        }
+      }
+    },
+    "Запиши первую трату — покажу, как поменяется день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log your first expense — I'll show how your day changes"
+          }
+        }
+      }
+    },
+    "Сверх дня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Over today"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
