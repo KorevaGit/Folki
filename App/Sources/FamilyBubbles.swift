@@ -93,7 +93,7 @@ private struct Pop: ViewModifier {
     let delay: Double
     func body(content: Content) -> some View {
         content.scaleEffect(shown ? 1 : 0.2).opacity(shown ? 1 : 0)
-            .animation(.spring(duration: 0.7, bounce: 0.5).delay(delay), value: shown)
+            .animation(FolkiMotion.ring.delay(delay), value: shown)
     }
 }
 
@@ -108,5 +108,6 @@ private struct Drift: ViewModifier {
                 guard active else { return }
                 withAnimation(.easeInOut(duration: 2.2 + Double(seed) * 0.35).repeatForever(autoreverses: true)) { up = true }
             }
+            .onDisappear { var t = Transaction(animation: nil); t.disablesAnimations = true; withTransaction(t) { up = false } }
     }
 }

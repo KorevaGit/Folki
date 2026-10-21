@@ -45,7 +45,7 @@ struct BudgetWeekCalendar: View {
                     }
                 }
             }.foregroundStyle(.secondary)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selection == nil)
+            .animation(reduceMotion ? nil : FolkiMotion.quick, value: selection == nil)
             ZStack {
                 HStack(spacing: 2) {
                     ForEach(0..<7, id: \.self) { offset in
@@ -54,11 +54,11 @@ struct BudgetWeekCalendar: View {
                         }
                     }
                 }
-                .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: selected)
+                .animation(reduceMotion ? nil : FolkiMotion.quick, value: selected)
                 .id(weekStart)
                 .transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
             }.clipped()
-            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: weekStart)
+            .animation(reduceMotion ? nil : FolkiMotion.standard, value: weekStart)
             .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 if value.translation.width > 0 { moveWeek(-1) }
@@ -129,7 +129,7 @@ struct BudgetWeekCalendar: View {
             .background {
                 // The selection slides between days instead of jumping.
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.folkiAccent)
+                    RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius, style: .continuous).fill(Color.folkiAccent)
                         .matchedGeometryEffect(id: "selected", in: pill)
                 }
             }

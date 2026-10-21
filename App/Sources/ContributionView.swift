@@ -26,7 +26,7 @@ struct ContributionView: View {
                         .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
                         .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                         .lineLimit(1).minimumScaleFactor(0.3).frame(maxWidth: .infinity)
-                        .contentTransition(.numericText()).animation(.snappy, value: amount)
+                        .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
                     if let available {
                         Text("Можно перевести до \(MoneyText.whole(available))")
                             .font(.subheadline).foregroundStyle(.secondary)
@@ -44,7 +44,7 @@ struct ContributionView: View {
                         }.budgetCard()
                     }
                     if !amount.isEmpty && money == nil {
-                        Text("Больше, чем свободно в личном бюджете").font(.footnote).foregroundStyle(.red)
+                        Text("Больше, чем свободно в личном бюджете").font(.footnote).foregroundStyle(Color.folkiOver)
                     }
                     Text("Семья увидит взнос, а твой личный бюджет — нет 🤫")
                         .font(.footnote).foregroundStyle(.secondary)

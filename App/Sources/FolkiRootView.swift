@@ -8,13 +8,17 @@ struct FolkiRootView: View {
     @State private var selectedDay: Date?
     @AppStorage("FolkiOnboarded") private var onboarded = false
     /// The step reached so far; survives a relaunch (for example after changing the app language).
-    @AppStorage("FolkiOnboardingStep") private var onboardingStep = 0
+    @AppStorage("FolkiOnboardingStep") private var onboardingStep = OnboardingView.Step.hello.rawValue
     @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
     @State private var finishedOnboarding = false
     enum TabID: Hashable { case budget, plan }
     @State private var tab: TabID = .budget
+    @State private var budgetInHistory = false
+    @State private var budgetReturnRequest = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set by a widget or intent link; the budget screen opens the matching sheet.
     @State private var pendingEntry: URL?
+    @State private var pendingEnvelope: UUID?
     @Environment(\.scenePhase) private var scenePhase
 
     /// Everything the plan reminders and widgets depend on: envelopes, what is put aside, today's figures.
@@ -33,37 +37,59 @@ struct FolkiRootView: View {
         return !onboarded && !personal.isDemo
     }
 
+    private func selectTab(_ value: TabID) {
+        guard tab != value else { return }
+        FolkiFeedback.selection()
+        tab = value
+    }
+
     var body: some View {
         if needsOnboarding {
             OnboardingView(personal: personal, family: family) {
-                onboarded = true
-                onboardingStep = 0
-                firstSpendTip = true
-                withAnimation(FolkiMotion.standard) { finishedOnboarding = true }
+                // Mount the main screen once at its final size; its rings animate independently.
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    firstSpendTip = true
+                    onboardingStep = OnboardingView.Step.hello.rawValue
+                    finishedOnboarding = true
+                    onboarded = true
+                }
             }
             .transition(.opacity)
         } else {
-            TabView(selection: $tab) {
+            TabView(selection: Binding(get: { tab }, set: { value in
+                // Tapping Budget while the list is open (the bar is collapsed to one icon) returns to the rings.
+                if value == .budget && tab == .budget { budgetReturnRequest += 1 } else { selectTab(value) }
+            })) {
                 Tab("Бюджет", systemImage: "wallet.bifold", value: TabID.budget) {
                     BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay,
-                                   pendingEntry: $pendingEntry) { tab = .plan }
+                                   pendingEntry: $pendingEntry, inHistory: $budgetInHistory,
+                                   returnRequest: budgetReturnRequest) { selectTab(.plan) }
                 }
                 Tab("План", systemImage: "list.bullet.clipboard", value: TabID.plan) {
-                    PlanTab(personal: personal, family: family)
+                    PlanTab(personal: personal, family: family, pendingEnvelope: $pendingEnvelope)
                 }
             }
+            .tabBarMinimizeBehavior(.onScrollDown)
             .tint(Color.folkiAccent)
-            .transition(.asymmetric(insertion: .scale(scale: 0.96).combined(with: .opacity), removal: .opacity))
+            .transition(.identity)
             .onChange(of: reminderSignature) { reschedule() }
             .onChange(of: scenePhase) { _, phase in if phase == .active { reschedule() } }
             .task { reschedule() }
             .onOpenURL { url in
                 guard url.scheme == "folki" else { return }
-                tab = .budget
-                pendingEntry = url
+                if url.host == "envelope" {
+                    selectTab(.plan)
+                    pendingEnvelope = UUID(uuidString: url.lastPathComponent)
+                } else {
+                    selectTab(.budget)
+                    pendingEntry = url
+                }
             }
         }
     }
+
 }
 
 extension FolkiRootView {

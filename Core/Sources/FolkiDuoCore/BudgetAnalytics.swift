@@ -38,6 +38,9 @@ public struct BudgetAnalyticsSnapshot: Sendable {
     public let contributions: Money
     /// Family budget only: who contributed how much, largest first.
     public let contributionsByMember: [MemberContribution]
+    public let envelopeNetSpending: Money
+    public let everydayCategories: [CategorySpending]
+    public let envelopeCategories: [CategorySpending]
     public let flexibleNetSpending: Money
     /// Net spending split by the category's needs-versus-wants flag.
     public let essentialSpending: Money
@@ -65,6 +68,8 @@ public enum BudgetAnalytics {
         let cutoff = min(now, nextDay.addingTimeInterval(-0.001), interval.end.addingTimeInterval(-0.001))
         let zero = Money(minorUnits: 0)
         var expenses = zero, refunds = zero, income = zero, transfers = zero, flexible = zero, contributions = zero
+        var envelopeSpending = zero
+        var everydayAmounts: [UUID: (Money, Money)] = [:], envelopeAmounts: [UUID: (Money, Money)] = [:]
         var byMember: [UUID: Money] = [:]
         var categoryAmounts: [UUID: (Money, Money)] = [:]
         var expenseBuckets: [Date: Money] = [:], refundBuckets: [Date: Money] = [:]
@@ -94,7 +99,16 @@ public enum BudgetAnalytics {
                     refundBuckets[bucket] = try (refundBuckets[bucket] ?? zero).adding(entry.amount)
                     categoryAmounts[categoryID] = (current.0, try current.1.adding(entry.amount))
                 }
-                if entry.funding == .flexible {
+                let fromEnvelope: Bool
+                if case .reserve = entry.funding { fromEnvelope = true } else { fromEnvelope = false }
+                var sourceAmount = (fromEnvelope ? envelopeAmounts[categoryID] : everydayAmounts[categoryID]) ?? (zero, zero)
+                if entry.kind == .expense { sourceAmount.0 = try sourceAmount.0.adding(entry.amount) }
+                else { sourceAmount.1 = try sourceAmount.1.adding(entry.amount) }
+                if fromEnvelope {
+                    envelopeAmounts[categoryID] = sourceAmount
+                    envelopeSpending = try entry.kind == .expense ? envelopeSpending.adding(entry.amount) : envelopeSpending.subtracting(entry.amount)
+                } else {
+                    everydayAmounts[categoryID] = sourceAmount
                     flexible = try entry.kind == .expense ? flexible.adding(entry.amount) : flexible.subtracting(entry.amount)
                 }
             case .income: income = try income.adding(entry.amount)
@@ -132,8 +146,15 @@ public enum BudgetAnalytics {
             if left.amount.minorUnits == right.amount.minorUnits { return left.memberID.uuidString < right.memberID.uuidString }
             return left.amount.minorUnits > right.amount.minorUnits
         }
+        func sourceCategories(_ amounts: [UUID: (Money, Money)]) -> [CategorySpending] {
+            categories.compactMap { category in
+                guard let value = amounts[category.categoryID] else { return nil }
+                return CategorySpending(categoryID: category.categoryID, expenses: value.0, refunds: value.1)
+            }
+        }
         return BudgetAnalyticsSnapshot(interval: interval, cutoff: cutoff, expenses: expenses, refunds: refunds, income: income,
             reserveTransfers: transfers, contributions: contributions, contributionsByMember: members,
-            flexibleNetSpending: flexible, essentialSpending: essential, wantsSpending: wants, recordCount: count, buckets: buckets, categories: categories)
+            envelopeNetSpending: envelopeSpending, everydayCategories: sourceCategories(everydayAmounts),
+            envelopeCategories: sourceCategories(envelopeAmounts), flexibleNetSpending: flexible, essentialSpending: essential, wantsSpending: wants, recordCount: count, buckets: buckets, categories: categories)
     }
 }

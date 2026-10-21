@@ -16,6 +16,8 @@ extension Color {
     static let folkiBackground = Color(uiColor: .systemBackground)
     /// Cards and quiet buttons on that ground: warm light gray / dark gray.
     static let folkiSurface = adaptive(light: (0.945, 0.925, 0.898), dark: (0.11, 0.11, 0.118))
+    /// Overspending and anything past a limit: one red for every "too much".
+    static let folkiOver = Color(uiColor: .systemRed)
     static let folkiInk = adaptive(light: (0.086, 0.094, 0.106), dark: (0.965, 0.933, 0.894))
 
     static func adaptive(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
@@ -42,14 +44,16 @@ struct FolkiBackground: View {
         GeometryReader { geometry in
             ZStack {
                 Color(uiColor: .systemBackground)
+                // Radial gradients look like the blurred circles they replace, without a live blur
+                // that every glass surface above has to sample again on each frame.
                 ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
-                    Circle().fill(field.color).opacity(field.opacity)
-                        .frame(width: field.size, height: field.size)
-                        .position(x: geometry.size.width * (0.5 + field.x), y: geometry.size.height * field.y)
-                        .blur(radius: 110)
+                    RadialGradient(colors: [field.color.opacity(field.opacity), field.color.opacity(field.opacity * 0.5), .clear],
+                                   center: UnitPoint(x: 0.5 + field.x, y: field.y),
+                                   startRadius: 0, endRadius: field.size / 2 + 110)
                 }
             }
         }
+        .drawingGroup()
         .ignoresSafeArea().accessibilityHidden(true)
     }
 }
@@ -154,6 +158,8 @@ enum FolkiSpacing {
     static let huge: CGFloat = 48
     /// Card corners; liquid glass likes large radii.
     static let cardRadius: CGFloat = 24
+    /// Fields, chips and rows inside a card.
+    static let controlRadius: CGFloat = 14
     /// Height of the main action of a screen.
     static let primaryButton: CGFloat = 60
     static let page: CGFloat = 20
@@ -230,6 +236,7 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
     /// Picking a value: chips, toggles, days, segments.
     static func selection() { selector.selectionChanged(); selector.prepare() }
     /// A digit on the Folki keypad: quiet, like the system keyboard.
+    static func pageChange() { rigid.impactOccurred(intensity: 0.65); rigid.prepare() }
     static func key() { soft.impactOccurred(intensity: 0.4); soft.prepare() }
     /// A saved spend, top-up or payment. `crossedIntoMinus` turns it into the warning.
     static func saved(crossedIntoMinus: Bool = false) {
@@ -344,4 +351,13 @@ private struct FolkiAppear: ViewModifier {
 
 extension View {
     func folkiAppear(_ order: Int = 0) -> some View { modifier(FolkiAppear(order: order)) }
+}
+
+/// Closes an entry sheet without saving: one cross everywhere instead of a mix of words and icons.
+struct FolkiCloseButton: View {
+    let action: () -> Void
+    init(_ action: @escaping () -> Void) { self.action = action }
+    var body: some View {
+        Button(action: action) { Image(systemName: "xmark") }.accessibilityLabel("Закрыть")
+    }
 }

@@ -9,6 +9,7 @@ struct BudgetAnalyticsSection: View {
     @State private var period: AnalyticsPeriod = .month
     @State private var chosenDate: Date?
     @State private var showsAllCategories = false
+    @State private var showsEnvelopeSpending = false
     private var baseDate: Date { chosenDate ?? date }
     private var selectedPeriod: BudgetPeriod? { session.period(on: baseDate) }
     private var anchor: Date {
@@ -55,6 +56,7 @@ struct BudgetAnalyticsSection: View {
                         description: Text("Здесь пока пусто — запиши первую трату 🙂"))
                 }
                 if result.expenses.minorUnits > 0 || result.refunds.minorUnits > 0 {
+                    spendingSources(result).folkiAppear(3)
                     if period == .month { balance(result).folkiAppear(3) }
                     chart(result, plan: monthPlan).budgetCard().folkiAppear(4)
                     HabitsCard(insights: insights).folkiAppear(5)
@@ -117,6 +119,18 @@ struct BudgetAnalyticsSection: View {
         }.budgetCard()
     }
 
+    private func spendingSources(_ result: BudgetAnalyticsSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Из чего состоят расходы").font(.headline)
+            amountRow(String(localized: "Из конвертов"), result.envelopeNetSpending)
+            amountRow(String(localized: "Повседневные"), result.flexibleNetSpending)
+            Divider()
+            amountRow(String(localized: "Всего потрачено"), (try? result.netSpending) ?? result.expenses)
+            Text("С учётом возвратов. Пополнение конвертов не считается расходом. Если конверта не хватило, доплата входит в повседневные.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }.budgetCard()
+    }
+
     /// Refunds and income only when they happened: zero rows are noise.
     @ViewBuilder private func extraRows(_ result: BudgetAnalyticsSnapshot) -> some View {
         if result.refunds.minorUnits > 0 || result.income.minorUnits > 0 {
@@ -142,7 +156,7 @@ struct BudgetAnalyticsSection: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-                    .contentTransition(.numericText(value: Double(net.minorUnits))).animation(.snappy, value: net.minorUnits)
+                    .contentTransition(.numericText(value: Double(net.minorUnits))).animation(FolkiMotion.quick, value: net.minorUnits)
                 if plan > 0 {
                     Text("из \(MoneyText.whole(snapshot.periodPlan))").font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
@@ -155,7 +169,7 @@ struct BudgetAnalyticsSection: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, snapshot: snapshot))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(net.minorUnits > plan ? Color.red : Color.folkiInk)
+                    .foregroundStyle(net.minorUnits > plan ? Color.folkiOver : Color.folkiInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
             extraRows(result)
@@ -318,27 +332,33 @@ struct BudgetAnalyticsSection: View {
         var history: [UUID: [Money]] = [:]
         for period in session.periods.filter({ $0.endExclusive <= result.interval.start }).suffix(3) {
             guard let past = try? session.analytics(.month, on: period.start) else { continue }
-            for item in past.categories { history[item.categoryID, default: []].append(net(item)) }
+            for item in past.everydayCategories { history[item.categoryID, default: []].append(net(item)) }
         }
         return history
     }
 
     private func categories(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot?) -> some View {
-        let sorted = result.categories.sorted { net($0).minorUnits > net($1).minorUnits }
+        let source = showsEnvelopeSpending ? result.envelopeCategories : result.everydayCategories
+        let sorted = source.sorted { net($0).minorUnits > net($1).minorUnits }
         let positiveTotal = sorted.reduce(Int64(0)) { $0 + max(0, net($1).minorUnits) }
         let items = showsAllCategories ? sorted : Array(sorted.prefix(5))
         // Monthly hints only: a week is too short to compare with a monthly amount.
-        let history = plan == nil ? [:] : previousMonths(before: result)
+        let history = plan == nil || showsEnvelopeSpending ? [:] : previousMonths(before: result)
         let hint: (UUID) -> Money? = { id in
-            guard let plan else { return nil }
-            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.periodPlan, history: history[id] ?? [])
+            guard !showsEnvelopeSpending, let plan else { return nil }
+            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.monthlyPlan, history: history[id] ?? [])
         }
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("На что ушли деньги").font(.headline)
-                if plan != nil {
+                FolkiSegmentedPicker(title: String(localized: "Источник расходов"), selection: $showsEnvelopeSpending,
+                    options: [(String(localized: "Повседневные"), false), (String(localized: "Конверты"), true)])
+                if plan != nil && !showsEnvelopeSpending {
                     Text("Рядом — подсказка, сколько примерно стоит закладывать в период 💡").font(.footnote).foregroundStyle(.secondary)
                 }
+            }
+            if items.isEmpty {
+                Text("В этой группе пока нет расходов").font(.subheadline).foregroundStyle(.secondary)
             }
             ForEach(items) { item in
                 let category = session.catalog.category(for: item.categoryID)
@@ -379,7 +399,7 @@ struct BudgetAnalyticsSection: View {
             }
             if sorted.count > 5 {
                 Button(showsAllCategories ? String(localized: "Свернуть") : String(localized: "Все категории (\(sorted.count))")) {
-                    FolkiFeedback.selection(); withAnimation(.snappy) { showsAllCategories.toggle() }
+                    FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { showsAllCategories.toggle() }
                 }.buttonStyle(FolkiSoftButtonStyle()).frame(maxWidth: .infinity)
             }
         }.budgetCard()
@@ -462,7 +482,7 @@ private struct PaceBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.folkiAccent.opacity(0.15))
-                Capsule().fill(over ? Color.red : Color.folkiAccent)
+                Capsule().fill(over ? Color.folkiOver : Color.folkiAccent)
                     .frame(width: max(10, geo.size.width * min(1, spent)))
                 if let expected {
                     RoundedRectangle(cornerRadius: 1.5).fill(Color.folkiInk)

@@ -16,12 +16,17 @@ struct FolkiEntry: TimelineEntry {
     let date: Date
     let personal: FolkiWidgetSnapshot.Budget?
     let family: FolkiWidgetSnapshot.Budget?
+    var envelope: FolkiWidgetSnapshot.Envelope? = nil
+    var days: [FolkiWidgetSnapshot.Day] = []
+    var familyDays: [FolkiWidgetSnapshot.Day] = []
     /// The app has never written a snapshot: ask to open it.
     let empty: Bool
 
     static let preview = FolkiEntry(date: .now,
         personal: .init(today: 121_100, guide: 200_000, tomorrow: 198_000, periodEnd: .now.addingTimeInterval(20 * 86_400)),
         family: .init(today: 80_000, guide: 150_000, tomorrow: 140_000, periodEnd: .now.addingTimeInterval(20 * 86_400)),
+        envelope: .init(id: UUID(), name: String(localized: "Аренда"), symbol: "house.fill", red: 0.61, green: 0.42, blue: 0.25,
+                        size: 2_500_000, saved: 1_300_000, due: .now.addingTimeInterval(4 * 86_400)),
         empty: false)
 }
 
@@ -46,7 +51,7 @@ struct FolkiProvider: TimelineProvider {
         let midnight = calendar.startOfDay(for: now.addingTimeInterval(86_400))
         return [now, midnight].map { date in
             FolkiEntry(date: date, personal: snapshot.budget(snapshot.personal, on: date),
-                       family: snapshot.budget(snapshot.family, on: date), empty: false)
+                       family: snapshot.budget(snapshot.family, on: date), envelope: snapshot.envelope, days: snapshot.days ?? [], familyDays: snapshot.familyDays ?? [], empty: false)
         }
     }
 }
@@ -70,11 +75,13 @@ private enum Palette {
     static let personal = Color(red: 0.91, green: 0.54, blue: 0.10)
     static let family = Color(red: 0.831, green: 0.325, blue: 0.494)
     static let accent = Color(red: 0.06, green: 0.43, blue: 0.34)
+    static let amber = Color(red: 0.85, green: 0.60, blue: 0.12)
 }
 
 struct FolkiWidgetView: View {
     let entry: FolkiEntry
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         if entry.empty || entry.personal == nil {
@@ -124,34 +131,96 @@ struct FolkiWidgetView: View {
         }
     }
 
-    /// Rings on the left, the figures and the spend button on the right, one leading edge.
+    /// The wide widget mirrors the compact weekly summary.
     private var medium: some View {
-        GeometryReader { geo in
-            HStack(spacing: 16) {
-                rings(size: geo.size.height, width: geo.size.height * 0.09)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(caption(personal)).font(.caption.weight(.semibold))
-                        .foregroundStyle(personal.isOver ? Color.red : Palette.personal)
-                    Text(FolkiWidgetText.rub(personal.today)).font(.system(size: 30, weight: .bold, design: .rounded))
-                        .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(caption(personal)).font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(personal.isOver ? Color.red : weekAmber)
+                    Text(FolkiWidgetText.rub(personal.today))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                         .foregroundStyle(personal.isOver ? Color.red : .primary)
                     if let family = entry.family {
-                        HStack(spacing: 4) {
-                            Circle().fill(Palette.family).frame(width: 6, height: 6)
-                            Text("Семья ≈ \(FolkiWidgetText.rub(family.today))").font(.caption).foregroundStyle(.secondary)
-                                .lineLimit(1).minimumScaleFactor(0.7)
-                        }.padding(.top, 2)
-                    }
-                    Spacer(minLength: 6)
-                    Link(destination: FolkiLinks.spend) {
-                        Text("− Потратить").font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, minHeight: 38)
-                            .background(Palette.accent, in: Capsule())
+                        Text("Семья ≈ \(FolkiWidgetText.rub(family.today))")
+                            .font(.system(size: 11, weight: .medium)).foregroundStyle(familyInk)
+                            .lineLimit(1).minimumScaleFactor(0.7)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+                Link(destination: FolkiLinks.spend) {
+                    Text("− Потратить").font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color(red: 0.02, green: 0.16, blue: 0.12))
+                        .padding(.horizontal, 15).frame(height: 33)
+                        .background(weekAccent, in: Capsule())
+                }
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 0) {
+                ForEach(weekDates, id: \.self) { date in
+                    weekDay(date).frame(maxWidth: .infinity)
+                }
             }
         }
+    }
+
+    private var familyTint: Color {
+        scheme == .dark ? Color(red: 0.929, green: 0.576, blue: 0.694) : Palette.family
+    }
+    private var familyInk: Color {
+        scheme == .dark ? Color(red: 0.957, green: 0.753, blue: 0.820) : Color(red: 0.600, green: 0.208, blue: 0.337)
+    }
+    private var weekAmber: Color { scheme == .dark ? Color(red: 1, green: 0.71, blue: 0.27) : Palette.personal }
+    private var weekAccent: Color { Color(red: 0.11, green: 0.62, blue: 0.46) }
+
+    private var weekDates: [Date] {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        let start = calendar.dateInterval(of: .weekOfYear, for: entry.date)?.start ?? calendar.startOfDay(for: entry.date)
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    private func weekDay(_ date: Date) -> some View {
+        let calendar = Calendar.current
+        let isToday = calendar.isDate(date, inSameDayAs: entry.date)
+        let isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: entry.date)
+        let balance = entry.days.first { calendar.isDate($0.date, inSameDayAs: date) }
+        let familyBalance = entry.familyDays.first { calendar.isDate($0.date, inSameDayAs: date) }
+        let familyFraction = isToday ? entry.family?.fraction : familyBalance?.fraction
+        let fraction = isToday ? personal.fraction : balance?.fraction ?? 0
+        let isOver = isToday ? personal.isOver : (balance?.remaining ?? 0) < 0
+        let weekday = date.formatted(.dateTime.locale(Locale(identifier: "ru_RU")).weekday(.abbreviated))
+        return VStack(spacing: 4) {
+            Text(weekday.lowercased().replacingOccurrences(of: ".", with: ""))
+                .font(.system(size: 10, weight: isToday ? .bold : .regular))
+                .foregroundStyle(isToday ? weekAccent : .secondary)
+            ZStack {
+                weekRing(fraction, color: weekAmber, width: 3.5, future: isFuture)
+                if entry.family != nil {
+                    weekRing(familyFraction ?? 0, color: familyTint, width: 2.5, future: isFuture).padding(5.5)
+                }
+            }
+            .frame(width: 28, height: 28)
+            Text("\(calendar.component(.day, from: date))")
+                .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                .foregroundStyle(isToday ? weekAccent : isOver ? Color.red : .primary)
+        }
+        .opacity(isFuture ? 0.25 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(date.formatted(.dateTime.day().month().weekday(.wide)))
+        .accessibilityValue(isFuture ? String(localized: "Будущий день") :
+            String(localized: "Личное: \(Int(fraction * 100)) процентов. Семья: \(Int((familyFraction ?? 0) * 100)) процентов."))
+    }
+
+    private func weekRing(_ fraction: Double, color: Color, width: CGFloat, future: Bool) -> some View {
+        ZStack {
+            Circle().stroke(color.opacity(0.2), lineWidth: width)
+            if !future {
+                Circle().trim(from: 0, to: fraction)
+                    .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round)).rotationEffect(.degrees(-90))
+            }
+        }.padding(width / 2)
     }
 
     private func rings(size: CGFloat, width: CGFloat) -> some View {
@@ -176,23 +245,73 @@ struct FolkiWidgetView: View {
     // Lock screen
 
     private var circular: some View {
-        Gauge(value: personal.fraction) {
-            Text("₽")
-        } currentValueLabel: {
-            Text(shortAmount(personal.today)).minimumScaleFactor(0.5)
+        ZStack {
+            lockRing(personal, width: 3.5)
+            if let family = entry.family {
+                lockRing(family, width: 3).padding(6)
+            }
+            VStack(spacing: 0) {
+                Text(shortAmount(personal.today))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                Text("личное").font(.system(size: 8, weight: .medium))
+            }
+            .frame(maxWidth: 38)
         }
-        .gaugeStyle(.accessoryCircularCapacity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .widgetAccentable()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Личное и семья")
+        .accessibilityValue(Text(entry.family.map {
+            String(localized: "Личное: \(FolkiWidgetText.rub(personal.today)). Семья: \(FolkiWidgetText.rub($0.today)).")
+        } ?? String(localized: "Личное: \(FolkiWidgetText.rub(personal.today)). Семейный бюджет не задан.")))
+    }
+
+    private func lockRing(_ budget: FolkiWidgetSnapshot.Budget, width: CGFloat) -> some View {
+        ZStack {
+            Circle().stroke(.primary.opacity(0.22), lineWidth: width)
+            Circle().trim(from: 0, to: budget.fraction)
+                .stroke(.primary, style: StrokeStyle(lineWidth: width, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .padding(width / 2)
     }
 
     private var rectangular: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(caption(personal)).font(.caption2.weight(.semibold)).widgetAccentable()
-            Text(FolkiWidgetText.rub(personal.today)).font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
-            if let family = entry.family {
-                Text("Семья ≈ \(FolkiWidgetText.rub(family.today))").font(.caption2)
+        HStack(spacing: 12) {
+            lockBudget("Личное", budget: personal)
+            lockBudget("Семья", budget: entry.family)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .widgetAccentable()
+    }
+
+    private func lockBudget(_ label: LocalizedStringKey, budget: FolkiWidgetSnapshot.Budget?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(.secondary)
+            Text(budget.map { FolkiWidgetText.rub($0.today) } ?? "—")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.primary.opacity(0.22))
+                    Capsule().fill(.primary)
+                        .frame(width: geometry.size.width * (budget?.fraction ?? 0))
+                }
             }
-        }.frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 3).padding(.top, 3)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(budget.map {
+            $0.isOver ? String(localized: "Сверх дня: \(FolkiWidgetText.rub($0.today))")
+                : String(localized: "Сегодня можно: \(FolkiWidgetText.rub($0.today))")
+        } ?? String(localized: "Бюджет не задан")))
     }
 
     private var inline: some View {
@@ -238,3 +357,5 @@ struct FolkiSpendControl: ControlWidget {
 
 #Preview(as: .systemMedium) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }
 #Preview(as: .systemSmall) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }
+
+#Preview(as: .accessoryRectangular) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }

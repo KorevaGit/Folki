@@ -23,7 +23,7 @@ extension BudgetRepository {
     public func createEnvelope(name: String, size: Money, dueDay: Int, nextDue: Date, isMandatory: Bool,
                                categoryID: UUID? = nil, symbol: String? = nil, color: CategoryColor? = nil,
                                in budget: StoredBudget, asOf now: Date,
-                               id: UUID = UUID()) throws -> RecurringEnvelope {
+                               id: UUID = UUID(), initialFunding: Money = Money(minorUnits: 0)) throws -> RecurringEnvelope {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 80, size.currency == .rub else { throw BudgetError.invalidPlan }
         let envelope = try RecurringEnvelope(id: id, name: trimmed, size: size, dueDay: dueDay,
@@ -41,6 +41,15 @@ extension BudgetRepository {
             item.setValue(false, forKey: "archived")
             encodeEnvelope(envelope, into: item)
             try ensureReserve(for: envelope, in: budget, root: root)
+            guard initialFunding.currency == size.currency, initialFunding.minorUnits >= 0,
+                  initialFunding.minorUnits <= size.minorUnits else { throw BudgetError.invalidAmount }
+            if initialFunding.minorUnits > 0 {
+                guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.unavailable }
+                let free = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).monthlyRemaining
+                guard initialFunding.minorUnits <= free.minorUnits else { throw BudgetError.insufficientReserve }
+                try write([movement(.reserveAllocation, amount: initialFunding, envelope: envelope.id,
+                    title: envelope.name, budget: current, now: now)], in: current, root: root, now: now)
+            }
             try commit()
             return envelope
         } catch { context.rollback(); throw error }
@@ -93,9 +102,70 @@ extension BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
+    /// Assigns existing living money in one commit, without recording another income.
+    public func distributeAvailable(_ fills: [UUID: Money], in budget: StoredBudget,
+                                    asOf now: Date, operationID: UUID) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID)).isEmpty else { return }
+            guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.unavailable }
+            let result = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
+            var total = Money(minorUnits: 0)
+            var records: [LedgerRecord] = []
+            for id in fills.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+                guard let fill = fills[id], fill.currency == .rub, fill.minorUnits >= 0 else { throw BudgetError.invalidAmount }
+                let item = try writableItem("Envelope", id: id, budget: current)
+                guard item.value(forKey: "archived") as? Bool != true else { throw BudgetError.invalidPlan }
+                let envelope = try decodeEnvelope(item)
+                let balance = result.reserveBalances[id] ?? Money(minorUnits: 0)
+                guard fill.minorUnits <= (try envelope.shortfall(balance: balance)).minorUnits else { throw BudgetError.invalidAmount }
+                total = try total.adding(fill)
+                if fill.minorUnits > 0 {
+                    records.append(try movement(.reserveAllocation, amount: fill, envelope: id, title: envelope.name,
+                        budget: current, now: now, id: records.isEmpty ? operationID : UUID()))
+                }
+            }
+            guard total.minorUnits <= result.monthlyRemaining.minorUnits else { throw BudgetError.insufficientReserve }
+            try write(records, in: current, root: root, now: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     /// Pays an envelope with the real amount of the bill and moves it to next month.
     /// The envelope's balance pays first; a bigger bill takes the difference from living money,
     /// a smaller one returns the remainder to living money.
+    /// A spend in the envelope's category: covered by what is set aside for it, the rest from living money.
+    /// Unlike a payment, the envelope stays open and keeps its date.
+    public func spendFromEnvelope(_ id: UUID, amount: Money, in budget: StoredBudget, asOf now: Date,
+                                  operationID: UUID = UUID()) throws {
+        guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+        do {
+            guard try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID)).isEmpty else { return }
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Envelope", id: id, budget: budget)
+            let envelope = try decodeEnvelope(item)
+            try ensureReserve(for: envelope, in: budget, root: root)
+            guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
+            let balance = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).reserveBalances[id]
+                ?? Money(minorUnits: 0)
+            let category = item.value(forKey: "categoryID") as? UUID ?? BuiltInCategory.other.id
+            let fromEnvelope = Money(minorUnits: min(balance.minorUnits, amount.minorUnits))
+            let fromLiving = try amount.subtracting(fromEnvelope)
+            let author = try authorID(in: current)
+            var records: [LedgerRecord] = []
+            if fromEnvelope.minorUnits > 0 {
+                records.append(LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: fromEnvelope, kind: .expense,
+                    funding: .reserve(id), date: now, authorID: author, payerID: author), title: "", categoryID: category))
+            }
+            if fromLiving.minorUnits > 0 {
+                records.append(LedgerRecord(transaction: TransactionSnapshot(id: records.isEmpty ? operationID : UUID(), amount: fromLiving,
+                    kind: .expense, funding: .flexible, date: now, authorID: author, payerID: author), title: "", categoryID: category))
+            }
+            try write(records, in: current, root: root, now: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
     public func payEnvelope(_ id: UUID, amount: Money, in budget: StoredBudget, asOf now: Date,
                             operationID: UUID = UUID()) throws {
         guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
@@ -241,5 +311,49 @@ extension BudgetRepository {
     public func initializeCloudSchema() throws {
         guard cloudIdentifier != nil else { throw LedgerError.cloudNotConfigured }
         try container.initializeCloudKitSchema(options: [])
+    }
+}
+
+extension BudgetRepository {
+    /// Income, envelope fills and both contribution sides are committed together, or all rolled back.
+    public func deposit(_ amount: Money, fills: [UUID: Money], familyShare: Money, in budget: StoredBudget,
+                        family: StoredBudget? = nil, asOf now: Date, operationID: UUID) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let existing = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID))
+            if let item = existing.first {
+                guard item.value(forKey: "amount") as? Int64 == amount.minorUnits,
+                      item.value(forKey: "kind") as? String == "income",
+                      item.value(forKey: "tombstone") as? Bool != true,
+                      item.value(forKey: "period") as? NSManagedObject == (try object("BudgetPeriod", id: budget.periodID)) else { throw LedgerError.conflict }
+                return
+            }
+            guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.unavailable }
+            let author = try authorID(in: current)
+            let projected = try FundingPlan.applying(to: current.snapshot, incoming: amount, fills: fills,
+                familyShare: familyShare, now: now, author: author, operationID: operationID)
+            for (id, fill) in fills {
+                let item = try writableItem("Envelope", id: id, budget: current)
+                let envelope = try decodeEnvelope(item)
+                let balance = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).reserveBalances[id] ?? Money(minorUnits: 0)
+                guard fill.minorUnits <= (try envelope.shortfall(balance: balance)).minorUnits else { throw BudgetError.invalidAmount }
+            }
+            let period = try object("BudgetPeriod", id: current.periodID)
+            period.setValue(projected.monthlyFreePlan.minorUnits, forKey: "monthlyPlan")
+            let records = projected.transactions.dropFirst(current.snapshot.transactions.count).map { transaction in
+                LedgerRecord(transaction: transaction, title: transaction.kind == .contributionOut ? String(localized: "В семейный бюджет", bundle: .module) : "",
+                    linkID: transaction.kind == .contributionOut ? operationID : nil)
+            }
+            try write(records, in: current, root: root, now: now)
+            if familyShare.minorUnits > 0 {
+                guard current.scope == .personal, let family, family.scope == .family else { throw LedgerError.accessDenied }
+                let familyRoot = try writableRoot(family, now: now)
+                let familyAuthor = try authorID(in: family)
+                let record = LedgerRecord(transaction: TransactionSnapshot(amount: familyShare, kind: .contributionIn, date: now,
+                    authorID: familyAuthor, payerID: familyAuthor), title: String(localized: "Взнос в семейный бюджет", bundle: .module), linkID: operationID)
+                try write([record], in: family, root: familyRoot, now: now)
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
     }
 }

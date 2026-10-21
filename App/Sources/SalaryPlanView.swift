@@ -118,7 +118,7 @@ struct BudgetSetupView: View {
             .navigationBarTitleDisplayMode(.inline)
             .environment(\.calendar, session.calendar).environment(\.timeZone, session.calendar.timeZone)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editingCurrent ? "Сохранить" : "Начать", action: save).disabled(values == nil)
                 }

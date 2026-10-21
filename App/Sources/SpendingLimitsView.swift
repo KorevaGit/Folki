@@ -46,7 +46,7 @@ struct SpendingLimitsView: View {
                                 if let limit, let left = try? limit.subtracting(stats.flexibleNetSpending) {
                                     LabeledContent(left.minorUnits < 0 ? String(localized: "Новый план уже превышен") : String(localized: "Останется от нового плана")) {
                                         Text(MoneyText.whole(left)).monospacedDigit()
-                                            .foregroundStyle(left.minorUnits < 0 ? Color.red : .primary)
+                                            .foregroundStyle(left.minorUnits < 0 ? Color.folkiOver : .primary)
                                     }
                                 }
                             }.font(.subheadline).budgetCard()

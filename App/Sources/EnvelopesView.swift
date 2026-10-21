@@ -8,7 +8,7 @@ extension EnvelopeUrgency {
         case .funded: Color.folkiAccent
         case .calm: Color.secondary
         case .attention: Color.folkiWarning
-        case .serious: Color.red
+        case .serious: Color.folkiOver
         }
     }
 }
@@ -137,7 +137,7 @@ struct IconPicker: View {
 }
 
 /// "Значок": the picker in its own sheet, for envelopes made from a template.
-private struct IconPickerSheet: View {
+struct IconPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var symbol: String
     @Binding var color: CategoryColor
@@ -182,7 +182,7 @@ private struct EnvelopeCard: View {
             ProgressBar(fraction: Double(balance.minorUnits) / Double(envelope.size.minorUnits), color: urgency.color)
         }
         .padding(FolkiSpacing.card)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
         .accessibilityElement(children: .combine)
     }
 }
@@ -203,6 +203,7 @@ struct EnvelopeDetailView: View {
     let session: BudgetSession
     let envelopeID: UUID
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var sheet: Sheet?
     @State private var paidCheck = false
     @State private var askNewSize: Money?
@@ -240,10 +241,7 @@ struct EnvelopeDetailView: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                         if !envelope.isMandatory { Text("Необязательный").font(.footnote).foregroundStyle(.tertiary) }
                     }.multilineTextAlignment(.center)
-                    HStack(spacing: FolkiSpacing.item) {
-                        Button("Пополнить") { sheet = .fund }.buttonStyle(FolkiSoftButtonStyle()).frame(maxWidth: .infinity)
-                        Button("Оплачено") { sheet = .pay }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true, minHeight: 50))
-                    }
+                    actions
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                     history(envelope)
                 }.folkiPagePadding()
@@ -276,6 +274,35 @@ struct EnvelopeDetailView: View {
             Button("Только сейчас", role: .cancel) { askNewSize = nil }
         } message: {
             Text("Платёж был \(askNewSize.map(MoneyText.whole) ?? ""). Запомню эту сумму на следующие месяцы")
+        }
+    }
+
+    private var actions: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        return GlassEffectContainer(spacing: 12) {
+            layout {
+                Button { sheet = .pay } label: {
+                    Text("Оплачено")
+                        .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
+                        .foregroundStyle(.white)
+                        .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
+                }
+                .buttonStyle(FolkiPressStyle())
+                .frame(minWidth: 104, maxWidth: .infinity)
+                Button { sheet = .fund } label: {
+                    Text("+ Пополнить")
+                        .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
+                        .foregroundStyle(Color.folkiInk)
+                        .glassEffect(.regular.interactive(), in: Capsule())
+                }
+                .buttonStyle(FolkiPressStyle())
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+            }
+            .font(.system(.title3, design: .rounded, weight: .bold))
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .minimumScaleFactor(0.8)
         }
     }
 
@@ -347,7 +374,7 @@ private struct EnvelopeAmountSheet: View {
                     .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             }
             .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs).padding(.top, FolkiSpacing.page)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } } }
         }
         .onAppear {
             let need = (try? envelope.shortfall(balance: session.envelopeBalance(envelope))) ?? envelope.size
@@ -400,7 +427,7 @@ struct EnvelopeEditorView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let session: BudgetSession
     var editing: RecurringEnvelope?
-    /// Called with the new envelope after it is created (and after the funding question).
+    /// Creating an envelope never moves living money; funding is a separate action.
     var onCreated: ((RecurringEnvelope) -> Void)? = nil
 
     enum Step: Int { case what, amount, day }
@@ -415,8 +442,9 @@ struct EnvelopeEditorView: View {
     @State private var amount = ""
     @State private var day = 0
     @State private var mandatory = true
+    @State private var fundNow = false
+    @State private var draftID = UUID()
     @State private var errorMessage: String?
-    @State private var offerFunding: RecurringEnvelope?
     @FocusState private var nameFocused: Bool
     private var money: Money? { (try? MoneyText.parse(amount)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -425,6 +453,13 @@ struct EnvelopeEditorView: View {
         guard day > 0 else { return nil }
         if let editing, editing.dueDay == day { return editing.nextDue }
         return try? EnvelopeSchedule.firstDue(day: day, onOrAfter: session.referenceDate, calendar: calendar)
+    }
+
+    private var recommended: Money {
+        guard editing == nil, let money, let firstDue,
+              let candidate = try? RecurringEnvelope(id: draftID, name: trimmedName, size: money,
+                dueDay: day, nextDue: firstDue, isMandatory: mandatory, categoryID: categoryID) else { return Money(minorUnits: 0) }
+        return session.recommendedFunding(for: candidate)
     }
 
     var body: some View {
@@ -441,25 +476,22 @@ struct EnvelopeEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if step == .what { Button("Отмена") { dismiss() } }
+                    if step == .what {
+                        FolkiCloseButton {
+                            if custom && editing == nil {
+                                nameFocused = false
+                                name = ""; categoryID = nil; symbol = "tag.fill"; color = .blue
+                                amount = ""; day = 0; mandatory = true
+                                errorMessage = nil
+                                withAnimation(FolkiMotion.quick) { custom = false }
+                            } else { dismiss() }
+                        }
+                    }
                     else { Button("Назад", systemImage: "chevron.left") { go(Step(rawValue: step.rawValue - 1)!, forward: false) } }
                 }
             }
         }
         .onAppear(perform: load)
-        .alert("Положить сейчас?", isPresented: Binding(get: { offerFunding != nil }, set: { if !$0 { finish() } })) {
-            Button("Положить") {
-                if let envelope = offerFunding {
-                    let free = session.result?.monthlyRemaining.nonnegative ?? Money(minorUnits: 0)
-                    let put = Money(minorUnits: min(envelope.size.minorUnits, free.minorUnits))
-                    if put.minorUnits > 0 { try? session.fundEnvelope(envelope, amount: put); FolkiFeedback.saved() }
-                }
-                finish()
-            }
-            Button("Позже", role: .cancel) { finish() }
-        } message: {
-            Text("Положить \(offerFunding.map { MoneyText.whole($0.size) } ?? "") из денег на жизнь? Иначе конверт будет пополняться со следующих поступлений")
-        }
     }
 
     private var progress: some View {
@@ -489,13 +521,13 @@ struct EnvelopeEditorView: View {
                 ScrollView {
                     VStack(spacing: FolkiSpacing.page) {
                         HStack(spacing: FolkiSpacing.item) {
-                            CategoryIcon(symbol: symbol, color: color.color, size: 52)
+                            CategoryIcon(symbol: symbol, color: color.color, size: 56)
                             TextField("Например, аренда", text: $name)
                                 .font(.title3.weight(.semibold)).focused($nameFocused).submitLabel(.next)
                                 .onSubmit(nextFromWhat)
                         }
                         .padding(FolkiSpacing.item)
-                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
                         IconPicker(symbol: $symbol, color: $color)
                     }.padding(.bottom, FolkiSpacing.page)
                 }
@@ -538,10 +570,10 @@ struct EnvelopeEditorView: View {
 
     private var amountPage: some View {
         VStack(spacing: FolkiSpacing.page) {
-            title("Сколько в месяц?")
+            title("Сколько планируем отложить?")
             Button { pickingIcon = true } label: {
                 HStack(spacing: FolkiSpacing.xs) {
-                    CategoryIcon(symbol: symbol, color: color.color, size: 32)
+                    CategoryIcon(symbol: symbol, color: color.color, size: 36)
                     Text(trimmedName).font(.headline).foregroundStyle(Color.folkiInk)
                     Image(systemName: "pencil").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                 }
@@ -549,12 +581,13 @@ struct EnvelopeEditorView: View {
             .buttonStyle(FolkiPressStyle()).frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityHint("Изменить значок")
             .sheet(isPresented: $pickingIcon) { IconPickerSheet(symbol: $symbol, color: $color).presentationDetents([.large]) }
-            Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
-                .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
-                .foregroundStyle(money == nil ? .tertiary : .primary)
-                .lineLimit(1).minimumScaleFactor(0.4).fixedSize(horizontal: false, vertical: true)
-                .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                TypedAmount(text: amount)
+                Text("₽").foregroundStyle(.secondary)
+            }
+            .font(.system(size: 52, weight: .bold, design: .rounded))
+            .foregroundStyle(money == nil ? Color.secondary : color.color)
+            .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
             AmountKeypad(text: $amount)
             Button("Дальше") {
@@ -565,40 +598,48 @@ struct EnvelopeEditorView: View {
     }
 
     private var dayPage: some View {
-        VStack(spacing: FolkiSpacing.page) {
+        VStack(spacing: FolkiSpacing.item) {
+            ScrollView {
+                VStack(spacing: FolkiSpacing.page) {
             title("Какого числа платёж?")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-                ForEach(1...31, id: \.self) { value in
-                    let selected = day == value
-                    Button {
-                        FolkiFeedback.selection()
-                        withAnimation(FolkiMotion.quick) { day = value }
-                    } label: {
-                        Text("\(value)").font(.body.weight(selected ? .bold : .regular)).monospacedDigit()
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .foregroundStyle(selected ? Color.white : Color.folkiInk)
-                            .background(selected ? Color.folkiAccent : Color.folkiSoft, in: Circle())
-                    }.buttonStyle(FolkiPressStyle()).accessibilityAddTraits(selected ? .isSelected : [])
-                }
+            // The same wheel as in the plan setup.
+            Picker("День оплаты", selection: Binding(get: { day == 0 ? 25 : day }, set: { day = $0 })) {
+                ForEach(1...31, id: \.self) { Text("\($0)-го").tag($0) }
             }
+            .pickerStyle(.wheel).frame(height: 150)
+            .sensoryFeedback(.selection, trigger: day)
+            .onAppear { if day == 0 { day = 25 } }
             Group {
                 if let firstDue {
                     Text("Ближайший платёж — \(firstDue.formatted(.dateTime.day().month(.wide)))")
                 } else {
-                    Text("Каждый месяц в этот день. В коротких месяцах — в последний день")
+                    Text("Каждый месяц")
                 }
             }
             .font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: $mandatory) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Обязательный")
-                    Text("Нужно собрать полностью к дате").font(.footnote).foregroundStyle(.secondary)
-                }
+                Text("Обязательный")
             }
             .padding(FolkiSpacing.card)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            if editing == nil, day > 0 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Рекомендую сейчас: \(MoneyText.whole(recommended))").font(.headline)
+                    if recommended.minorUnits > 0 {
+                        Toggle("Пополнить при создании", isOn: $fundNow)
+                        let free = session.result?.monthlyRemaining.minorUnits ?? 0
+                        Text("На жизнь останется \(MoneyText.whole(Money(minorUnits: max(0, free - (fundNow ? recommended.minorUnits : 0)))))")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("Пополню со следующего поступления")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(FolkiSpacing.card).glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
-            Spacer(minLength: 0)
+                }.padding(.bottom, FolkiSpacing.item)
+            }.scrollBounceBehavior(.basedOnSize)
             Button(editing == nil ? "Создать" : "Сохранить", action: save)
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(day == 0)
         }
@@ -632,19 +673,16 @@ struct EnvelopeEditorView: View {
                 FolkiFeedback.saved(); dismiss()
             } else {
                 let created = try session.createEnvelope(name: trimmedName, size: money, nextDue: firstDue,
-                                                         isMandatory: mandatory, categoryID: categoryID, symbol: symbol, color: color)
+                                                         isMandatory: mandatory, categoryID: categoryID, symbol: symbol, color: color,
+                                                         id: draftID, initialFunding: fundNow ? recommended : Money(minorUnits: 0))
                 FolkiFeedback.saved()
-                if (session.result?.monthlyRemaining.minorUnits ?? 0) > 0 { offerFunding = created }
-                else { onCreated?(created); dismiss() }
+                onCreated?(created)
+                dismiss()
             }
         } catch {
             errorMessage = String(localized: "Не получилось сохранить конверт. Попробуй ещё раз.")
         }
     }
 
-    private func finish() {
-        if let created = offerFunding { onCreated?(created) }
-        offerFunding = nil
-        dismiss()
-    }
+
 }

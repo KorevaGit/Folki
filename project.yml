@@ -17,7 +17,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "7"
     SWIFT_EMIT_LOC_STRINGS: YES
     DEVELOPMENT_TEAM: AKH3FW2JK6
 targets:
@@ -55,7 +55,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         FOLKI_CLOUD_CONTAINER: ""
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: FolkiIcon
         CODE_SIGN_ENTITLEMENTS: App/Configuration/FolkiLocal.entitlements
       configs:
         Cloud:

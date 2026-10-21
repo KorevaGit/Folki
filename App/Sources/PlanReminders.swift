@@ -6,7 +6,7 @@ import FolkiDuoCore
 struct PlanSettings: Codable, Equatable {
     enum Income: Codable, Equatable {
         case off
-        /// Days of the month, 1…28: salary and advance, for example.
+        /// Days of the month, 1…31: salary and advance, for example. 29–31 fall on the last day of a short month.
         case monthly([Int])
         /// Calendar weekday, 1 = Sunday.
         case weekly(Int)
@@ -50,11 +50,25 @@ struct PlanSettings: Codable, Equatable {
         switch settings.income {
         case .off: break
         case .monthly(let days):
-            for day in days {
+            for day in days where day <= 28 {
                 var when = DateComponents(); when.day = day; when.hour = settings.hour; when.minute = settings.minute
                 await add(id: "income.\(day)", title: String(localized: "Пришли деньги?"),
                           body: String(localized: "Внеси их в Folki — я разложу по конвертам и посчитаю день"),
                           trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: true))
+            }
+            // 29–31 do not exist in every month: in a short month the reminder comes on its last day.
+            let calendar = Calendar.current
+            for day in days where day > 28 {
+                for offset in 0..<12 {
+                    guard let month = calendar.date(byAdding: .month, value: offset, to: .now),
+                          let length = calendar.range(of: .day, in: .month, for: month)?.count else { continue }
+                    var when = calendar.dateComponents([.year, .month], from: month)
+                    when.day = min(day, length); when.hour = settings.hour; when.minute = settings.minute
+                    guard let date = calendar.date(from: when), date > .now else { continue }
+                    await add(id: "income.\(day).\(offset)", title: String(localized: "Пришли деньги?"),
+                              body: String(localized: "Внеси их в Folki — я разложу по конвертам и посчитаю день"),
+                              trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false))
+                }
             }
         case .weekly(let weekday):
             var when = DateComponents(); when.weekday = weekday; when.hour = settings.hour; when.minute = settings.minute

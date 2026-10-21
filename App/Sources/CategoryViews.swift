@@ -196,11 +196,11 @@ struct CategoryEditorView: View {
                 Section {
                     VStack(spacing: 14) {
                         CategoryIcon(symbol: symbol, color: color.color, size: 76)
-                            .animation(.spring(duration: 0.3, bounce: 0.3), value: symbol)
+                            .animation(FolkiMotion.quick, value: symbol)
                         TextField("Название", text: $name)
                             .font(.system(.title2, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
                             .padding(.vertical, 10).padding(.horizontal, 14)
-                            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius, style: .continuous))
                     }.frame(maxWidth: .infinity).padding(.vertical, 8)
                 }
                 Section {
@@ -240,7 +240,7 @@ struct CategoryEditorView: View {
             .folkiFormLayout()
             .navigationTitle(category == nil ? String(localized: "Новая категория") : String(localized: "Категория")).toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить", action: save).disabled(SpendingCategory.validName(name) == nil)
                 }

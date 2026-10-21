@@ -10,6 +10,8 @@ struct FinancialRings: View {
     var compact = false
     var showsMonth = false
     var showsFamily = true
+    var refreshing = false
+    var refreshPull: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Rings fill up once when the screen first appears.
     @State private var appeared = false
@@ -37,14 +39,18 @@ struct FinancialRings: View {
                     FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width, dimmed: overspent(family))
                         .padding(width + gap)
                 }
+                RingRefreshEffect(refreshing: refreshing, pull: refreshPull).padding(width * 2.25)
             }
             .frame(width: size, height: size)
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .animation(reduceMotion ? nil : (appeared ? .smooth(duration: 0.7) : nil), value: fractions)
-        .onAppear {
+        .animation(reduceMotion ? nil : (appeared ? FolkiMotion.ring : nil), value: fractions)
+        .task {
             guard !appeared else { return }
-            withAnimation(reduceMotion ? nil : .smooth(duration: 1.15).delay(0.15)) { appeared = true }
+            if reduceMotion { appeared = true; return }
+            // Let the navigation and tab bars settle before filling the rings.
+            do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+            withAnimation(FolkiMotion.ring) { appeared = true }
         }
     }
 }
@@ -71,7 +77,7 @@ private struct FinancialRing: View, Animatable {
             ZStack {
                 Circle().stroke(dimmed ? Color.secondary.opacity(0.1) : palette.start.opacity(colorScheme == .dark ? 0.22 : 0.16),
                                 lineWidth: lineWidth)
-                    .animation(.smooth(duration: 0.5), value: dimmed)
+                    .animation(FolkiMotion.standard, value: dimmed)
                 if progress > 0 {
                     Circle().trim(from: 0, to: progress)
                         .stroke(palette.start,
@@ -111,6 +117,8 @@ struct BudgetRingsCard: View {
     var showsMonth = false
     /// False shows zero, so the figures roll up once together with the rings filling.
     var rolled = true
+    var refreshing = false
+    var refreshPull: CGFloat = 0
     var togglePeriod: () -> Void = {}
     var showsFamily = true
     var personalNeedsFunds = false
@@ -131,7 +139,7 @@ struct BudgetRingsCard: View {
     @ViewBuilder var rings: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(spacing: FolkiSpacing.card) {
-                FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily)
+                FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily, refreshing: refreshing, refreshPull: refreshPull)
                     .frame(width: 160, height: 160).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                     if personalNeedsFunds && isToday {
@@ -149,7 +157,7 @@ struct BudgetRingsCard: View {
             GeometryReader { geometry in
                 let diameter = min(geometry.size.width, geometry.size.height)
                 ZStack {
-                    FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily)
+                    FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily, refreshing: refreshing, refreshPull: refreshPull)
                         .padding(diameter * 0.06)
                     center(diameter: diameter)
                         .buttonStyle(.plain)
@@ -176,7 +184,7 @@ struct BudgetRingsCard: View {
             Text(money.map(MoneyText.whole) ?? String(localized: "Не настроен"))
                 .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.4)
-                .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.red : Color.folkiInk)
+                .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.folkiOver : Color.folkiInk)
         }
     }
 
@@ -194,7 +202,7 @@ struct BudgetRingsCard: View {
             let over = !showsMonth && (personal?.todayRemaining.minorUnits ?? 0) < 0
             Text(over ? String(localized: "Сверх дня")
                  : showsFamily ? String(localized: "Личный") : (showsMonth ? String(localized: "На период") : String(localized: "Сегодня можно")))
-                .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.red : Color.budget(.personal))
+                .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.folkiOver : Color.budget(.personal))
                 .contentTransition(.opacity).animation(FolkiMotion.quick, value: over)
             if personalNeedsFunds && isToday {
                 Button("Добавить деньги") { addFunds(.personal) }
@@ -238,9 +246,9 @@ struct BudgetRingsCard: View {
             .font(.system(size: fitted, weight: .bold, design: .rounded)).monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.1)
             .frame(width: width, height: size * 1.25)
-            .foregroundStyle(whole.map { $0.minorUnits < 0 } == true ? Color.red : .primary)
+            .foregroundStyle(whole.map { $0.minorUnits < 0 } == true ? Color.folkiOver : .primary)
             .contentTransition(reduceMotion ? .identity : .numericText(value: Double(whole?.minorUnits ?? 0)))
-            .animation(reduceMotion ? nil : .smooth(duration: 0.7), value: whole?.minorUnits)
+            .animation(reduceMotion ? nil : FolkiMotion.ring, value: whole?.minorUnits)
     }
 
     @ViewBuilder private var notes: some View {
@@ -295,7 +303,7 @@ struct BudgetRingsCard: View {
         let value = result?.periodRemaining.roundedDownToWholeUnits
         return Text(value.map(MoneyText.whole) ?? String(localized: "не настроен"))
             .fontWeight(.semibold)
-            .foregroundStyle(value.map { $0.minorUnits < 0 } == true ? Color.red : Color.budget(scope))
+            .foregroundStyle(value.map { $0.minorUnits < 0 } == true ? Color.folkiOver : Color.budget(scope))
     }
 
     private func spoken(_ result: DailyBudgetSnapshot?) -> String {

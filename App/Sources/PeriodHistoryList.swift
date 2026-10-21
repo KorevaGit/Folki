@@ -9,7 +9,7 @@ struct PeriodEntry: Identifiable, Equatable {
     static func == (lhs: PeriodEntry, rhs: PeriodEntry) -> Bool { lhs.id == rhs.id && lhs.record.revision == rhs.record.revision }
 }
 
-/// "Траты за период" below the rings: both budgets in one list, days as pinned headers with the day's total.
+/// "Траты за период" below the rings: both budgets in one list, days as inline headers with the day's total.
 /// Own records open for editing; a long press deletes. Other people's records are read-only.
 /// Lives inside the main screen's scroll view, so it does not scroll on its own.
 struct PeriodHistoryList: View {
@@ -44,7 +44,7 @@ struct PeriodHistoryList: View {
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             Section {
                 if hasFamily {
                     FolkiSegmentedPicker(title: String(localized: "Показать"), selection: $filter,
@@ -57,7 +57,7 @@ struct PeriodHistoryList: View {
                 }
             } header: {
                 Text("Траты за период").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, FolkiSpacing.xs).background(Color(uiColor: .systemBackground))
+                    .padding(.vertical, FolkiSpacing.xs)
             }
             ForEach(days, id: \.0) { day, items in
                 Section {
@@ -68,7 +68,7 @@ struct PeriodHistoryList: View {
                         }
                     }
                     .padding(.horizontal, FolkiSpacing.card)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                    .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
                     .padding(.bottom, FolkiSpacing.page)
                 } header: { header(day, items) }
             }
@@ -85,7 +85,6 @@ struct PeriodHistoryList: View {
         }
         .foregroundStyle(.secondary)
         .padding(.vertical, FolkiSpacing.xs)
-        .background(Color(uiColor: .systemBackground))
     }
 
     @ViewBuilder private func row(_ entry: PeriodEntry) -> some View {
@@ -132,12 +131,12 @@ struct RingsPageSnap: ScrollTargetBehavior {
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
         let start = context.originalTarget.rect.minY
         let end = target.rect.minY
-        guard end < page else { return }
-        if start < page / 2 {
-            // From the rings: a modest push is enough to reach the history.
-            target.rect.origin.y = end > start + 40 ? page : 0
-        } else {
-            target.rect.origin.y = end < page * 0.75 ? 0 : page
+        let threshold = min(180, max(100, page * 0.24))
+        if start < page * 0.5 {
+            // A deliberate drag crosses the page; a short movement springs back.
+            target.rect.origin.y = end > threshold ? page : 0
+        } else if start <= page + 32 && end < page {
+            target.rect.origin.y = page - end > threshold ? 0 : page
         }
     }
 }

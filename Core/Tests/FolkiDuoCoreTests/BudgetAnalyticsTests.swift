@@ -25,10 +25,35 @@ struct BudgetAnalyticsTests {
         #expect(result.refunds.minorUnits == 20000)
         #expect(try result.netSpending.minorUnits == 37000)
         #expect(result.flexibleNetSpending.minorUnits == 30000)
+        #expect(result.envelopeNetSpending.minorUnits == 7000)
         #expect(result.income.minorUnits == 100000)
         #expect(result.reserveTransfers.minorUnits == 25000)
         #expect(result.categories.count == 2)
     }
+    @Test func separatesSourcesEvenForTheSameCategoryAndRefundsDoNotBecomeExpenses() throws {
+        let now = date("2026-10-19T12:00:00Z"), envelope = UUID()
+        let records = [
+            record(10_000, date: now),
+            record(50_000, date: now, funding: .reserve(envelope)),
+            record(3_000, kind: .refund, date: now),
+            record(7_000, kind: .refund, date: now, funding: .reserve(envelope)),
+            record(90_000, kind: .reserveAllocation, date: now, funding: .reserve(envelope)),
+            record(20_000, kind: .reserveRelease, date: now, funding: .reserve(envelope)),
+            record(99_000, date: now, deleted: true, funding: .reserve(envelope)),
+            record(99_000, date: now.addingTimeInterval(1), funding: .reserve(envelope))]
+        let result = try BudgetAnalytics.calculate(records: records, period: .day, anchor: now, asOf: now, calendar: calendar)
+        #expect(result.flexibleNetSpending.minorUnits == 7_000)
+        #expect(result.envelopeNetSpending.minorUnits == 43_000)
+        #expect(try result.netSpending == result.flexibleNetSpending.adding(result.envelopeNetSpending))
+        let everyday = try #require(result.everydayCategories.first)
+        let reserved = try #require(result.envelopeCategories.first)
+        #expect(everyday.categoryID == reserved.categoryID)
+        #expect(everyday.expenses.minorUnits == 10_000)
+        #expect(everyday.refunds.minorUnits == 3_000)
+        #expect(reserved.expenses.minorUnits == 50_000)
+        #expect(reserved.refunds.minorUnits == 7_000)
+    }
+
     @Test func historicalDayAndMondayWeekNeverIncludeLaterOrDeletedEntries() throws {
         let anchor = date("2026-10-20T12:00:00Z"), now = date("2026-10-23T12:00:00Z")
         let records = [record(100, date: date("2026-10-18T12:00:00Z")),

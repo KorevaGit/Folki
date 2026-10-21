@@ -52,9 +52,9 @@ struct ExpenseEditorView: View {
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         TextField("0", text: $amount).keyboardType(.decimalPad)
-                            .font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit()
+                            .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
                             .multilineTextAlignment(.trailing).fixedSize()
-                        Text(MoneyText.symbol).font(.system(size: 44, weight: .bold, design: .rounded))
+                        Text(MoneyText.symbol).font(.system(size: 52, weight: .bold, design: .rounded))
                             .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                     }.frame(maxWidth: .infinity)
 
@@ -113,7 +113,7 @@ struct ExpenseEditorView: View {
             }
             .navigationTitle(editing == nil ? String(localized: "Новая запись") : String(localized: "Запись")).navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         guard let draft else { return }

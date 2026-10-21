@@ -11,10 +11,31 @@ struct FolkiWidgetSnapshot: Codable, Equatable {
         var tomorrow: Int64?
         var periodEnd: Date
     }
+    struct Day: Codable, Equatable {
+        var date: Date
+        var remaining: Int64
+        var guide: Int64
+        var fraction: Double { guide > 0 ? max(0, min(1, Double(remaining) / Double(guide))) : 0 }
+    }
+    var familyDays: [Day]? = nil
+    /// Recent personal day balances for the weekly widget.
+    var days: [Day]? = nil
+    /// The envelope that most needs money, for the wide widget.
+    struct Envelope: Codable, Equatable {
+        var id: UUID
+        var name: String
+        var symbol: String
+        /// Icon colour as sRGB components.
+        var red: Double, green: Double, blue: Double
+        var size: Int64
+        var saved: Int64
+        var due: Date
+    }
     /// Start of the day the figures are for.
     var day: Date
     var personal: Budget?
     var family: Budget?
+    var envelope: Envelope?
     var updated: Date
 
     static let appGroup = "group.dev.korevagit.folki"
@@ -57,8 +78,18 @@ enum FolkiWidgetText {
     }
 }
 
-/// The deep link the widgets and intents use to open the spend sheet.
+extension FolkiWidgetSnapshot.Envelope {
+    var missing: Int64 { max(0, size - saved) }
+    var fraction: Double { size > 0 ? max(0, min(1, Double(saved) / Double(size))) : 0 }
+    /// Whole days from `date` to the payment; negative when overdue.
+    func daysLeft(from date: Date, calendar: Calendar = .current) -> Int {
+        calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: due)).day ?? 0
+    }
+}
+
+/// The deep links the widgets and intents use.
 enum FolkiLinks {
     static let spend = URL(string: "folki://spend")!
     static let add = URL(string: "folki://add")!
+    static func envelope(_ id: UUID) -> URL { URL(string: "folki://envelope/\(id.uuidString)")! }
 }
