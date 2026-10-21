@@ -21,15 +21,20 @@ struct FinancialRings: View {
         }
     }
 
+    /// Over today's guide: the ring's track fades out, nothing is left to fill.
+    private func overspent(_ result: DailyBudgetSnapshot?) -> Bool {
+        !showsMonth && (result?.todayRemaining.minorUnits ?? 0) < 0
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
             let width = size * 0.09
             let gap = size * 0.018
             ZStack {
-                FinancialRing(fraction: fractions[0], palette: .personal, lineWidth: width)
+                FinancialRing(fraction: fractions[0], palette: .personal, lineWidth: width, dimmed: overspent(personal))
                 if showsFamily {
-                    FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width)
+                    FinancialRing(fraction: fractions[1], palette: .family, lineWidth: width, dimmed: overspent(family))
                         .padding(width + gap)
                 }
             }
@@ -48,6 +53,7 @@ private struct FinancialRing: View, Animatable {
     var fraction: Double
     let palette: RingPalette
     let lineWidth: CGFloat
+    var dimmed = false
     @Environment(\.colorScheme) private var colorScheme
     private var progress: Double { max(0, min(1, fraction)) }
     nonisolated var animatableData: Double {
@@ -63,7 +69,9 @@ private struct FinancialRing: View, Animatable {
             let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
             let capDistance = 2 * radius * sin(Double.pi * (1 - progress))
             ZStack {
-                Circle().stroke(palette.start.opacity(colorScheme == .dark ? 0.22 : 0.16), lineWidth: lineWidth)
+                Circle().stroke(dimmed ? Color.secondary.opacity(0.1) : palette.start.opacity(colorScheme == .dark ? 0.22 : 0.16),
+                                lineWidth: lineWidth)
+                    .animation(.smooth(duration: 0.5), value: dimmed)
                 if progress > 0 {
                     Circle().trim(from: 0, to: progress)
                         .stroke(palette.start,
@@ -181,8 +189,11 @@ struct BudgetRingsCard: View {
 
     private func center(diameter: CGFloat) -> some View {
         VStack(spacing: 4) {
-            Text(showsFamily ? String(localized: "Личный") : (showsMonth ? String(localized: "На период") : String(localized: "Сегодня можно")))
-                .font(.caption.weight(.semibold)).foregroundStyle(Color.budget(.personal))
+            let over = !showsMonth && (personal?.todayRemaining.minorUnits ?? 0) < 0
+            Text(over ? String(localized: "Сверх дня")
+                 : showsFamily ? String(localized: "Личный") : (showsMonth ? String(localized: "На период") : String(localized: "Сегодня можно")))
+                .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.red : Color.budget(.personal))
+                .contentTransition(.opacity).animation(FolkiMotion.quick, value: over)
             if personalNeedsFunds && isToday {
                 Button("Добавить деньги") { addFunds(.personal) }
                     .font(.system(.headline, design: .rounded)).foregroundStyle(Color.folkiAccent)

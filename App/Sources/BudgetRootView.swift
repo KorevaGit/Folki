@@ -201,8 +201,15 @@ struct BudgetRootView: View {
                 Button {
                     selectedScope = .personal; sheet = .distribution
                 } label: {
-                    Text("≈ \(MoneyText.whole(result.todayGuide.roundedDownToWholeUnits))/день до \(last)")
-                        .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    Group {
+                        // Past today's guide, the useful number is what tomorrow brings.
+                        if result.todayRemaining.minorUnits < 0, let next = result.futureAllocation {
+                            Text("Завтра ≈ \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день")
+                        } else {
+                            Text("≈ \(MoneyText.whole(result.todayGuide.roundedDownToWholeUnits))/день до \(last)")
+                        }
+                    }
+                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }.buttonStyle(.plain)
             }
         }
