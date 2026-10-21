@@ -103,6 +103,8 @@ public struct EnvelopeDistribution: Equatable, Sendable {
     /// Amount added to each envelope now; envelopes left out get nothing.
     public let fills: [UUID: Money]
 
+    public init(incoming: Money, fills: [UUID: Money]) { self.incoming = incoming; self.fills = fills }
+
     /// What stays for everyday spending after the envelopes.
     public var living: Money {
         fills.values.reduce(incoming) { (try? $0.subtracting($1)) ?? $0 }

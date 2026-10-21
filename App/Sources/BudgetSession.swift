@@ -248,6 +248,24 @@ final class BudgetSession {
         try repository.archiveEnvelope(envelope.id, in: budget, asOf: referenceDate)
         refresh()
     }
+    /// Called on the family session: this member's suggested share of a personal top-up.
+    var contributionPercent: Int {
+        guard scope == .family, let repository, let budget = storedBudget else { return 30 }
+        return (try? repository.effectiveContributionPercent(in: budget)) ?? 30
+    }
+    /// What is still missing in envelopes due within a week.
+    var urgentShortfalls: [Money] {
+        envelopes.filter { daysUntil($0) <= 7 }
+            .compactMap { try? $0.shortfall(balance: envelopeBalance($0)) }.filter { $0.minorUnits > 0 }
+    }
+    /// The default split of `incoming` into this budget's envelopes due this period.
+    func distribution(of incoming: Money) -> EnvelopeDistribution {
+        let end = household?.period.endExclusive ?? referenceDate.addingTimeInterval(30 * 86_400)
+        let balances = Dictionary(uniqueKeysWithValues: envelopes.map { ($0.id, envelopeBalance($0)) })
+        return (try? EnvelopeDistributor.distribute(incoming: incoming, envelopes: envelopes, balances: balances, periodEnd: end))
+            ?? EnvelopeDistribution(incoming: incoming, fills: [:])
+    }
+
     /// Records that moved money in or out of one envelope, newest first.
     func envelopeHistory(_ envelope: RecurringEnvelope) -> [LedgerRecord] {
         historyRecords.filter { record in

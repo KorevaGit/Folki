@@ -249,24 +249,20 @@ struct BudgetRootView: View {
                     sheet = .spend
                 }
             } label: {
-                Text("− Потратить").frame(maxWidth: .infinity).frame(minHeight: 70)
+                Text("− Потратить").frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
                     .foregroundStyle(.white)
                     .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
             }
             .buttonStyle(FolkiPressStyle())
             .frame(minWidth: 104, maxWidth: .infinity)
-            Menu {
-                Button("В личный бюджет", systemImage: "person") { selectedScope = .personal; sheet = .income }
-                if family.household != nil {
-                    Button("В семейный бюджет", systemImage: "person.2") { selectedScope = .family; sheet = .income }
-                    Button("Взнос в семейный", systemImage: "arrow.right.circle") { openContribution() }
-                }
+            // One sheet for every deposit; the family share and the family source live inside it.
+            Button {
+                returnToToday { selectedScope = .personal; sheet = .income }
             } label: {
-                Text("+ Внести").frame(maxWidth: .infinity, minHeight: 70)
+                Text("+ Внести").frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
                     .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk)
             }
-            .menuStyle(.button).buttonStyle(.plain)
-                .simultaneousGesture(TapGesture().onEnded { returnToToday() })
+            .buttonStyle(FolkiPressStyle())
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
         }
@@ -293,14 +289,6 @@ struct BudgetRootView: View {
             selectedScope = scope
             entryKind = kind
             sheet = kind == .income ? .income : .expense
-        }
-    }
-
-    private func openContribution() {
-        returnToToday {
-            if personal.result == nil { selectedScope = .personal; sheet = .setup }
-            else if family.result == nil { selectedScope = .family; sheet = .setup }
-            else { sheet = .contribution }
         }
     }
 
