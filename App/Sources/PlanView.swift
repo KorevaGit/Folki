@@ -79,7 +79,7 @@ private struct PlanSetupFlow: View {
         case .hello:
             OnboardingPage(centered: true) {
                 VStack(spacing: FolkiSpacing.large) {
-                    PlanHeroArt().frame(width: 240, height: 200)
+                    PlanHeroArt().frame(maxWidth: 340)
                     VStack(spacing: FolkiSpacing.item) {
                         Text("Финансовый план").font(.largeTitle.bold()).rise(6)
                         Text("Сейчас я считаю только повседневные траты. Давай учтём и регулярные: аренду, связь, подписки")
@@ -189,30 +189,61 @@ private func stepTitle(_ title: LocalizedStringKey, _ detail: LocalizedStringKey
     }.frame(maxWidth: .infinity, alignment: .leading)
 }
 
-/// Three envelopes fan out of a stack: rent, internet, a bell.
+/// A salary splits into envelopes and money to live on: the whole idea of the plan in one picture.
 private struct PlanHeroArt: View {
-    @State private var open = false
+    @State private var split = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let cards: [(String, Color, Double)] = [
-        ("house.fill", Color(red: 0.62, green: 0.42, blue: 0.24), -14), ("wifi", Color(red: 0.30, green: 0.56, blue: 0.86), 0),
-        ("bell.fill", Color.folkiWarning, 14)
+    private let parts: [(LocalizedStringKey, Int64, Color)] = [
+        ("Аренда", 25_000, Color(red: 0.62, green: 0.42, blue: 0.24)),
+        ("Связь", 800, Color(red: 0.30, green: 0.56, blue: 0.86)),
+        ("Подписки", 1_200, Color(red: 0.55, green: 0.40, blue: 0.85)),
+        ("На жизнь", 53_000, Color.folkiAccent)
     ]
+    private var total: Int64 { parts.reduce(0) { $0 + $1.1 } }
+
     var body: some View {
-        ZStack {
-            ForEach(cards.indices, id: \.self) { index in
-                let card = cards[index]
-                RoundedRectangle(cornerRadius: 22).fill(card.1.gradient)
-                    .frame(width: 120, height: 150)
-                    .overlay { Image(systemName: card.0).font(.system(size: 40, weight: .semibold)).foregroundStyle(.white) }
-                    .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
-                    .rotationEffect(.degrees(open ? card.2 : 0), anchor: .bottom)
-                    .offset(x: open ? CGFloat(index - 1) * 62 : 0, y: open ? (index == 1 ? -10 : 6) : 0)
+        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Зарплата").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+                Text(MoneyText.whole(Money(minorUnits: total * 100))).font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
+            }
+            GeometryReader { geo in
+                let gaps = CGFloat(parts.count - 1) * 3
+                HStack(spacing: split ? 3 : 0) {
+                    ForEach(parts.indices, id: \.self) { index in
+                        let part = parts[index]
+                        let last = index == parts.count - 1
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(split || last ? part.2 : Color.folkiAccent)
+                            .frame(width: split
+                                ? max(6, (geo.size.width - gaps) * CGFloat(part.1) / CGFloat(total))
+                                : (last ? geo.size.width : 0))
+                    }
+                }
+            }.frame(height: 22)
+            VStack(spacing: FolkiSpacing.xs) {
+                ForEach(parts.indices, id: \.self) { index in
+                    let part = parts[index]
+                    HStack(spacing: FolkiSpacing.xs) {
+                        Circle().fill(part.2).frame(width: 10, height: 10)
+                        Text(part.0).font(.subheadline)
+                        Spacer()
+                        Text(MoneyText.whole(Money(minorUnits: part.1 * 100))).font(.subheadline.weight(.semibold)).monospacedDigit()
+                    }
+                    .opacity(split ? 1 : 0).offset(y: split ? 0 : 6)
+                    .animation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)
+                        .delay(reduceMotion ? 0 : 0.5 + Double(index) * FolkiMotion.cascadeStep), value: split)
+                }
             }
         }
-        .accessibilityHidden(true)
+        .padding(FolkiSpacing.page)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Зарплата делится на аренду, связь, подписки и деньги на жизнь")
         .onAppear {
-            guard !reduceMotion else { open = true; return }
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.68).delay(0.25)) { open = true }
+            guard !reduceMotion else { split = true; return }
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.8).delay(0.4)) { split = true }
         }
     }
 }

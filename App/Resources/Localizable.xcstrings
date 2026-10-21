@@ -8410,6 +8410,46 @@
           }
         }
       }
+    },
+    "Обновлено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated"
+          }
+        }
+      }
+    },
+    "Аренда": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rent"
+          }
+        }
+      }
+    },
+    "Подписки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subscriptions"
+          }
+        }
+      }
+    },
+    "Зарплата делится на аренду, связь, подписки и деньги на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A salary splits into rent, phone, subscriptions and money to live on"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

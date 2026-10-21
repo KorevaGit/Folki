@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes, history
+    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes
     var id: String { rawValue }
 }
 
@@ -10,8 +10,12 @@ struct BudgetRootView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var showsMonth = false
-    /// 0…1 while the rings are pulled up towards the history.
-    @State private var pullProgress: CGFloat = 0
+    @State private var scroll = ScrollPosition(edge: .top)
+    @State private var editingEntry: PeriodEntry?
+    @State private var undoEntry: PeriodEntry?
+    @State private var historyError: String?
+    /// Shown under the rings for a moment after pulling down.
+    @State private var syncStatus: String?
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
@@ -47,23 +51,42 @@ struct BudgetRootView: View {
                 }
                 VStack(spacing: 8) {
                     weekCalendar.padding(.horizontal, FolkiSpacing.page)
-                    VStack(spacing: 12) {
-                        if selectedDay == nil { banner }
-                        interactiveRings(card.rings).frame(maxHeight: .infinity)
-                            // Pulling up shrinks and fades the rings under the finger, then the history sheet takes over.
-                            .scaleEffect(1 - pullProgress * 0.12, anchor: .top)
-                            .opacity(1 - pullProgress * 0.5)
-                            .offset(y: -pullProgress * 40)
-                        distributionLine
-                        entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
-                        Button { openHistory() } label: {
-                            Label("Траты за период", systemImage: "chevron.up")
-                                .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
-                        }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    GeometryReader { viewport in
+                        let page = viewport.size.height
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                VStack(spacing: 12) {
+                                    if selectedDay == nil { banner }
+                                    interactiveRings(card.rings).frame(maxHeight: .infinity)
+                                    syncCaption
+                                    distributionLine
+                                    entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
+                                    Button { scrollToHistory(page) } label: {
+                                        Label("Траты за период", systemImage: "chevron.down")
+                                            .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
+                                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, FolkiSpacing.page)
+                                .frame(height: page)
+                                // The rings page recedes as the history scrolls over it.
+                                .visualEffect { content, proxy in
+                                    let progress = min(1, max(0, -proxy.frame(in: .scrollView).minY / max(1, page)))
+                                    return content
+                                        .scaleEffect(1 - progress * 0.12, anchor: .bottom)
+                                        .opacity(1 - progress * 0.8)
+                                }
+                                PeriodHistoryList(personal: personal, family: family,
+                                    edit: { editingEntry = $0 }, delete: deleteEntry, cancelContribution: cancelContribution)
+                                    .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.huge)
+                                    .frame(minHeight: page, alignment: .top)
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .scrollTargetBehavior(RingsPageSnap(page: page))
+                        .scrollPosition($scroll)
+                        .refreshable { await sync() }
                     }
-                    .padding(.horizontal, FolkiSpacing.page)
-                    .contentShape(Rectangle())
-                    .simultaneousGesture(pullUp)
+                    .overlay(alignment: .bottom) { undoToast }
                 }.padding(.top, 4).padding(.bottom, 8)
 
             }
@@ -74,6 +97,10 @@ struct BudgetRootView: View {
             .onAppear { FolkiFeedback.prepare() }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
+        .sheet(item: $editingEntry) { ExpenseEditorView(session: $0.session, editing: $0.record) }
+        .alert("Запись не изменена", isPresented: Binding(get: { historyError != nil }, set: { if !$0 { historyError = nil } })) {
+            Button("Готово") { historyError = nil }
+        } message: { Text(historyError ?? "") }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .setup: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
@@ -88,30 +115,75 @@ struct BudgetRootView: View {
                 DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
                     apply: { try session.setDistributionDay($0) })
             case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
-            case .history: PeriodHistorySheet(personal: personal, family: family)
             }
         }
     }
 
-    private func openHistory() {
+    private func scrollToHistory(_ page: CGFloat) {
         FolkiFeedback.selection()
-        sheet = .history
-        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { pullProgress = 0 }
+        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { scroll.scrollTo(y: page) }
     }
 
-    private var pullUp: some Gesture {
-        DragGesture(minimumDistance: 16)
-            .onChanged { value in
-                guard abs(value.translation.height) > abs(value.translation.width) * 1.3, value.translation.height < 0 else { return }
-                pullProgress = min(1, -value.translation.height / 220)
+    /// Pull down: ask iCloud again and reload both budgets.
+    private func sync() async {
+        if let repository = personal.repository { await repository.verifyAccount() }
+        try? await Task.sleep(for: .milliseconds(500))
+        personal.refresh(); family.refresh()
+        FolkiFeedback.selection()
+        withAnimation(FolkiMotion.standard) {
+            syncStatus = personal.repository?.statusText ?? String(localized: "Обновлено")
+        }
+        // The caption outlives the spinner, so it is cleared by its own task.
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation(FolkiMotion.standard) { syncStatus = nil }
+        }
+    }
+
+    @ViewBuilder private var syncCaption: some View {
+        if let syncStatus {
+            Label(syncStatus, systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary).transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private var undoToast: some View {
+        if let undoEntry {
+            HStack(spacing: FolkiSpacing.item) {
+                Text("Запись удалена").font(.subheadline)
+                Spacer(minLength: 0)
+                Button("Вернуть") { restore(undoEntry) }.font(.subheadline.weight(.semibold))
             }
-            .onEnded { value in
-                if value.translation.height < -70 || value.predictedEndTranslation.height < -200 {
-                    openHistory()
-                } else {
-                    withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { pullProgress = 0 }
-                }
+            .padding(.horizontal, FolkiSpacing.page).frame(minHeight: 52)
+            .glassEffect(.regular, in: Capsule())
+            .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .task(id: undoEntry.id) {
+                try? await Task.sleep(for: .seconds(4))
+                withAnimation(FolkiMotion.standard) { self.undoEntry = nil }
             }
+        }
+    }
+
+    private func deleteEntry(_ entry: PeriodEntry) {
+        do {
+            try entry.session.setDeleted(true, record: entry.record)
+            FolkiFeedback.saved()
+            withAnimation(FolkiMotion.standard) { undoEntry = entry }
+        } catch { historyError = String(localized: "Не получилось изменить запись. Обнови историю и повтори.") }
+    }
+    private func restore(_ entry: PeriodEntry) {
+        // The deleted record has a new revision; restore the stored one.
+        let current = entry.session.deletedRecords.first { $0.id == entry.record.id } ?? entry.record
+        do {
+            try entry.session.setDeleted(false, record: current)
+            FolkiFeedback.saved()
+            withAnimation(FolkiMotion.standard) { undoEntry = nil }
+        } catch { historyError = String(localized: "Не получилось вернуть запись. Попробуй ещё раз.") }
+    }
+    private func cancelContribution(_ entry: PeriodEntry) {
+        do { try entry.session.cancelContribution(entry.record); FolkiFeedback.saved() }
+        catch { historyError = String(localized: "Не получилось отменить взнос. Обнови историю и повтори.") }
     }
 
     /// "≈ 1 970 ₽/день до 19 нояб." — tap to change the period.
