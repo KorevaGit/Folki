@@ -1,0 +1,26 @@
+{
+  "sourceLanguage": "ru",
+  "strings": {
+    "Записать трату в ${applicationName}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log an expense in ${applicationName}"
+          }
+        }
+      }
+    },
+    "Потратить в ${applicationName}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spend in ${applicationName}"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -13,12 +13,15 @@ struct FolkiRootView: View {
     @State private var finishedOnboarding = false
     enum TabID: Hashable { case budget, plan }
     @State private var tab: TabID = .budget
+    /// Set by a widget or intent link; the budget screen opens the matching sheet.
+    @State private var pendingEntry: URL?
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Everything the plan reminders depend on: dates, sizes and what is already put aside.
+    /// Everything the plan reminders and widgets depend on: envelopes, what is put aside, today's figures.
     private var reminderSignature: [String] {
         [personal, family].flatMap { session in
             session.envelopes.map { "\($0.id)\($0.nextDue.timeIntervalSince1970)\($0.size.minorUnits)\(session.envelopeBalance($0).minorUnits)" }
+                + ["\(session.result?.todayRemaining.minorUnits ?? 0)/\(session.result?.todayGuide.minorUnits ?? 0)"]
         }
     }
 
@@ -42,7 +45,8 @@ struct FolkiRootView: View {
         } else {
             TabView(selection: $tab) {
                 Tab("Бюджет", systemImage: "wallet.bifold", value: TabID.budget) {
-                    BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay) { tab = .plan }
+                    BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay,
+                                   pendingEntry: $pendingEntry) { tab = .plan }
                 }
                 Tab("План", systemImage: "list.bullet.clipboard", value: TabID.plan) {
                     PlanTab(personal: personal, family: family)
@@ -53,6 +57,11 @@ struct FolkiRootView: View {
             .onChange(of: reminderSignature) { reschedule() }
             .onChange(of: scenePhase) { _, phase in if phase == .active { reschedule() } }
             .task { reschedule() }
+            .onOpenURL { url in
+                guard url.scheme == "folki" else { return }
+                tab = .budget
+                pendingEntry = url
+            }
         }
     }
 }
@@ -60,6 +69,7 @@ struct FolkiRootView: View {
 extension FolkiRootView {
     private func reschedule() {
         let sessions = [personal, family]
+        WidgetBridge.publish(personal: personal, family: family)
         Task { await PlanReminders.reschedule(PlanSettings.load(), sessions: sessions) }
     }
 }

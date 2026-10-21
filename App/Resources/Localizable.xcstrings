@@ -5926,7 +5926,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Record an expense"
+            "value": "Log an expense"
           }
         }
       }
@@ -8507,6 +8507,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Over today"
+          }
+        }
+      }
+    },
+    "Открывает Folki сразу на вводе траты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens Folki straight on a new expense"
           }
         }
       }

@@ -21,6 +21,8 @@ struct BudgetRootView: View {
     @State private var sheet: BudgetSheet?
     @State private var editingRecord: LedgerRecord?
     @Binding var selectedDay: Date?
+    /// A `folki://spend` or `folki://add` link from a widget, Control Center or Shortcuts.
+    @Binding var pendingEntry: URL?
     /// Switches to the plan tab.
     var openPlan: () -> Void = {}
     @AppStorage("FolkiPlanReady") private var planReady = false
@@ -106,6 +108,12 @@ struct BudgetRootView: View {
                     Text("Бюджет").font(.largeTitle.bold()).fixedSize().accessibilityAddTraits(.isHeader)
                 }.sharedBackgroundVisibility(.hidden)
                 headerActions
+            }
+            .onChange(of: pendingEntry, initial: true) { _, url in
+                guard let url else { return }
+                pendingEntry = nil
+                selectedScope = .personal
+                returnToToday { sheet = url.host == "add" ? .income : .spend }
             }
             .onAppear {
                 FolkiFeedback.prepare()
