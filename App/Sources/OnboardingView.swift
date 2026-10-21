@@ -441,7 +441,7 @@ private struct SpendDemo: View {
             Circle().stroke(RingPalette.personal.start.opacity(0.18), lineWidth: 6)
             Circle().trim(from: 0, to: spent ? 0.45 : 0.75)
                 .stroke(RingPalette.personal.start, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
-            Text(spent ? "790" : "1 240").font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
+            Text(verbatim: spent ? "790" : "1 240").font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
                 .contentTransition(.numericText())
         }
         .padding(4)

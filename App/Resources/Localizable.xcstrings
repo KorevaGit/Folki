@@ -6600,6 +6600,906 @@
           }
         }
       }
+    },
+    "Привет! Я Folki 👋": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hi! I'm Folki 👋"
+          }
+        }
+      }
+    },
+    "Твой помощник с финансами": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your money helper"
+          }
+        }
+      }
+    },
+    "Общие траты — вместе. Личные — только твои": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared spending together. Personal stays yours"
+          }
+        }
+      }
+    },
+    "Начать с нуля": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start fresh"
+          }
+        }
+      }
+    },
+    "Восстановить из iCloud": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from iCloud"
+          }
+        }
+      }
+    },
+    "Его видишь только ты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only you can see it"
+          }
+        }
+      }
+    },
+    "Твой личный бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your personal budget"
+          }
+        }
+      }
+    },
+    "Сколько денег на жизнь?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much do you have to live on?"
+          }
+        }
+      }
+    },
+    "Зарплата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payday"
+          }
+        }
+      }
+    },
+    "Я разделю сумму на %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll split it over %lld days"
+          }
+        }
+      }
+    },
+    "≈ %@ в день · %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "≈ %1$@ a day · %2$lld days"
+          }
+        }
+      }
+    },
+    "Не получилось сохранить сумму. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save the amount. Try again."
+          }
+        }
+      }
+    },
+    "Вот что я умею": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Here's what I do"
+          }
+        }
+      }
+    },
+    "Ты в семейном бюджете: общее видят все, личное — только ты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're in the family budget: everyone sees shared money, only you see your own"
+          }
+        }
+      }
+    },
+    "Семья видит общее, твоё — только ты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Family sees shared money, only you see yours"
+          }
+        }
+      }
+    },
+    "Ты тратишь — я пересчитываю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You spend, I recalculate"
+          }
+        }
+      }
+    },
+    "Общее и личное": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared and personal"
+          }
+        }
+      }
+    },
+    "Раскладываю по конвертам": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I fill your envelopes"
+          }
+        }
+      }
+    },
+    "Перейти к Folki": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Folki"
+          }
+        }
+      }
+    },
+    "Открой ссылку из сообщения": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the link from the message"
+          }
+        }
+      }
+    },
+    "Если Folki ставился по ссылке, открой ссылку из сообщения ещё раз — теперь приложение её примет.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you installed Folki from the link, open the link from the message again — the app will accept it now."
+          }
+        }
+      }
+    },
+    "Эта сборка работает без iCloud, присоединиться к семье в ней нельзя.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build runs without iCloud, so it can't join a family."
+          }
+        }
+      }
+    },
+    "Попроси прислать приглашение в Folki": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask for an invitation to Folki"
+          }
+        }
+      }
+    },
+    "Открой ссылку на этом iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the link on this iPhone"
+          }
+        }
+      }
+    },
+    "Подключение произойдёт само": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You'll be connected automatically"
+          }
+        }
+      }
+    },
+    "Ссылка уже открыта, а ничего не происходит": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I opened the link but nothing happens"
+          }
+        }
+      }
+    },
+    "Ты в семейном бюджете": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're in the family budget"
+          }
+        }
+      }
+    },
+    "Пока начать с личного бюджета": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start with a personal budget for now"
+          }
+        }
+      }
+    },
+    "Жду приглашение…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the invitation…"
+          }
+        }
+      }
+    },
+    "iCloud выключен — данные не восстановить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud is off — data can't be restored"
+          }
+        }
+      }
+    },
+    "Готово: %lld трат": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done: %lld expenses"
+          }
+        }
+      }
+    },
+    "Пока ничего не вижу": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing here yet"
+          }
+        }
+      }
+    },
+    "Ищу твои данные в iCloud…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for your data in iCloud…"
+          }
+        }
+      }
+    },
+    "Проверь, что на этом iPhone тот же Apple ID и для Folki включён iCloud": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that this iPhone uses the same Apple ID and iCloud is on for Folki"
+          }
+        }
+      }
+    },
+    "Открыть настройки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        }
+      }
+    },
+    "Подождать ещё": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait a bit longer"
+          }
+        }
+      }
+    },
+    "Задай сумму на период — я посчитаю твой день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set an amount for the period — I'll work out your day"
+          }
+        }
+      }
+    },
+    "Своя категория": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom category"
+          }
+        }
+      }
+    },
+    "Не хватает %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ short"
+          }
+        }
+      }
+    },
+    "Аренда, интернет, подписки — отложу на них заранее, и они не съедят дневной бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rent, internet, subscriptions — I'll set money aside early so they don't eat your daily budget"
+          }
+        }
+      }
+    },
+    "%@ · просрочен": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · overdue"
+          }
+        }
+      }
+    },
+    "%@ · сегодня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · today"
+          }
+        }
+      }
+    },
+    "%@ · завтра": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · tomorrow"
+          }
+        }
+      }
+    },
+    "%@ · через %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · in %2$lld days"
+          }
+        }
+      }
+    },
+    "Сделать новым размером?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make it the new amount?"
+          }
+        }
+      }
+    },
+    "Каждый месяц, %lld-го · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly on day %1$lld · %2$@"
+          }
+        }
+      }
+    },
+    "Необязательный": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional"
+          }
+        }
+      }
+    },
+    "Оплачено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paid"
+          }
+        }
+      }
+    },
+    "Изменить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        }
+      }
+    },
+    "Удалить конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete envelope"
+          }
+        }
+      }
+    },
+    "Не получилось удалить конверт. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't delete the envelope. Try again."
+          }
+        }
+      }
+    },
+    "Да": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
+          }
+        }
+      }
+    },
+    "Только сейчас": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just this time"
+          }
+        }
+      }
+    },
+    "Платёж был %@. Запомню эту сумму на следующие месяцы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bill was %@. I'll use this amount in the coming months"
+          }
+        }
+      }
+    },
+    "Вернулось на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to living money"
+          }
+        }
+      }
+    },
+    "Пополнение": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top-up"
+          }
+        }
+      }
+    },
+    "Сколько заплатил за «%@»?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much did you pay for “%@”?"
+          }
+        }
+      }
+    },
+    "Сколько положить в «%@»?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much to put in “%@”?"
+          }
+        }
+      }
+    },
+    "Положить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put aside"
+          }
+        }
+      }
+    },
+    "Из денег на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From living money"
+          }
+        }
+      }
+    },
+    "%@ возьму из денег на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll take %@ from living money"
+          }
+        }
+      }
+    },
+    "%@ вернётся на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ goes back to living money"
+          }
+        }
+      }
+    },
+    "Ровно сколько отложено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exactly what's set aside"
+          }
+        }
+      }
+    },
+    "Столько свободных денег сейчас нет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There isn't that much free money right now"
+          }
+        }
+      }
+    },
+    "Не получилось сохранить. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save. Try again."
+          }
+        }
+      }
+    },
+    "Положить сейчас?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put it aside now?"
+          }
+        }
+      }
+    },
+    "Новый конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New envelope"
+          }
+        }
+      }
+    },
+    "Положить %@ из денег на жизнь? Иначе конверт будет пополняться со следующих поступлений": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Put %@ aside from living money? Otherwise the envelope fills up from your next deposits"
+          }
+        }
+      }
+    },
+    "Ближайшая оплата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next payment"
+          }
+        }
+      }
+    },
+    "Обязательный": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Required"
+          }
+        }
+      }
+    },
+    "Нужно собрать полностью к дате": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Must be full by the date"
+          }
+        }
+      }
+    },
+    "Нужны название и сумма": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a name and an amount"
+          }
+        }
+      }
+    },
+    "сегодня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "today"
+          }
+        }
+      }
+    },
+    "завтра": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tomorrow"
+          }
+        }
+      }
+    },
+    "послезавтра": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the day after tomorrow"
+          }
+        }
+      }
+    },
+    "через %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "in %lld days"
+          }
+        }
+      }
+    },
+    "≈ %@/день до %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "≈ %1$@/day until %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@ — не хватает %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ %2$@ — %3$@ short"
+          }
+        }
+      }
+    },
+    "В личном свободно только %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only %@ free in your personal budget"
+          }
+        }
+      }
+    },
+    "Из моего личного": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From my personal budget"
+          }
+        }
+      }
+    },
+    "Это вклад: в личном станет меньше": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A contribution: your personal budget goes down"
+          }
+        }
+      }
+    },
+    "Общие поступления": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared income"
+          }
+        }
+      }
+    },
+    "Деньги пришли сразу в семью": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The money came straight to the family"
+          }
+        }
+      }
+    },
+    "Изменить сумму": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change the amount"
+          }
+        }
+      }
+    },
+    "В семью %lld%%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To family %lld%%"
+          }
+        }
+      }
+    },
+    "%@ из %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ of %2$@"
+          }
+        }
+      }
+    },
+    "Оплата сегодня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due today"
+          }
+        }
+      }
+    },
+    "Оплата %@ · через %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due %1$@ · in %2$lld days"
+          }
+        }
+      }
+    },
+    "На жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To live on"
+          }
+        }
+      }
+    },
+    "Конверты не входят в дневной остаток.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envelopes aren't part of the daily allowance."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

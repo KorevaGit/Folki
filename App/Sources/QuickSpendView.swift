@@ -35,7 +35,7 @@ struct ImpactLines: View {
                 .font(.footnote).foregroundStyle(.red)
         } else if let future = result.futureAllocation {
             let change = after == nil ? nil : (try? result.nextDaysChange(since: before))
-            let changeText = Text(change.map { " (\(signed($0)))" } ?? "")
+            let changeText = Text(verbatim: change.map { " (\(signed($0)))" } ?? "")
                 .foregroundStyle(change.map { $0.minorUnits < 0 } == true ? Color.red : .secondary)
             Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))\(changeText)").font(.footnote)
         } else {
