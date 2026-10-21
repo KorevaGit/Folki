@@ -92,19 +92,19 @@ public final class BudgetRepository {
     }
 
     static func managedObjectModel() throws -> NSManagedObjectModel {
-        let root: URL
-        if let compiled = Bundle.module.url(forResource: "Folki", withExtension: "momd") {
-            root = compiled
-        } else {
-            #if os(macOS)
-            // Classic command-line SwiftPM copies raw models; iOS/Xcode compiles them.
-            root = try compileCommandLineModel()
-            #else
-            throw LedgerError.corruptStore
-            #endif
-        }
-        guard let model = NSManagedObjectModel(contentsOf: root) else { throw LedgerError.corruptStore }
+        guard let model = NSManagedObjectModel(contentsOf: try modelDirectory()) else { throw LedgerError.corruptStore }
         return model
+    }
+
+    /// The compiled `Folki.momd` with every model version, the current one and the ones it migrates from.
+    static func modelDirectory() throws -> URL {
+        if let compiled = Bundle.module.url(forResource: "Folki", withExtension: "momd") { return compiled }
+        #if os(macOS)
+        // Classic command-line SwiftPM copies raw models; iOS/Xcode compiles them.
+        return try compileCommandLineModel()
+        #else
+        throw LedgerError.corruptStore
+        #endif
     }
 
     #if os(macOS)
@@ -395,7 +395,9 @@ public final class BudgetRepository {
                   container.canModifyManagedObjects(in: store),
                   container.canUpdateRecord(forManagedObjectWith: object.objectID) else { throw LedgerError.accessDenied }
             if expectedRevision != nil {
-                guard object.value(forKey: "authorID") as? UUID == record.transaction.authorID else { throw LedgerError.invalidMember }
+                // Only the author edits, deletes or restores a record; the rest of the family only reads it.
+                guard object.value(forKey: "authorID") as? UUID == record.transaction.authorID,
+                      record.transaction.authorID == (try authorID(in: budget)) else { throw LedgerError.invalidMember }
             }
             // An archived category stays on records that already use it but cannot be picked again.
             let keepsCategory = expectedRevision != nil && object.value(forKey: "categoryID") as? UUID == record.categoryID
@@ -432,6 +434,23 @@ public final class BudgetRepository {
             period.setValue(end, forKey: "endsAt")
             guard let updated = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
             _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// How the budget's period is extended; nil until one is chosen or when written by a newer app.
+    public func periodRule(scope: BudgetScope) throws -> PeriodRule? {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        return (roots.first?.value(forKey: "periodRule") as? String).flatMap(PeriodRule.init(storageValue:))
+    }
+
+    /// Stored on the budget itself, so a shared family period is extended the same way on every iPhone.
+    public func setPeriodRule(_ rule: PeriodRule, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard root.value(forKey: "periodRule") as? String != rule.storageValue else { return }
+            root.setValue(rule.storageValue, forKey: "periodRule")
             try commit()
         } catch { context.rollback(); throw error }
     }

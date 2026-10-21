@@ -1,17 +1,17 @@
 import Foundation
 
-/// A recurring payment with a fixed size and a day of the month: rent 25 000 on the 25th.
+/// A recurring payment with an estimated amount and a day of the month: rent 25 000 on the 25th.
 /// Its balance lives in the ledger as a reserve with the same identifier.
 public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
     public let id: UUID
     public let name: String
-    /// The fixed amount of one payment.
+    /// Expected amount of one payment; the actual expense may be smaller or larger.
     public let size: Money
     /// Day of the month, 1...31; short months use their last day.
     public let dueDay: Int
     /// Start of the day of the next payment.
     public let nextDue: Date
-    /// A mandatory envelope must be full by its date; an optional one is a guide.
+    /// A mandatory payment has priority when distributing money; size is a forecast, not a minimum.
     public let isMandatory: Bool
     /// Payments are recorded under this category; nil means "Другое".
     public let categoryID: UUID?
@@ -103,7 +103,7 @@ public enum EnvelopeSchedule {
     }
 }
 
-/// How one income is split: into envelopes first, the rest is money to live on.
+/// How one income is split between envelopes and money to live on.
 public struct EnvelopeDistribution: Equatable, Sendable {
     public let incoming: Money
     /// Amount added to each envelope now; envelopes left out get nothing.
@@ -118,23 +118,61 @@ public struct EnvelopeDistribution: Equatable, Sendable {
 }
 
 public enum EnvelopeDistributor {
-    /// The default split: envelopes due before the period ends, nearest first, each up to its shortfall.
-    /// Envelopes due later wait for the next income.
+    /// Keep the caller's daily reserve, then share the rest proportionally to each shortfall.
+    /// Envelopes due later wait for the next income. Largest remainders preserve every kopeck.
     public static func distribute(incoming: Money, envelopes: [RecurringEnvelope], balances: [UUID: Money],
-                                  periodEnd: Date) throws -> EnvelopeDistribution {
-        guard incoming.minorUnits >= 0 else { throw BudgetError.invalidAmount }
-        var left = incoming
-        var fills: [UUID: Money] = [:]
+                                  periodEnd: Date, minimumLiving: Money = Money(minorUnits: 0)) throws -> EnvelopeDistribution {
+        guard incoming.minorUnits >= 0, minimumLiving.minorUnits >= 0 else { throw BudgetError.invalidAmount }
+        guard incoming.currency == minimumLiving.currency else { throw BudgetError.currencyMismatch }
         let due = envelopes.filter { $0.nextDue < periodEnd }
-            .sorted { $0.nextDue != $1.nextDue ? $0.nextDue < $1.nextDue : $0.id.uuidString < $1.id.uuidString }
-        for envelope in due where left.minorUnits > 0 {
+        guard Set(due.map(\.id)).count == due.count else { throw BudgetError.duplicateIdentifier }
+        var needs: [(id: UUID, amount: Int64)] = []
+        var total = Money(minorUnits: 0, currency: incoming.currency)
+        for envelope in due {
             let need = try envelope.shortfall(balance: balance(of: envelope, in: balances))
-            let fill = Money(minorUnits: min(need.minorUnits, left.minorUnits), currency: incoming.currency)
-            guard fill.minorUnits > 0 else { continue }
-            fills[envelope.id] = fill
-            left = try left.subtracting(fill)
+            total = try total.adding(need)
+            if need.minorUnits > 0 { needs.append((envelope.id, need.minorUnits)) }
+        }
+        let available = max(0, incoming.minorUnits - min(incoming.minorUnits, minimumLiving.minorUnits))
+        let pool = min(available, total.minorUnits)
+        guard pool > 0 else { return EnvelopeDistribution(incoming: incoming, fills: [:]) }
+        var fills: [UUID: Money] = [:]
+        var remainders: [(id: UUID, remainder: UInt64)] = []
+        var allocated: Int64 = 0
+        for need in needs {
+            // Full-width arithmetic avoids overflowing large valid money amounts.
+            let product = UInt64(pool).multipliedFullWidth(by: UInt64(need.amount))
+            let share = UInt64(total.minorUnits).dividingFullWidth(product)
+            let amount = Int64(share.quotient)
+            if amount > 0 { fills[need.id] = Money(minorUnits: amount, currency: incoming.currency) }
+            allocated += amount
+            remainders.append((need.id, share.remainder))
+        }
+        remainders.sort { $0.remainder != $1.remainder ? $0.remainder > $1.remainder : $0.id.uuidString < $1.id.uuidString }
+        for item in remainders.prefix(Int(pool - allocated)) {
+            fills[item.id] = Money(minorUnits: (fills[item.id]?.minorUnits ?? 0) + 1, currency: incoming.currency)
         }
         return EnvelopeDistribution(incoming: incoming, fills: fills)
+    }
+
+    /// Money already in the budget, not a new income: it has to last the rest of the period.
+    /// Only mandatory envelopes due within a week are filled by default (later ones wait for the next income),
+    /// and the days until the last of those payments keep `dailyGuide` each, so funding a bill early
+    /// never empties the days before it. Optional envelopes stay at zero until the user moves their slider.
+    public static func distributeExisting(free: Money, envelopes: [RecurringEnvelope], balances: [UUID: Money],
+                                          periodEnd: Date, dailyGuide: Money, now: Date, calendar: Calendar) throws -> EnvelopeDistribution {
+        guard free.minorUnits >= 0, dailyGuide.minorUnits >= 0 else { throw BudgetError.invalidAmount }
+        let urgent = try envelopes.filter { envelope in
+            let days = EnvelopeSchedule.daysUntil(envelope.nextDue, from: now, calendar: calendar)
+            guard envelope.isMandatory, envelope.nextDue < periodEnd, days <= 7 else { return false }
+            return try envelope.shortfall(balance: balance(of: envelope, in: balances)).minorUnits > 0
+        }
+        guard !urgent.isEmpty else { return EnvelopeDistribution(incoming: free, fills: [:]) }
+        let days = urgent.map { max(1, EnvelopeSchedule.daysUntil($0.nextDue, from: now, calendar: calendar)) }.max() ?? 1
+        let keep = dailyGuide.minorUnits.multipliedReportingOverflow(by: Int64(days))
+        guard !keep.overflow else { throw BudgetError.amountOverflow }
+        return try distribute(incoming: free, envelopes: urgent, balances: balances, periodEnd: periodEnd,
+                              minimumLiving: Money(minorUnits: keep.partialValue, currency: free.currency))
     }
 
     /// A slider moved: the envelope gets `amount` now, clamped to 0...its shortfall and to what the other
@@ -165,5 +203,34 @@ public enum ContributionAdvisor {
         let share = Money(minorUnits: topUp.minorUnits * Int64(percent) / 100, currency: topUp.currency).roundedDownToWholeUnits
         let raised = try urgentFamilyShortfalls.reduce(share) { try $0.adding($1.nonnegative) }
         return Money(minorUnits: min(raised.minorUnits, topUp.minorUnits), currency: topUp.currency)
+    }
+}
+
+/// One preview and validation path for an income, its family share and envelope allocations.
+public enum FundingPlan {
+    public static func applying(to source: HouseholdSnapshot, incoming: Money, fills: [UUID: Money],
+                                familyShare: Money, now: Date, author: UUID, operationID: UUID) throws -> HouseholdSnapshot {
+        guard incoming.minorUnits > 0, familyShare.minorUnits >= 0 else { throw BudgetError.invalidAmount }
+        var allocated = familyShare
+        for (id, fill) in fills {
+            guard fill.minorUnits > 0, source.reserves.contains(where: { $0.id == id }) else { throw BudgetError.missingReserve }
+            allocated = try allocated.adding(fill)
+        }
+        guard allocated.currency == incoming.currency, allocated.minorUnits <= incoming.minorUnits else { throw BudgetError.insufficientReserve }
+        var transactions = source.transactions
+        transactions.append(TransactionSnapshot(id: operationID, amount: incoming, kind: .income, funding: .flexible,
+            date: now, authorID: author, payerID: author))
+        if familyShare.minorUnits > 0 {
+            transactions.append(TransactionSnapshot(amount: familyShare, kind: .contributionOut, date: now, authorID: author, payerID: author))
+        }
+        for (id, fill) in fills.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            transactions.append(TransactionSnapshot(amount: fill, kind: .reserveAllocation, funding: .reserve(id),
+                date: now, authorID: author, payerID: author))
+        }
+        let snapshot = HouseholdSnapshot(id: source.id, period: source.period,
+            monthlyFreePlan: try source.monthlyFreePlan.adding(incoming), openingFunds: source.openingFunds,
+            reserves: source.reserves, transactions: transactions)
+        _ = try DailyBudgetCalculator.calculate(snapshot, asOf: now)
+        return snapshot
     }
 }

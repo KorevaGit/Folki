@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CoreData
 import FolkiDuoCore
 @testable import FolkiDuoPersistence
 
@@ -75,6 +76,47 @@ import FolkiDuoCore
         #expect(budget.records.first?.id == income.id)
         #expect(try budget.snapshot.period.remainingDays(including: now) == 22)
         try reopened.close()
+    }
+
+    @Test func periodRuleLivesWithTheBudgetAndSurvivesReopening() async throws {
+        let (repo, path, author) = try await open(); defer { try? FileManager.default.removeItem(at: path) }
+        try start(repo)
+        #expect(try repo.periodRule(scope: .personal) == nil)
+        let budget = try #require(try repo.load(asOf: now, scope: .personal))
+        try repo.setPeriodRule(.days(7), in: budget, asOf: now)
+        // The family budget keeps its own rule.
+        #expect(try repo.periodRule(scope: .family) == nil)
+        try repo.close()
+        let reopened = try await BudgetRepository.open(directory: path, localMemberID: author)
+        #expect(try reopened.periodRule(scope: .personal) == .days(7))
+        let current = try #require(try reopened.load(asOf: now, scope: .personal))
+        try reopened.setPeriodRule(.dayOfMonth(9), in: current, asOf: now)
+        #expect(try reopened.periodRule(scope: .personal) == .dayOfMonth(9))
+        try reopened.close()
+    }
+
+    @Test func aVersionTwoStoreMigratesWithoutAPeriodRule() async throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: path) }
+        try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+        let previous = try #require(NSManagedObjectModel(contentsOf:
+            try BudgetRepository.modelDirectory().appendingPathComponent("FolkiV2.mom")))
+        #expect(previous.entitiesByName["Household"]?.attributesByName["periodRule"] == nil)
+        let old = NSPersistentContainer(name: "Folki", managedObjectModel: previous)
+        old.persistentStoreDescriptions = [NSPersistentStoreDescription(url: path.appendingPathComponent("private.sqlite"))]
+        old.persistentStoreDescriptions[0].setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            old.loadPersistentStores { _, error in if let error { continuation.resume(throwing: error) } else { continuation.resume() } }
+        }
+        let household = NSEntityDescription.insertNewObject(forEntityName: "Household", into: old.viewContext)
+        household.setValue(UUID(), forKey: "id"); household.setValue("personal", forKey: "scope")
+        try old.viewContext.save()
+        for store in old.persistentStoreCoordinator.persistentStores { try old.persistentStoreCoordinator.remove(store) }
+
+        let repo = try await BudgetRepository.open(directory: path, localMemberID: UUID())
+        #expect(try repo.periodRule(scope: .personal) == nil)
+        #expect(try repo.households(in: .personal).count == 1)
+        try repo.close()
     }
 
     @Test func fullFinanceKeepsPastExpensesWhenSettingCurrentCash() async throws {

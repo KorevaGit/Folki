@@ -6091,6 +6091,16 @@
         }
       }
     },
+    "По %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every %lld days"
+          }
+        }
+      }
+    },
     "По %lld-е число": {
       "localizations": {
         "en": {

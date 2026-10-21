@@ -187,13 +187,19 @@ private struct BudgetStartPage: View {
 
     private var calendar: Calendar { personal.calendar }
     private var today: Date { calendar.startOfDay(for: personal.referenceDate) }
+    /// How later periods repeat: the same date next month, every seven days, or until the next payday.
+    private var rule: PeriodRule {
+        switch length {
+        case .month: .monthly(startingOn: today, calendar: calendar)
+        case .week: .days(7)
+        case .payday: .payday(payday, calendar: calendar)
+        }
+    }
     /// The start of the first day after the period.
     private var end: Date {
-        switch length {
-        case .month: calendar.date(byAdding: .day, value: 30, to: today)!
-        case .week: calendar.date(byAdding: .day, value: 7, to: today)!
-        case .payday: calendar.startOfDay(for: payday)
-        }
+        if length == .payday { return calendar.startOfDay(for: payday) }
+        return (try? rule.end(after: today, now: personal.referenceDate, calendar: calendar))
+            ?? calendar.date(byAdding: .day, value: 30, to: today)!
     }
     private var days: Int { max(1, calendar.dateComponents([.day], from: today, to: end).day ?? 1) }
     private var money: Money? { (try? MoneyText.parse(amount)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
@@ -270,7 +276,7 @@ private struct BudgetStartPage: View {
     private func save() {
         guard let money else { FolkiFeedback.boundary(); shakes += 1; return }
         do {
-            try personal.startBudget(amount: money, until: end)
+            try personal.startBudget(amount: money, until: end, rule: rule)
             FolkiFeedback.saved()
             next()
         } catch {
@@ -514,6 +520,8 @@ private struct AnimatedHouse: View {
             }
         }
         .onAppear(perform: play)
+        // Stop the search pulse when the screen goes away, so it never runs off-screen.
+        .onDisappear { var t = Transaction(animation: nil); t.disablesAnimations = true; withTransaction(t) { outer = 0; inner = 0 } }
         .accessibilityHidden(true)
     }
 

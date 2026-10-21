@@ -53,8 +53,7 @@ struct BudgetSettingsView: View {
             .sheet(item: $limitsScope) { scope in SpendingLimitsView(personal: personal, family: family, scope: scope) }
             .sheet(item: $salaryScope) { scope in BudgetSetupView(session: scope == .personal ? personal : family, editingCurrent: true) }
             .sheet(isPresented: $showingDistribution) {
-                DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
-                    apply: { try session.setDistributionDay($0) })
+                DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
             }
             .sheet(isPresented: $showingFamily) { SharingView(session: family) }
         }
@@ -68,7 +67,7 @@ struct BudgetSettingsView: View {
                     LabeledContent("Сегодня можно", value: MoneyText.whole(result.todayRemaining))
                     LabeledContent("Осталось", value: MoneyText.whole(result.monthlyRemaining))
                 }
-                Button(distributionTitle(session.distributionDay)) { showingDistribution = true }
+                Button(periodRuleTitle(session.periodRule)) { showingDistribution = true }
                     .font(.subheadline)
                 Button("Внести деньги", systemImage: "plus") { setupScope = scope }.buttonStyle(FolkiSoftButtonStyle())
             }.budgetCard()

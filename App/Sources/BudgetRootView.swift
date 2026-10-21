@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes
+    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes, allocate
     var id: String { rawValue }
 }
 
@@ -14,8 +14,14 @@ struct BudgetRootView: View {
     @State private var editingEntry: PeriodEntry?
     @State private var undoEntry: PeriodEntry?
     @State private var historyError: String?
-    /// Shown under the rings for a moment after pulling down.
-    @State private var syncStatus: String?
+    @State private var isRefreshing = false
+    @State private var refreshPull: CGFloat = 0
+    @State private var peakPull: CGFloat = 0
+    /// A pull refreshes only when the drag began on the rings page already at the top,
+    /// not when a swipe back from the history overshoots.
+    @State private var pullArmed = false
+    @State private var atTop = true
+    @State private var refreshTask: Task<Void, Never>?
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
@@ -23,15 +29,18 @@ struct BudgetRootView: View {
     @Binding var selectedDay: Date?
     /// A `folki://spend` or `folki://add` link from a widget, Control Center or Shortcuts.
     @Binding var pendingEntry: URL?
-    /// Switches to the plan tab.
-    var openPlan: () -> Void = {}
-    @AppStorage("FolkiPlanReady") private var planReady = false
-    /// Set when the onboarding ends: the first-spend tip and one pulse of "Потратить".
+    /// A plan exists once either budget has envelopes.
+    private var planReady: Bool { !personal.envelopes.isEmpty || !family.envelopes.isEmpty }
+    /// The first-spend hint appears once without moving either action button.
     @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
     @State private var showsSpendTip = false
-    @State private var spendPulse = 0
+    @State private var spendTipDismissed = false
     @State private var tipHeight: CGFloat = 64
-    @State private var rolled = false
+    @State private var rolled = true
+    @Binding var inHistory: Bool
+    var returnRequest: Int = 0
+    /// Switches to the plan tab.
+    var openPlan: () -> Void = {}
     @AppStorage("FolkiPlanOfferDismissed") private var planOfferDismissed = false
     @State private var entryKind: TransactionKind = .expense
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -51,6 +60,7 @@ struct BudgetRootView: View {
             GeometryReader { _ in
                 let card = BudgetRingsCard(personal: personalDay.result, family: familyDay.result,
                                            isToday: selectedDay == nil, showsMonth: showsMonth, rolled: rolled,
+                                           refreshing: isRefreshing, refreshPull: refreshPull / Self.refreshDistance,
                                            togglePeriod: toggleRingPeriod,
                                            showsFamily: family.household != nil,
                                            personalNeedsFunds: !personal.hasFunding, familyNeedsFunds: !family.hasFunding,
@@ -59,22 +69,25 @@ struct BudgetRootView: View {
                 }
                 VStack(spacing: 8) {
                     weekCalendar.padding(.horizontal, FolkiSpacing.page)
+                    GeometryReader { outer in
+                    let bottomInset = outer.safeAreaInsets.bottom
                     GeometryReader { viewport in
+                        // The page reaches under the tab bar, so the history stays out of sight until swiped up.
                         let page = viewport.size.height
                         ScrollView {
                             VStack(spacing: 0) {
                                 VStack(spacing: 12) {
                                     if selectedDay == nil { banner }
                                     interactiveRings(card.rings).frame(maxHeight: .infinity)
-                                    syncCaption
                                     distributionLine
                                     entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                     Button { scrollToHistory(page) } label: {
-                                        Label("Траты за период", systemImage: "chevron.down")
+                                        Label("Траты за период · смахни вверх", systemImage: "chevron.down")
                                             .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
                                     }.buttonStyle(.plain).foregroundStyle(.secondary)
                                 }
                                 .padding(.horizontal, FolkiSpacing.page)
+                                .padding(.bottom, bottomInset)
                                 .frame(height: page)
                                 // The rings page recedes as the history scrolls over it.
                                 .visualEffect { content, proxy in
@@ -83,19 +96,51 @@ struct BudgetRootView: View {
                                         .scaleEffect(1 - progress * 0.12, anchor: .bottom)
                                         .opacity(1 - progress * 0.8)
                                 }
-                                PeriodHistoryList(personal: personal, family: family,
-                                    edit: { editingEntry = $0 }, delete: deleteEntry, cancelContribution: cancelContribution)
-                                    .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.huge)
-                                    .frame(minHeight: page, alignment: .top)
+                                VStack(spacing: FolkiSpacing.item) {
+                                    PeriodHistoryList(personal: personal, family: family,
+                                        edit: { editingEntry = $0 }, delete: deleteEntry, cancelContribution: cancelContribution)
+                                }
+                                .padding(.horizontal, FolkiSpacing.page).padding(.bottom, bottomInset + 40)
+                                .frame(minHeight: page, alignment: .top)
                             }
                         }
-                        .scrollIndicators(.hidden)
+                        .scrollIndicators(.never)
+                        // No blurred band under the tab bar cutting into the list.
+                        .scrollEdgeEffectHidden(true, for: .bottom)
                         .scrollTargetBehavior(RingsPageSnap(page: page))
                         .scrollPosition($scroll)
-                        .refreshable { await sync() }
+                        .onScrollGeometryChange(for: Bool.self) { geometry in
+                            geometry.contentOffset.y + geometry.contentInsets.top >= page * 0.8
+                        } action: { _, value in
+                            if value != inHistory { inHistory = value; FolkiFeedback.pageChange() }
+                        }
+                        .scrollBounceBehavior(.always)
+                        .onScrollGeometryChange(for: Bool.self) { geometry in
+                            geometry.contentOffset.y + geometry.contentInsets.top <= 2
+                        } action: { _, value in atTop = value }
+                        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                            max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
+                        } action: { _, value in
+                            guard pullArmed, !isRefreshing, !inHistory else { return }
+                            refreshPull = value
+                            peakPull = max(peakPull, value)
+                        }
+                        .onScrollPhaseChange { old, new in
+                            if new == .interacting && old != .interacting { pullArmed = atTop && !inHistory; peakPull = refreshPull }
+                            if old == .interacting && new != .interacting {
+                                if pullArmed && peakPull >= Self.refreshDistance && !isRefreshing && !inHistory {
+                                    refreshTask = Task { await sync() }
+                                }
+                                peakPull = 0
+                                pullArmed = false
+                                withAnimation(FolkiMotion.quick) { refreshPull = 0 }
+                            }
+                        }
+                    }
+                    .ignoresSafeArea(.container, edges: .bottom)
                     }
                     .overlay(alignment: .bottom) { undoToast }
-                }.padding(.top, 4).padding(.bottom, 8)
+                }.padding(.top, 4)
 
             }
             .background { FolkiBackground() }
@@ -115,11 +160,9 @@ struct BudgetRootView: View {
                 selectedScope = .personal
                 returnToToday { sheet = url.host == "add" ? .income : .spend }
             }
-            .onAppear {
-                FolkiFeedback.prepare()
-                guard !rolled else { return }
-                Task { try? await Task.sleep(for: .milliseconds(250)); rolled = true }
-            }
+            .onChange(of: returnRequest) { _, _ in scrollToBudget() }
+            .onAppear { FolkiFeedback.prepare() }
+            .onDisappear { refreshTask?.cancel(); refreshPull = 0; peakPull = 0 }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $editingEntry) { ExpenseEditorView(session: $0.session, editing: $0.record) }
@@ -137,39 +180,33 @@ struct BudgetRootView: View {
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
             case .distribution:
-                DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
-                    apply: { try session.setDistributionDay($0) })
+                DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
+            case .allocate: DailyFundingView(personal: personal, family: family, initialScope: selectedScope, distributesExisting: true)
             case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
             }
         }
     }
 
+    /// How far the rings must be pulled to sync: deliberately more than an overshoot.
+    private static let refreshDistance: CGFloat = 120
+
     private func scrollToHistory(_ page: CGFloat) {
-        FolkiFeedback.selection()
         withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { scroll.scrollTo(y: page) }
     }
 
-    /// Pull down: ask iCloud again and reload both budgets.
-    private func sync() async {
-        if let repository = personal.repository { await repository.verifyAccount() }
-        try? await Task.sleep(for: .milliseconds(500))
-        personal.refresh(); family.refresh()
-        FolkiFeedback.selection()
-        withAnimation(FolkiMotion.standard) {
-            syncStatus = personal.repository?.statusText ?? String(localized: "Обновлено")
-        }
-        // The caption outlives the spinner, so it is cleared by its own task.
-        Task {
-            try? await Task.sleep(for: .seconds(3))
-            withAnimation(FolkiMotion.standard) { syncStatus = nil }
-        }
+    private func scrollToBudget() {
+        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { scroll.scrollTo(edge: .top) }
     }
 
-    @ViewBuilder private var syncCaption: some View {
-        if let syncStatus {
-            Label(syncStatus, systemImage: "arrow.triangle.2.circlepath")
-                .font(.caption).foregroundStyle(.secondary).transition(.opacity)
-        }
+    /// Pull down to refresh; all visual feedback belongs to the rings themselves.
+    private func sync() async {
+        guard !isRefreshing else { return }
+        withAnimation(FolkiMotion.quick) { isRefreshing = true; refreshPull = 0 }
+        defer { withAnimation(FolkiMotion.quick) { isRefreshing = false; refreshPull = 0 } }
+        if let repository = personal.repository { await repository.verifyAccount() }
+        do { try await Task.sleep(for: .milliseconds(850)) } catch { return }
+        personal.refresh(); family.refresh()
+        FolkiFeedback.selection()
     }
 
     @ViewBuilder private var undoToast: some View {
@@ -213,7 +250,7 @@ struct BudgetRootView: View {
 
     /// "≈ 1 970 ₽/день до 19 нояб." — tap to change the period.
     private var distributionLine: some View {
-        Group {
+        VStack(spacing: 6) {
             if personal.hasFunding, let result = personal.result, let end = personal.household?.period.endExclusive {
                 let last = end.addingTimeInterval(-1).formatted(.dateTime.day().month(.abbreviated))
                 Button {
@@ -229,13 +266,36 @@ struct BudgetRootView: View {
                     }
                     .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }.buttonStyle(.plain)
+                if planReady, let guide = personal.plannedDailySpending {
+                    Text("По плану ≈ \(MoneyText.whole(guide.roundedDownToWholeUnits))/день")
+                        .font(.subheadline).foregroundStyle(Color.folkiAccent).monospacedDigit()
+                }
+                Button { selectedScope = .personal; sheet = .allocate } label: {
+                    Text("На повседневное: \(MoneyText.whole(personal.availableForDailySpending))")
+                        .font(.footnote.weight(.medium)).monospacedDigit()
+                }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
     }
 
     /// One banner at a time: a short envelope first, then the plan offer.
     @ViewBuilder private var banner: some View {
-        if [personal, family].contains(where: { $0.mostUrgentEnvelope != nil }) {
+        if let available = [personal, family].first(where: { $0.availableForDailySpending.minorUnits > 0 && $0.hasUnfundedObligations }) {
+            Button {
+                selectedScope = available.scope; sheet = .allocate
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Есть незакрытые обязательства").font(.subheadline.weight(.semibold))
+                        Text("\(available.scope.title): доступно \(MoneyText.whole(available.availableForDailySpending)) · распределить")
+                            .font(.footnote)
+                    }
+                } icon: { Image(systemName: "tray.and.arrow.down.fill") }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(FolkiSpacing.item)
+                .background(Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
+            }.buttonStyle(.plain).foregroundStyle(Color.folkiWarning)
+        } else if [personal, family].contains(where: { $0.mostUrgentEnvelope != nil }) {
             envelopeBanner
         } else if !planReady && !planOfferDismissed && personal.hasFunding {
             HStack(spacing: FolkiSpacing.item) {
@@ -253,7 +313,7 @@ struct BudgetRootView: View {
                 }.buttonStyle(.plain).accessibilityLabel("Скрыть")
             }
             .padding(.vertical, FolkiSpacing.xs).padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xs)
-            .background(Color.folkiAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+            .background(Color.folkiAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
@@ -274,17 +334,17 @@ struct BudgetRootView: View {
                 Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(urgency == .serious ? Color.red : Color.folkiWarning)
+            .foregroundStyle(urgency == .serious ? Color.folkiOver : Color.folkiWarning)
             .padding(.vertical, FolkiSpacing.item).padding(.horizontal, FolkiSpacing.card)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(urgency == .serious ? Color.red.opacity(0.12) : Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: 16))
+            .background(urgency == .serious ? Color.folkiOver.opacity(0.12) : Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
     private func toggleRingPeriod() {
         FolkiFeedback.selection()
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.7)) { showsMonth.toggle() }
+        withAnimation(reduceMotion ? nil : FolkiMotion.ring) { showsMonth.toggle() }
     }
 
     private var isAtToday: Bool {
@@ -293,6 +353,7 @@ struct BudgetRootView: View {
 
     private func interactiveRings<Content: View>(_ content: Content) -> some View {
         content
+            .accessibilityAction(named: Text("Обновить бюджет")) { refreshTask = Task { await sync() } }
             .accessibilityAction(named: Text("Предыдущий день")) { moveDay(-1) }
             .accessibilityAction(named: Text("Следующий день")) { moveDay(1) }
     }
@@ -339,7 +400,7 @@ struct BudgetRootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: selectedDay == nil)
+        .animation(reduceMotion ? nil : FolkiMotion.quick, value: selectedDay == nil)
     }
 
     private var spendButton: some View {
@@ -358,9 +419,6 @@ struct BudgetRootView: View {
                     .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
             }
             .buttonStyle(FolkiPressStyle())
-            .keyframeAnimator(initialValue: 1.0, trigger: spendPulse) { view, scale in view.scaleEffect(scale) } keyframes: { _ in
-                KeyframeTrack { SpringKeyframe(1.07, duration: 0.22); SpringKeyframe(1, duration: 0.4) }
-            }
             .frame(minWidth: 104, maxWidth: .infinity)
             // One sheet for every deposit; the family share and the family source live inside it.
             Button {
@@ -378,10 +436,14 @@ struct BudgetRootView: View {
         .overlay(alignment: .topLeading) {
             if showsSpendTip {
                 Button(action: dismissSpendTip) {
-                    Text("Запиши первую трату — покажу, как поменяется день")
-                        .font(.subheadline.weight(.medium)).foregroundStyle(.white).multilineTextAlignment(.leading)
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("Запиши первую трату — покажу, как поменяется день")
+                            .multilineTextAlignment(.leading)
+                        Image(systemName: "xmark").font(.caption.weight(.semibold)).padding(.top, 3)
+                    }
+                        .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiBackground)
                         .padding(.horizontal, FolkiSpacing.card).padding(.vertical, FolkiSpacing.item)
-                        .background(Color.folkiInk, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Color.folkiInk, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
                         .overlay(alignment: .bottomLeading) {
                             // The bubble's tail points at "Потратить".
                             Image(systemName: "arrowtriangle.down.fill").font(.system(size: 14)).foregroundStyle(Color.folkiInk)
@@ -398,16 +460,28 @@ struct BudgetRootView: View {
             }
         }
         .task {
-            // The end of the onboarding, frame by frame: rings fill and the figure rolls, then one pulse and the tip.
-            guard firstSpendTip, !personal.records.contains(where: { $0.transaction.kind == .expense }) else { return }
-            try? await Task.sleep(for: .milliseconds(1200))
-            spendPulse += 1
-            try? await Task.sleep(for: .milliseconds(300))
-            withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { showsSpendTip = true }
+            guard firstSpendTip else { return }
+            // Consume the offer once, including when the user leaves before it appears.
+            firstSpendTip = false
+            guard !personal.records.contains(where: { $0.transaction.kind == .expense }) else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1200))
+                guard !spendTipDismissed, sheet == nil, selectedDay == nil else { return }
+                try await Task.sleep(for: .milliseconds(300))
+                guard !spendTipDismissed, sheet == nil, selectedDay == nil else { return }
+                withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { showsSpendTip = true }
+                try await Task.sleep(for: .seconds(6))
+                dismissSpendTip()
+            } catch {
+                showsSpendTip = false
+            }
         }
+        .onChange(of: sheet) { _, _ in dismissSpendTip() }
+        .onChange(of: selectedDay) { _, _ in dismissSpendTip() }
     }
 
     private func dismissSpendTip() {
+        spendTipDismissed = true
         firstSpendTip = false
         withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { showsSpendTip = false }
     }
@@ -418,7 +492,7 @@ struct BudgetRootView: View {
             selectedDay = nil
             action()
         } else {
-            withAnimation(.smooth(duration: 0.35), completionCriteria: .logicallyComplete) {
+            withAnimation(FolkiMotion.standard, completionCriteria: .logicallyComplete) {
                 selectedDay = nil
             } completion: {
                 action()
@@ -547,7 +621,7 @@ struct LedgerRow: View {
 extension View {
     func budgetCard() -> some View {
         padding(FolkiSpacing.card).frame(maxWidth: .infinity, alignment: .leading)
-            .folkiGlass(RoundedRectangle(cornerRadius: 20))
+            .folkiGlass(RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
     }
 }
 

@@ -40,7 +40,43 @@ struct EnvelopeTests {
         #expect(try urgency("2026-10-24T09:00:00Z", balance: 25_000) == .funded)
     }
 
-    @Test func incomeFillsNearestEnvelopesDueThisPeriodFirst() throws {
+    @Test func existingMoneyFundsOnlyUrgentMandatoryEnvelopesAndKeepsTheDaysBeforeThem() throws {
+        // The audit case: 60 500 for 30 days, three envelopes due in four days, one of them a savings cushion.
+        let now = date("2026-10-21T12:00:00Z"), end = date("2026-11-19T21:00:00Z")
+        let housing = try envelope("Жильё", size: 20_000, day: 25, due: "2026-10-24T21:00:00Z")
+        let phone = try envelope("Связь", size: 2_700, day: 25, due: "2026-10-24T21:00:00Z")
+        let cushion = try envelope("Подушка", size: 18_000, day: 25, due: "2026-10-24T21:00:00Z", mandatory: false)
+        let later = try envelope("Кредит", size: 9_000, day: 5, due: "2026-11-04T21:00:00Z")
+        let split = try EnvelopeDistributor.distributeExisting(free: rub(60_500), envelopes: [housing, phone, cushion, later],
+            balances: [:], periodEnd: end, dailyGuide: rub(2_033), now: now, calendar: calendar)
+        #expect(split.fills[housing.id] == rub(20_000))
+        #expect(split.fills[phone.id] == rub(2_700))
+        // Optional envelopes and payments more than a week away wait for the user or the next income.
+        #expect(split.fills[cushion.id] == nil)
+        #expect(split.fills[later.id] == nil)
+        #expect(split.living == rub(37_800))
+    }
+
+    @Test func existingMoneyNeverTakesTheDaysBeforeAnUrgentPayment() throws {
+        let now = date("2026-10-21T12:00:00Z"), end = date("2026-11-19T21:00:00Z")
+        let rent = try envelope("Аренда", size: 25_000, day: 24, due: "2026-10-23T21:00:00Z")
+        // Three days until rent at 2 000 a day stay for living; only the rest goes to the envelope.
+        let short = try EnvelopeDistributor.distributeExisting(free: rub(10_000), envelopes: [rent], balances: [:],
+            periodEnd: end, dailyGuide: rub(2_000), now: now, calendar: calendar)
+        #expect(short.fills[rent.id] == rub(4_000))
+        #expect(short.living == rub(6_000))
+        // What is already set aside counts; an overdue payment keeps one day.
+        let overdue = try envelope("Аренда", size: 25_000, day: 20, due: "2026-10-19T21:00:00Z")
+        let late = try EnvelopeDistributor.distributeExisting(free: rub(30_000), envelopes: [overdue],
+            balances: [overdue.id: rub(20_000)], periodEnd: end, dailyGuide: rub(2_000), now: now, calendar: calendar)
+        #expect(late.fills[overdue.id] == rub(5_000))
+        // Nothing urgent: nothing moves.
+        let calm = try EnvelopeDistributor.distributeExisting(free: rub(30_000), envelopes: [rent], balances: [rent.id: rub(25_000)],
+            periodEnd: end, dailyGuide: rub(2_000), now: now, calendar: calendar)
+        #expect(calm.fills.isEmpty)
+    }
+
+    @Test func incomeFillsDueEnvelopesProportionally() throws {
         let rent = try envelope("Аренда", size: 25_000, day: 25, due: "2026-10-24T21:00:00Z")
         let internet = try envelope("Интернет", size: 800, day: 15, due: "2026-11-14T21:00:00Z")
         let later = try envelope("Страховка", size: 9_000, day: 1, due: "2026-12-01T21:00:00Z")
@@ -52,8 +88,45 @@ struct EnvelopeTests {
 
         let short = try EnvelopeDistributor.distribute(incoming: rub(10_000), envelopes: [internet, rent],
             balances: [:], periodEnd: periodEnd)
-        #expect(short.fills == [rent.id: rub(10_000)])
+        #expect(short.fills == [rent.id: Money(minorUnits: 968_992), internet.id: Money(minorUnits: 31_008)])
         #expect(short.living == rub(0))
+    }
+
+    @Test func shortIncomeKeepsDailyLivingAndDoesNotDependOnCreationOrder() throws {
+        let rent = try envelope("Аренда", size: 24_000, day: 25, due: "2026-10-24T21:00:00Z")
+        let internet = try envelope("Интернет", size: 6_000, day: 25, due: "2026-10-24T21:00:00Z")
+        let end = date("2026-11-19T21:00:00Z")
+        let split = try EnvelopeDistributor.distribute(incoming: rub(10_000), envelopes: [rent, internet],
+            balances: [:], periodEnd: end, minimumLiving: rub(1_000))
+        #expect(split.fills == [rent.id: rub(7_200), internet.id: rub(1_800)])
+        #expect(split.living == rub(1_000))
+        #expect(try EnvelopeDistributor.distribute(incoming: rub(10_000), envelopes: [internet, rent],
+            balances: [:], periodEnd: end, minimumLiving: rub(1_000)) == split)
+        #expect(try EnvelopeDistributor.distribute(incoming: rub(500), envelopes: [rent, internet],
+            balances: [:], periodEnd: end, minimumLiving: rub(1_000)).living == rub(500))
+    }
+
+    @Test func proportionalSplitPreservesKopecksAndHandlesLargeAmounts() throws {
+        let first = try envelope("Первый", size: 1, day: 25, due: "2026-10-24T21:00:00Z")
+        let second = try envelope("Второй", size: 1, day: 25, due: "2026-10-24T21:00:00Z")
+        let end = date("2026-11-19T21:00:00Z")
+        let small = try EnvelopeDistributor.distribute(incoming: Money(minorUnits: 3), envelopes: [first, second],
+            balances: [:], periodEnd: end, minimumLiving: Money(minorUnits: 1))
+        #expect(small.fills.values.reduce(0) { $0 + $1.minorUnits } == 2)
+        #expect(small.fills[first.id]?.minorUnits == 1)
+        #expect(small.living.minorUnits == 1)
+        let odd = try EnvelopeDistributor.distribute(incoming: Money(minorUnits: 4), envelopes: [second, first],
+            balances: [:], periodEnd: end, minimumLiving: Money(minorUnits: 1))
+        #expect(odd.fills.values.map(\.minorUnits).sorted() == [1, 2])
+        #expect(odd.living.minorUnits == 1)
+        #expect(try EnvelopeDistributor.distribute(incoming: Money(minorUnits: 4), envelopes: [first, second],
+            balances: [:], periodEnd: end, minimumLiving: Money(minorUnits: 1)) == odd)
+        let large = try RecurringEnvelope(name: "Большой", size: Money(minorUnits: Int64.max), dueDay: 25,
+            nextDue: first.nextDue, isMandatory: true)
+        let split = try EnvelopeDistributor.distribute(incoming: Money(minorUnits: Int64.max), envelopes: [large],
+            balances: [:], periodEnd: end, minimumLiving: Money(minorUnits: 1))
+        #expect(split.fills[large.id]?.minorUnits == Int64.max - 1)
+        #expect(split.living.minorUnits == 1)
     }
 
     @Test func slidersMoveMoneyOnlyBetweenTheEnvelopeAndLiving() throws {

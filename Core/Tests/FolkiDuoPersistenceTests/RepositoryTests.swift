@@ -197,12 +197,43 @@ struct RepositoryTests {
         try reopened.close()
     }
 
+    @Test func onlyTheAuthorEditsDeletesOrRestoresARecord() async throws {
+        let path = directory(); defer { try? FileManager.default.removeItem(at: path) }
+        let me = UUID()
+        let mine = try await open(path, me)
+        let initial = try setup(mine)
+        let partner = try #require(initial.members.first { $0.id != me }).id
+        try mine.close()
+        // The partner writes a spend from their own device identity.
+        let theirs = try await open(path, partner)
+        let budget = try #require(try theirs.load(asOf: now))
+        let spend = record(budget, author: partner, amount: 900)
+        try theirs.save(spend, in: budget, expectedRevision: nil, asOf: now)
+        try theirs.close()
+
+        let reopened = try await open(path, me)
+        let current = try #require(try reopened.load(asOf: now))
+        let stored = try #require(current.records.first { $0.id == spend.id })
+        let edit = record(current, author: me, amount: 100, old: stored)
+        #expect(throws: LedgerError.invalidMember) {
+            try reopened.save(edit, in: current, expectedRevision: stored.revision, asOf: now)
+        }
+        let delete = record(current, author: me, amount: 900, old: stored, deleted: true)
+        #expect(throws: LedgerError.invalidMember) {
+            try reopened.save(delete, in: current, expectedRevision: stored.revision, asOf: now)
+        }
+        let after = try #require(try reopened.load(asOf: now))
+        #expect(after.records.first { $0.id == spend.id }?.transaction.amount == rub(900))
+        #expect(after.records.first { $0.id == spend.id }?.transaction.isDeleted == false)
+        try reopened.close()
+    }
+
     @Test func currentModelHasCloudCompatibleRelationshipsAndNoCounters() async throws {
         let path = directory(); defer { try? FileManager.default.removeItem(at: path) }
         let repo = try await open(path, UUID())
         let model = repo.container.managedObjectModel
         #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Category", "Envelope"])
-        #expect(model.versionIdentifiers.contains(AnyHashable("2")))
+        #expect(model.versionIdentifiers.contains(AnyHashable("3")))
         for entity in model.entities {
             #expect(entity.uniquenessConstraints.isEmpty)
             for relationship in entity.relationshipsByName.values {
