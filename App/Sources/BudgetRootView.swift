@@ -17,6 +17,10 @@ struct BudgetRootView: View {
     @State private var sheet: BudgetSheet?
     @State private var editingRecord: LedgerRecord?
     @Binding var selectedDay: Date?
+    /// Switches to the plan tab.
+    var openPlan: () -> Void = {}
+    @AppStorage("FolkiPlanReady") private var planReady = false
+    @AppStorage("FolkiPlanOfferDismissed") private var planOfferDismissed = false
     @State private var entryKind: TransactionKind = .expense
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -44,7 +48,7 @@ struct BudgetRootView: View {
                 VStack(spacing: 8) {
                     weekCalendar.padding(.horizontal, FolkiSpacing.page)
                     VStack(spacing: 12) {
-                        if selectedDay == nil { envelopeBanner }
+                        if selectedDay == nil { banner }
                         interactiveRings(card.rings).frame(maxHeight: .infinity)
                             // Pulling up shrinks and fades the rings under the finger, then the history sheet takes over.
                             .scaleEffect(1 - pullProgress * 0.12, anchor: .top)
@@ -122,6 +126,31 @@ struct BudgetRootView: View {
                         .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }.buttonStyle(.plain)
             }
+        }
+    }
+
+    /// One banner at a time: a short envelope first, then the plan offer.
+    @ViewBuilder private var banner: some View {
+        if [personal, family].contains(where: { $0.mostUrgentEnvelope != nil }) {
+            envelopeBanner
+        } else if !planReady && !planOfferDismissed && personal.hasFunding {
+            HStack(spacing: FolkiSpacing.item) {
+                Button(action: openPlan) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Учесть аренду и подписки?").font(.subheadline.weight(.semibold))
+                            Text("Составь финансовый план").font(.footnote).foregroundStyle(.secondary)
+                        }
+                    } icon: { Image(systemName: "list.bullet.clipboard").foregroundStyle(Color.folkiAccent) }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }.buttonStyle(.plain)
+                Button { withAnimation(FolkiMotion.standard) { planOfferDismissed = true } } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 32, height: 32)
+                }.buttonStyle(.plain).accessibilityLabel("Скрыть")
+            }
+            .padding(.vertical, FolkiSpacing.xs).padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xs)
+            .background(Color.folkiAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 

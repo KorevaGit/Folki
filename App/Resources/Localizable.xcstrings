@@ -7500,6 +7500,916 @@
           }
         }
       }
+    },
+    "Это деньги на повседневные траты. Аренду, связь и подписки я пока не учитываю — для них есть финансовый план, настроишь когда захочешь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is money for everyday spending. Rent, phone and subscriptions aren't counted yet — that's what the financial plan is for, set it up whenever you like"
+          }
+        }
+      }
+    },
+    "Учту аренду и подписки, напомню о платежах. Вкладка «План»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll account for rent and subscriptions and remind you about bills. The Plan tab"
+          }
+        }
+      }
+    },
+    "Финансовый план — когда будешь готов": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A financial plan, when you're ready"
+          }
+        }
+      }
+    },
+    "Показать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show"
+          }
+        }
+      }
+    },
+    "Все": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        }
+      }
+    },
+    "Записанные траты появятся здесь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your expenses will show up here"
+          }
+        }
+      }
+    },
+    "−%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "−%@"
+          }
+        }
+      }
+    },
+    "Запись удалена": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entry deleted"
+          }
+        }
+      }
+    },
+    "Не получилось вернуть запись. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't restore the entry. Try again."
+          }
+        }
+      }
+    },
+    "Пришли деньги?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got paid?"
+          }
+        }
+      }
+    },
+    "Внеси их в Folki — я разложу по конвертам и посчитаю день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add it to Folki — I'll fill your envelopes and work out your day"
+          }
+        }
+      }
+    },
+    "Не хватает %@ — переложи из денег на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ short — move it from living money"
+          }
+        }
+      }
+    },
+    "В конверте всё собрано": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The envelope is full"
+          }
+        }
+      }
+    },
+    "%@ — %@ %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ %3$@"
+          }
+        }
+      }
+    },
+    "Что откладываем?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What are we saving for?"
+          }
+        }
+      }
+    },
+    "Свой": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        }
+      }
+    },
+    "Сколько в месяц?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much a month?"
+          }
+        }
+      }
+    },
+    "Какого числа платёж?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which day is it due?"
+          }
+        }
+      }
+    },
+    "Каждый месяц в этот день. В коротких месяцах — в последний день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every month on this day. In short months, on the last day"
+          }
+        }
+      }
+    },
+    "Ближайший платёж — %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next payment — %@"
+          }
+        }
+      }
+    },
+    "Скрыть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        }
+      }
+    },
+    "Учесть аренду и подписки?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account for rent and subscriptions?"
+          }
+        }
+      }
+    },
+    "Составь финансовый план": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make a financial plan"
+          }
+        }
+      }
+    },
+    "%@ — %@ до %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ — %2$@ by %3$@"
+          }
+        }
+      }
+    },
+    "В конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To envelope"
+          }
+        }
+      }
+    },
+    "Финансовый план": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Financial plan"
+          }
+        }
+      }
+    },
+    "Сейчас я считаю только повседневные траты. Давай учтём и регулярные: аренду, связь, подписки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right now I only count everyday spending. Let's add the regular ones: rent, phone, subscriptions"
+          }
+        }
+      }
+    },
+    "Составить план": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make a plan"
+          }
+        }
+      }
+    },
+    "Что будет в плане": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What's in the plan"
+          }
+        }
+      }
+    },
+    "Займёт пару минут. Всё можно поменять потом": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes a couple of minutes. You can change everything later"
+          }
+        }
+      }
+    },
+    "Напомню внести деньги": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll remind you to add money"
+          }
+        }
+      }
+    },
+    "В дни зарплаты или раз в неделю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On paydays or once a week"
+          }
+        }
+      }
+    },
+    "Отложу на платежи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll set money aside for bills"
+          }
+        }
+      }
+    },
+    "Каждый платёж — свой конверт. Дневной бюджет их не трогает": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each bill gets its own envelope. Your daily budget leaves them alone"
+          }
+        }
+      }
+    },
+    "Предупрежу о списаниях": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll warn you about payments"
+          }
+        }
+      }
+    },
+    "Заранее, если в конверте не хватает": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahead of time, if an envelope is short"
+          }
+        }
+      }
+    },
+    "Поделюсь с семьёй": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll share with the family"
+          }
+        }
+      }
+    },
+    "Часть каждого пополнения — в общий бюджет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Part of each top-up goes to the shared budget"
+          }
+        }
+      }
+    },
+    "Когда приходят деньги?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When do you get paid?"
+          }
+        }
+      }
+    },
+    "В эти дни напомню внести их и разложить по конвертам": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On these days I'll remind you to add the money and fill your envelopes"
+          }
+        }
+      }
+    },
+    "Напоминать о платежах?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remind you about bills?"
+          }
+        }
+      }
+    },
+    "Скажу заранее, сколько не хватает в конверте": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll tell you ahead how much an envelope is short"
+          }
+        }
+      }
+    },
+    "План готов": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your plan is ready"
+          }
+        }
+      }
+    },
+    "Конвертов пока нет — добавишь, когда понадобятся": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No envelopes yet — add them when you need them"
+          }
+        }
+      }
+    },
+    "Конвертов: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envelopes: %lld"
+          }
+        }
+      }
+    },
+    "Напоминания о деньгах выключены": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Money reminders are off"
+          }
+        }
+      }
+    },
+    " и ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " and "
+          }
+        }
+      }
+    },
+    "Напомню внести деньги %@ числа в %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll remind you to add money on day %1$@ at %2$@"
+          }
+        }
+      }
+    },
+    "Напомню внести деньги: %@, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll remind you to add money: %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "В день оплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the due day"
+          }
+        }
+      }
+    },
+    "За %lld дн. и в день оплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days before and on the due day"
+          }
+        }
+      }
+    },
+    "За %lld дн. до оплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days before the due day"
+          }
+        }
+      }
+    },
+    "Напоминания о платежах выключены": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bill reminders are off"
+          }
+        }
+      }
+    },
+    "Не напоминаю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No reminders"
+          }
+        }
+      }
+    },
+    "%@ числа в %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day %1$@ at %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "Ничего не напомню. Деньги можно внести в любой момент кнопкой «Внести»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No reminders. You can add money anytime with the Add button"
+          }
+        }
+      }
+    },
+    "Выбери два дня, например зарплату и аванс": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick two days, like payday and an advance"
+          }
+        }
+      }
+    },
+    "Выбери день зарплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick your payday"
+          }
+        }
+      }
+    },
+    "Время напоминания": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminder time"
+          }
+        }
+      }
+    },
+    "Раз в месяц": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once a month"
+          }
+        }
+      }
+    },
+    "Два раза в месяц": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twice a month"
+          }
+        }
+      }
+    },
+    "Каждую неделю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every week"
+          }
+        }
+      }
+    },
+    "Не напоминать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't remind"
+          }
+        }
+      }
+    },
+    "Заранее": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In advance"
+          }
+        }
+      }
+    },
+    "Напоминать о платежах": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remind about bills"
+          }
+        }
+      }
+    },
+    "И в день оплаты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "And on the due day"
+          }
+        }
+      }
+    },
+    "Пример напоминания": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sample reminder"
+          }
+        }
+      }
+    },
+    "За день": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A day before"
+          }
+        }
+      }
+    },
+    "За 2 дня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 days before"
+          }
+        }
+      }
+    },
+    "За неделю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A week before"
+          }
+        }
+      }
+    },
+    "Аренда — 25 000 ₽ через %lld дн.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rent — 25 000 ₽ in %lld days"
+          }
+        }
+      }
+    },
+    "Не хватает 4 000 ₽ — переложи из денег на жизнь": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4 000 ₽ short — move it from living money"
+          }
+        }
+      }
+    },
+    "При пополнении личного бюджета предложу перевести эту долю. Если семейный платёж близко, предложу больше": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you top up your personal budget, I'll suggest sending this share. If a family bill is close, I'll suggest more"
+          }
+        }
+      }
+    },
+    "С 50 000 ₽ в семью уйдёт %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From 50 000 ₽, %@ goes to the family"
+          }
+        }
+      }
+    },
+    "Доля для семьи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Family share"
+          }
+        }
+      }
+    },
+    "Для всей семьи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For the whole family"
+          }
+        }
+      }
+    },
+    "Иначе процент только твой": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otherwise it's just your own percent"
+          }
+        }
+      }
+    },
+    "Сколько в семью?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much for the family?"
+          }
+        }
+      }
+    },
+    "Доля от каждого пополнения личного бюджета": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A share of every personal top-up"
+          }
+        }
+      }
+    },
+    "Не получилось сохранить процент. Попробуй ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save the percent. Try again."
+          }
+        }
+      }
+    },
+    "Каждый — свой конверт. Буду откладывать на него из поступлений": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each gets its own envelope. I'll fill it from your deposits"
+          }
+        }
+      }
+    },
+    "%@ · %lld-го": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · day %2$lld"
+          }
+        }
+      }
+    },
+    "Ещё конверт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another envelope"
+          }
+        }
+      }
+    },
+    "Пока без конвертов": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No envelopes for now"
+          }
+        }
+      }
+    },
+    "Уведомления выключены — напоминания не придут. Включить": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications are off — reminders won't arrive. Turn on"
+          }
+        }
+      }
+    },
+    "Напоминания": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminders"
+          }
+        }
+      }
+    },
+    "Платежи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bills"
+          }
+        }
+      }
+    },
+    "Вклад в семью": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Family share"
+          }
+        }
+      }
+    },
+    "%lld%% — твой процент": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% — your own"
+          }
+        }
+      }
+    },
+    "%lld%% — общий для семьи": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% — family-wide"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

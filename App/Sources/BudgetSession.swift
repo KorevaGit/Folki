@@ -253,6 +253,24 @@ final class BudgetSession {
         guard scope == .family, let repository, let budget = storedBudget else { return 30 }
         return (try? repository.effectiveContributionPercent(in: budget)) ?? 30
     }
+    /// Called on the family session: the family default and this member's own percent, if set.
+    var contributionPercents: (family: Int, mine: Int?) {
+        guard scope == .family, let repository, let budget = storedBudget else { return (30, nil) }
+        return (try? repository.contributionPercents(in: budget)) ?? (30, nil)
+    }
+    /// Called on the family session. `forEveryone` changes the family default and drops the personal one.
+    func setContributionPercent(_ percent: Int, forEveryone: Bool) throws {
+        guard scope == .family, let repository, let budget = storedBudget else { throw LedgerError.unavailable }
+        if forEveryone {
+            try repository.setFamilyContributionPercent(percent, in: budget, asOf: referenceDate)
+            refresh()
+            guard let updated = storedBudget else { return }
+            try repository.setMyContributionPercent(nil, in: updated, asOf: referenceDate)
+        } else {
+            try repository.setMyContributionPercent(percent, in: budget, asOf: referenceDate)
+        }
+        refresh()
+    }
     /// What is still missing in envelopes due within a week.
     var urgentShortfalls: [Money] {
         envelopes.filter { daysUntil($0) <= 7 }

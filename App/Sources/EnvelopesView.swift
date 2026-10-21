@@ -13,47 +13,34 @@ extension EnvelopeUrgency {
     }
 }
 
-/// "Конверты": recurring payments of one budget, nearest first.
-struct EnvelopesView: View {
-    let personal: BudgetSession
-    let family: BudgetSession
-    @State private var scope: BudgetScope = .personal
-    @State private var creating = false
-    private var session: BudgetSession { scope == .family && family.household != nil ? family : personal }
+/// Recurring payments of one budget, nearest first: summary, cards and an add button.
+/// Lives inside the plan; the hosting stack provides `navigationDestination(for: RecurringEnvelope.self)`.
+struct EnvelopesSection: View {
+    let session: BudgetSession
+    @Binding var creating: Bool
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: FolkiSpacing.section) {
-                    if family.household != nil {
-                        FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
-                                             options: [(String(localized: "Личные"), .personal), (String(localized: "Семейные"), .family)],
-                                             minimumHeight: 36)
-                    }
-                    if session.envelopes.isEmpty {
-                        empty
-                    } else {
-                        summary
-                        VStack(spacing: FolkiSpacing.item) {
-                            ForEach(session.envelopes) { envelope in
-                                NavigationLink(value: envelope) { EnvelopeCard(session: session, envelope: envelope) }
-                                    .buttonStyle(FolkiPressStyle(scale: 0.98))
-                            }
-                        }
-                    }
-                }.folkiPagePadding(top: FolkiSpacing.xs)
-            }
-            .background { FolkiBackground() }
-            .navigationTitle("Конверты").toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { creating = true } label: { Image(systemName: "plus") }.accessibilityLabel("Добавить конверт")
+        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+            if session.envelopes.isEmpty {
+                empty
+            } else {
+                summary.padding(.bottom, FolkiSpacing.xs)
+                ForEach(sorted) { envelope in
+                    NavigationLink(value: envelope) { EnvelopeCard(session: session, envelope: envelope) }
+                        .buttonStyle(FolkiPressStyle(scale: 0.98))
                 }
+                Button { creating = true } label: {
+                    Label("Добавить конверт", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 44)
+                }.buttonStyle(FolkiSoftButtonStyle())
             }
-            .navigationDestination(for: RecurringEnvelope.self) { envelope in
-                EnvelopeDetailView(session: session, envelopeID: envelope.id)
-            }
-            .sheet(isPresented: $creating) { EnvelopeEditorView(session: session) }
+        }
+    }
+
+    /// Short envelopes first by date; full ones sink to the bottom.
+    private var sorted: [RecurringEnvelope] {
+        session.envelopes.sorted { lhs, rhs in
+            let left = session.envelopeUrgency(lhs) == .funded, right = session.envelopeUrgency(rhs) == .funded
+            return left != right ? !left : lhs.nextDue < rhs.nextDue
         }
     }
 
@@ -79,11 +66,11 @@ struct EnvelopesView: View {
 
     private var empty: some View {
         VStack(spacing: FolkiSpacing.card) {
-            Image(systemName: "tray.full").font(.system(size: 48)).foregroundStyle(.secondary)
+            Image(systemName: "tray.full").font(.system(size: 40)).foregroundStyle(.secondary)
             Text("Аренда, интернет, подписки — отложу на них заранее, и они не съедят дневной бюджет")
-                .font(.body).multilineTextAlignment(.center)
+                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Button("Добавить конверт") { creating = true }.buttonStyle(FolkiSoftButtonStyle())
-        }.frame(maxWidth: .infinity).padding(.top, FolkiSpacing.huge)
+        }.frame(maxWidth: .infinity).padding(.vertical, FolkiSpacing.large)
     }
 }
 

@@ -10,6 +10,16 @@ struct FolkiRootView: View {
     /// The step reached so far; survives a relaunch (for example after changing the app language).
     @AppStorage("FolkiOnboardingStep") private var onboardingStep = 0
     @State private var finishedOnboarding = false
+    enum TabID: Hashable { case budget, plan }
+    @State private var tab: TabID = .budget
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Everything the plan reminders depend on: dates, sizes and what is already put aside.
+    private var reminderSignature: [String] {
+        [personal, family].flatMap { session in
+            session.envelopes.map { "\($0.id)\($0.nextDue.timeIntervalSince1970)\($0.size.minorUnits)\(session.envelopeBalance($0).minorUnits)" }
+        }
+    }
 
     /// Decided before anything is drawn, so the main screen never flashes behind the onboarding.
     private var needsOnboarding: Bool {
@@ -28,16 +38,26 @@ struct FolkiRootView: View {
             }
             .transition(.opacity)
         } else {
-            TabView {
-                Tab("Бюджет", systemImage: "wallet.bifold") {
-                    BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay)
+            TabView(selection: $tab) {
+                Tab("Бюджет", systemImage: "wallet.bifold", value: TabID.budget) {
+                    BudgetRootView(personal: personal, family: family, selectedDay: $selectedDay) { tab = .plan }
                 }
-                Tab("Конверты", systemImage: "tray.full") {
-                    EnvelopesView(personal: personal, family: family)
+                Tab("План", systemImage: "list.bullet.clipboard", value: TabID.plan) {
+                    PlanTab(personal: personal, family: family)
                 }
             }
             .tint(Color.folkiAccent).transition(.opacity)
+            .onChange(of: reminderSignature) { reschedule() }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { reschedule() } }
+            .task { reschedule() }
         }
+    }
+}
+
+extension FolkiRootView {
+    private func reschedule() {
+        let sessions = [personal, family]
+        Task { await PlanReminders.reschedule(PlanSettings.load(), sessions: sessions) }
     }
 }
 

@@ -86,7 +86,7 @@ struct OnboardingView: View {
 // MARK: - Pages
 
 /// A page with content at the top and the actions pinned to the bottom.
-private struct OnboardingPage<Content: View, Actions: View>: View {
+struct OnboardingPage<Content: View, Actions: View>: View {
     var centered = false
     @ViewBuilder let content: () -> Content
     @ViewBuilder let actions: () -> Actions
@@ -107,7 +107,7 @@ private struct OnboardingPage<Content: View, Actions: View>: View {
 }
 
 /// Cascading rise: fade in and lift 8 points, one item after another.
-private struct Rise: ViewModifier {
+struct Rise: ViewModifier {
     let order: Int
     @State private var shown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -119,7 +119,7 @@ private struct Rise: ViewModifier {
             }
     }
 }
-private extension View { func rise(_ order: Int) -> some View { modifier(Rise(order: order)) } }
+extension View { func rise(_ order: Int) -> some View { modifier(Rise(order: order)) } }
 
 private struct HelloPage: View {
     let next: () -> Void
@@ -240,6 +240,12 @@ private struct BudgetStartPage: View {
                 .padding(FolkiSpacing.page).frame(maxWidth: .infinity, alignment: .leading)
                 .glassEffect(.regular.tint(Color.folkiAccent.opacity(0.08)).interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
                 .padding(.top, FolkiSpacing.large)
+                // The first money is only for everyday spending; regular bills come with the plan.
+                Label {
+                    Text("Это деньги на повседневные траты. Аренду, связь и подписки я пока не учитываю — для них есть финансовый план, настроишь когда захочешь")
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: { Image(systemName: "info.circle").foregroundStyle(Color.folkiAccent) }
+                .font(.footnote).foregroundStyle(.secondary).padding(.top, FolkiSpacing.item)
                 if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.top, FolkiSpacing.item) }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
         } actions: {
@@ -285,7 +291,7 @@ private struct FeaturesPage: View {
                 row(RingsDemo(), "Общее и личное",
                     invited ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
                         : String(localized: "Семья видит общее, твоё — только ты")).rise(2)
-                row(EnvelopesDemo(), "Раскладываю по конвертам", "Аренда и интернет — отдельно, остальное — на жизнь").rise(3)
+                row(EnvelopesDemo(), "Финансовый план — когда будешь готов", String(localized: "Учту аренду и подписки, напомню о платежах. Вкладка «План»")).rise(3)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
         } actions: {
             Button("Перейти к Folki") { FolkiFeedback.saved(); done() }
