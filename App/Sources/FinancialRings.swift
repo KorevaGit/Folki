@@ -107,7 +107,7 @@ struct BudgetRingsCard: View {
     var familyNeedsFunds = false
     var addFunds: (BudgetScope) -> Void = { _ in }
     let reviewPlan: (BudgetScope) -> Void
-    @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 56
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -144,12 +144,15 @@ struct BudgetRingsCard: View {
                     center(diameter: diameter)
                         .buttonStyle(.plain)
                         .accessibilityElement(children: .contain)
-                        .frame(width: diameter * 0.48, height: diameter * 0.42)
+                        .frame(width: diameter * centerWidth, height: diameter * 0.46)
                 }.frame(width: geometry.size.width, height: geometry.size.height)
             }
             .accessibilityElement(children: .contain)
         }
     }
+
+    /// The clear middle: one ring leaves more room than two.
+    private var centerWidth: CGFloat { showsFamily ? 0.5 : 0.62 }
 
     private func periodValue(_ result: DailyBudgetSnapshot?) -> String {
         guard let result else { return String(localized: "не настроен") }
@@ -187,7 +190,7 @@ struct BudgetRingsCard: View {
             } else {
                 Button(action: togglePeriod) {
                     amount(showsMonth ? personal?.periodRemaining : personal?.todayRemaining,
-                        size: min(amountSize, diameter * 0.13), width: diameter * 0.48)
+                        size: min(amountSize, diameter * 0.2), width: diameter * centerWidth)
                 }
                 .accessibilityLabel("Личный")
                 .accessibilityValue(periodValue(personal))
@@ -200,7 +203,7 @@ struct BudgetRingsCard: View {
                 } else {
                     Button(action: togglePeriod) {
                         amount(showsMonth ? family?.periodRemaining : family?.todayRemaining,
-                            size: min(amountSize * 0.65, diameter * 0.085), width: diameter * 0.48)
+                            size: min(amountSize * 22 / 56, diameter * 0.08), width: diameter * centerWidth)
                     }
                     .accessibilityLabel("Семейный")
                     .accessibilityValue(periodValue(family))
