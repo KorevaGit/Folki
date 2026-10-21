@@ -98,43 +98,58 @@ struct FolkiWidgetView: View {
 
     // Home screen
 
+    /// As on the main screen: the rings fill the widget, today's figure sits in the middle.
     private var small: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            rings(size: 54, width: 7)
-            Spacer(minLength: 0)
-            Text(caption(personal)).font(.caption2.weight(.semibold))
-                .foregroundStyle(personal.isOver ? Color.red : Palette.personal)
-            Text(FolkiWidgetText.rub(personal.today)).font(.system(.title2, design: .rounded, weight: .bold))
-                .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
-                .foregroundStyle(personal.isOver ? Color.red : .primary)
-            if let family = entry.family {
-                Text("Семья ≈ \(FolkiWidgetText.rub(family.today))").font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            ZStack {
+                rings(size: side, width: side * 0.09)
+                VStack(spacing: 1) {
+                    Text(personal.isOver ? "Сверх дня" : "Сегодня")
+                        .font(.system(size: side * 0.075, weight: .semibold))
+                        .foregroundStyle(personal.isOver ? Color.red : Palette.personal)
+                    Text(FolkiWidgetText.rub(personal.today))
+                        .font(.system(size: side * 0.15, weight: .bold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(personal.isOver ? Color.red : .primary)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    if let family = entry.family {
+                        Text("≈ \(FolkiWidgetText.rub(family.today))")
+                            .font(.system(size: side * 0.07, weight: .semibold, design: .rounded)).monospacedDigit()
+                            .foregroundStyle(Palette.family).lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                }
+                .frame(width: side * (entry.family == nil ? 0.62 : 0.5))
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Rings on the left, the figures and the spend button on the right, one leading edge.
     private var medium: some View {
-        HStack(spacing: 16) {
-            rings(size: 96, width: 11)
-            VStack(alignment: .leading, spacing: 6) {
+        GeometryReader { geo in
+            HStack(spacing: 16) {
+                rings(size: geo.size.height, width: geo.size.height * 0.09)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(caption(personal)).font(.caption.weight(.semibold))
                         .foregroundStyle(personal.isOver ? Color.red : Palette.personal)
-                    Text(FolkiWidgetText.rub(personal.today)).font(.system(.title, design: .rounded, weight: .bold))
+                    Text(FolkiWidgetText.rub(personal.today)).font(.system(size: 30, weight: .bold, design: .rounded))
                         .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
                         .foregroundStyle(personal.isOver ? Color.red : .primary)
                     if let family = entry.family {
-                        Text("Семья ≈ \(FolkiWidgetText.rub(family.today))").font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            Circle().fill(Palette.family).frame(width: 6, height: 6)
+                            Text("Семья ≈ \(FolkiWidgetText.rub(family.today))").font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                        }.padding(.top, 2)
+                    }
+                    Spacer(minLength: 6)
+                    Link(destination: FolkiLinks.spend) {
+                        Text("− Потратить").font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .background(Palette.accent, in: Capsule())
                     }
                 }
-                Spacer(minLength: 0)
-                Link(destination: FolkiLinks.spend) {
-                    Text("− Потратить").font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(Palette.accent, in: Capsule())
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
         }
     }
@@ -143,7 +158,7 @@ struct FolkiWidgetView: View {
         ZStack {
             ring(personal, color: Palette.personal, width: width)
             if let family = entry.family {
-                ring(family, color: Palette.family, width: width).padding(width + 2)
+                ring(family, color: Palette.family, width: width).padding(width + width * 0.2)
             }
         }
         .frame(width: size, height: size)
@@ -222,3 +237,4 @@ struct FolkiSpendControl: ControlWidget {
 }
 
 #Preview(as: .systemMedium) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }
+#Preview(as: .systemSmall) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }

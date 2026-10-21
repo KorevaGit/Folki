@@ -123,6 +123,19 @@
           }
         }
       }
+    },
+    "Сегодня": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        }
+      }
+    },
+    "≈ %@": {
+      "shouldTranslate": false
     }
   },
   "version": "1.0"

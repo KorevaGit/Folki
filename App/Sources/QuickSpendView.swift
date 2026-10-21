@@ -34,7 +34,8 @@ struct ImpactLines: View {
             Text("Период превышен на \(MoneyText.whole(Money(minorUnits: -result.monthlyRemaining.minorUnits).roundedUpToWholeUnits))")
                 .font(.footnote).foregroundStyle(.red)
         } else if let future = result.futureAllocation {
-            let change = after == nil ? nil : (try? result.nextDaysChange(since: before))
+            // No change, no note: "(±0 ₽)" in red reads as a warning.
+            let change = after == nil ? nil : (try? result.nextDaysChange(since: before)).flatMap { $0.minorUnits == 0 ? nil : $0 }
             let changeText = Text(verbatim: change.map { " (\(signed($0)))" } ?? "")
                 .foregroundStyle(change.map { $0.minorUnits < 0 } == true ? Color.red : .secondary)
             Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))\(changeText)").font(.footnote)
