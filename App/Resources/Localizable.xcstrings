@@ -8450,6 +8450,26 @@
           }
         }
       }
+    },
+    "Значок": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icon"
+          }
+        }
+      }
+    },
+    "Изменить значок": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change icon"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -15,9 +15,12 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
     public let isMandatory: Bool
     /// Payments are recorded under this category; nil means "Другое".
     public let categoryID: UUID?
+    /// SF Symbol and colour of the envelope's icon; nil falls back to its category.
+    public let symbol: String?
+    public let color: CategoryColor?
 
     public init(id: UUID = UUID(), name: String, size: Money, dueDay: Int, nextDue: Date, isMandatory: Bool,
-                categoryID: UUID? = nil) throws {
+                categoryID: UUID? = nil, symbol: String? = nil, color: CategoryColor? = nil) throws {
         guard size.minorUnits > 0 else { throw BudgetError.invalidAmount }
         guard (1...31).contains(dueDay) else { throw BudgetError.invalidPeriod }
         self.id = id
@@ -27,13 +30,16 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
         self.nextDue = nextDue
         self.isMandatory = isMandatory
         self.categoryID = categoryID
+        self.symbol = symbol
+        self.color = color
     }
 
     /// The same envelope with other fields, for edits and moving to the next payment.
     public func with(name: String? = nil, size: Money? = nil, dueDay: Int? = nil, nextDue: Date? = nil,
-                     isMandatory: Bool? = nil) throws -> RecurringEnvelope {
+                     isMandatory: Bool? = nil, symbol: String? = nil, color: CategoryColor? = nil) throws -> RecurringEnvelope {
         try RecurringEnvelope(id: id, name: name ?? self.name, size: size ?? self.size, dueDay: dueDay ?? self.dueDay,
-                              nextDue: nextDue ?? self.nextDue, isMandatory: isMandatory ?? self.isMandatory, categoryID: categoryID)
+                              nextDue: nextDue ?? self.nextDue, isMandatory: isMandatory ?? self.isMandatory, categoryID: categoryID,
+                              symbol: symbol ?? self.symbol, color: color ?? self.color)
     }
 
     /// How much is still missing for the next payment, never negative.

@@ -91,9 +91,16 @@ struct BudgetRootView: View {
 
             }
             .background { FolkiBackground() }
+            // A fixed title: the main screen scrolls into the history, and a collapsing large title would jump.
             .navigationTitle("Бюджет")
-            .toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar { headerActions }
+            .toolbarTitleDisplayMode(.inline)
+            .toolbar(removing: .title)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("Бюджет").font(.largeTitle.bold()).fixedSize().accessibilityAddTraits(.isHeader)
+                }.sharedBackgroundVisibility(.hidden)
+                headerActions
+            }
             .onAppear { FolkiFeedback.prepare() }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }

@@ -92,6 +92,18 @@ import FolkiDuoCore
         try repo.close()
     }
 
+    @Test func iconAndColourSurviveEditsAndReopening() async throws {
+        let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
+        let gym = try repo.createEnvelope(name: "Спортзал", size: rub(3_000), dueDay: 1, nextDue: rentDue, isMandatory: false,
+                                          symbol: "dumbbell.fill", color: .purple, in: budget(repo), asOf: now)
+        try repo.updateEnvelope(gym.with(size: rub(3_500), color: .pink), in: budget(repo), asOf: now)
+        try repo.close()
+        let reopened = try await BudgetRepository.open(directory: directory, localMemberID: UUID())
+        let stored = try #require(try reopened.envelopes(scope: .personal).first)
+        #expect(stored.symbol == "dumbbell.fill" && stored.color == .pink && stored.size == rub(3_500))
+        try reopened.close()
+    }
+
     @Test func invalidEnvelopesAreRejected() async throws {
         let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
         #expect(throws: BudgetError.invalidPlan) {

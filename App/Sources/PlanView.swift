@@ -519,6 +519,7 @@ private struct PlanEnvelopesStep: View {
                     VStack(spacing: FolkiSpacing.xs) {
                         ForEach(session.envelopes) { envelope in
                             HStack {
+                                EnvelopeIcon(session: session, envelope: envelope, size: 32)
                                 Text(envelope.name).font(.body.weight(.medium)).lineLimit(1)
                                 Spacer()
                                 Text("\(MoneyText.whole(envelope.size)) · \(envelope.dueDay)-го").font(.subheadline)

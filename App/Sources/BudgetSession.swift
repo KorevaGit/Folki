@@ -219,12 +219,14 @@ final class BudgetSession {
         envelopes.filter { envelopeUrgency($0) >= .attention }
             .max { (envelopeUrgency($0), -daysUntil($0)) < (envelopeUrgency($1), -daysUntil($1)) }
     }
-    func createEnvelope(name: String, size: Money, nextDue: Date, isMandatory: Bool, categoryID: UUID?) throws -> RecurringEnvelope {
+    func createEnvelope(name: String, size: Money, nextDue: Date, isMandatory: Bool, categoryID: UUID?,
+                        symbol: String? = nil, color: CategoryColor? = nil) throws -> RecurringEnvelope {
         try ensureDailyPeriod()
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
         let day = calendar.component(.day, from: nextDue)
         let envelope = try repository.createEnvelope(name: name, size: size, dueDay: day, nextDue: nextDue, isMandatory: isMandatory,
-                                                     categoryID: categoryID, in: budget, asOf: referenceDate)
+                                                     categoryID: categoryID, symbol: symbol, color: color,
+                                                     in: budget, asOf: referenceDate)
         refresh()
         return envelope
     }

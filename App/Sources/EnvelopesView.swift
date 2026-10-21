@@ -89,15 +89,69 @@ struct ProgressBar: View {
 }
 
 /// Envelope icon: monochrome on this screen, colour belongs to the status.
-private struct EnvelopeIcon: View {
+/// A coloured circle with a white symbol, as lists in Reminders. Envelopes without their own icon use their category's.
+struct EnvelopeIcon: View {
     let session: BudgetSession
     let envelope: RecurringEnvelope
     var size: CGFloat = 44
     var body: some View {
         let category = session.catalog.category(for: envelope.categoryID ?? BuiltInCategory.other.id)
-        Image(systemName: category.symbol).font(.system(size: size * 0.42, weight: .medium))
-            .foregroundStyle(Color.folkiInk).frame(width: size, height: size)
-            .background(Color.folkiSoft, in: Circle()).accessibilityHidden(true)
+        CategoryIcon(symbol: envelope.symbol ?? category.symbol, color: (envelope.color ?? category.color).color, size: size)
+    }
+}
+
+/// Colour row and symbol groups for an envelope icon, with a big live preview.
+struct IconPicker: View {
+    @Binding var symbol: String
+    @Binding var color: CategoryColor
+    var body: some View {
+        VStack(alignment: .leading, spacing: FolkiSpacing.page) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 10)], spacing: 10) {
+                ForEach(CategoryColor.allCases) { item in
+                    Button { FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { color = item } } label: {
+                        Circle().fill(item.color).frame(width: 40, height: 40)
+                            .overlay { if item == color { Circle().strokeBorder(.white, lineWidth: 3).padding(3) } }
+                    }.buttonStyle(FolkiPressStyle())
+                        .accessibilityLabel(item.title).accessibilityAddTraits(item == color ? .isSelected : [])
+                }
+            }
+            ForEach(CategorySymbols.groups, id: \.0) { group in
+                VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+                    Text(group.0).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
+                        ForEach(group.1, id: \.self) { item in
+                            Button { FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { symbol = item } } label: {
+                                Image(systemName: item).font(.title3)
+                                    .foregroundStyle(item == symbol ? .white : Color.folkiInk)
+                                    .frame(width: 44, height: 44)
+                                    .background(item == symbol ? color.color : Color(uiColor: .tertiarySystemFill), in: Circle())
+                            }.buttonStyle(FolkiPressStyle())
+                                .accessibilityLabel(CategorySymbols.title(for: item))
+                                .accessibilityAddTraits(item == symbol ? .isSelected : [])
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// "Значок": the picker in its own sheet, for envelopes made from a template.
+private struct IconPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var symbol: String
+    @Binding var color: CategoryColor
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: FolkiSpacing.page) {
+                    CategoryIcon(symbol: symbol, color: color.color, size: 76)
+                    IconPicker(symbol: $symbol, color: $color)
+                }.padding(FolkiSpacing.page)
+            }
+            .navigationTitle("Значок").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
+        }
     }
 }
 
@@ -169,15 +223,18 @@ struct EnvelopeDetailView: View {
                             .animation(FolkiMotion.ring, value: balance)
                         VStack(spacing: 2) {
                             Text(MoneyText.whole(balance)).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                                .lineLimit(1).minimumScaleFactor(0.5)
                                 .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
                             Text("из \(MoneyText.whole(envelope.size))").font(.subheadline).foregroundStyle(.secondary)
-                        }
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                        }.padding(.horizontal, 28)
                         if paidCheck {
                             Image(systemName: "checkmark").font(.system(size: 64, weight: .bold)).foregroundStyle(Color.folkiAccent)
                                 .transition(.scale.combined(with: .opacity))
                         }
-                    }.frame(width: 160, height: 160).padding(.top, FolkiSpacing.page)
+                    }.frame(width: 200, height: 200).padding(.top, FolkiSpacing.page)
                     VStack(spacing: FolkiSpacing.xxs) {
+                        EnvelopeIcon(session: session, envelope: envelope, size: 44).padding(.bottom, FolkiSpacing.xs)
                         Text(envelope.name).font(.title2.weight(.semibold))
                         Text("Каждый месяц, \(envelope.dueDay)-го · \(dueText(envelope, session: session))")
                             .font(.subheadline).foregroundStyle(.secondary)
@@ -352,6 +409,9 @@ struct EnvelopeEditorView: View {
     @State private var custom = false
     @State private var name = ""
     @State private var categoryID: UUID?
+    @State private var symbol = "tag.fill"
+    @State private var color: CategoryColor = .blue
+    @State private var pickingIcon = false
     @State private var amount = ""
     @State private var day = 0
     @State private var mandatory = true
@@ -426,13 +486,21 @@ struct EnvelopeEditorView: View {
         VStack(spacing: FolkiSpacing.page) {
             title(editing == nil ? "Что откладываем?" : "Название")
             if custom || editing != nil {
-                TextField("Например, аренда", text: $name)
-                    .font(.title2.weight(.semibold)).focused($nameFocused).submitLabel(.next)
-                    .onSubmit(nextFromWhat)
-                    .padding(FolkiSpacing.card)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-                    .onAppear { nameFocused = true }
-                Spacer(minLength: 0)
+                ScrollView {
+                    VStack(spacing: FolkiSpacing.page) {
+                        HStack(spacing: FolkiSpacing.item) {
+                            CategoryIcon(symbol: symbol, color: color.color, size: 52)
+                            TextField("Например, аренда", text: $name)
+                                .font(.title3.weight(.semibold)).focused($nameFocused).submitLabel(.next)
+                                .onSubmit(nextFromWhat)
+                        }
+                        .padding(FolkiSpacing.item)
+                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                        IconPicker(symbol: $symbol, color: $color)
+                    }.padding(.bottom, FolkiSpacing.page)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onAppear { if editing == nil { nameFocused = true } }
                 Button("Дальше", action: nextFromWhat).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
                     .disabled(trimmedName.isEmpty)
             } else {
@@ -442,6 +510,7 @@ struct EnvelopeEditorView: View {
                             Button {
                                 FolkiFeedback.selection()
                                 name = category.name; categoryID = category.id; mandatory = category.isEssential
+                                symbol = category.symbol; color = category.color
                                 go(.amount)
                             } label: {
                                 VStack(spacing: FolkiSpacing.xs) {
@@ -452,7 +521,7 @@ struct EnvelopeEditorView: View {
                             }.buttonStyle(FolkiPressStyle())
                         }
                         Button {
-                            FolkiFeedback.selection(); name = ""; categoryID = nil
+                            FolkiFeedback.selection(); name = ""; categoryID = nil; symbol = "tag.fill"; color = .blue
                             withAnimation(FolkiMotion.quick) { custom = true }
                         } label: {
                             VStack(spacing: FolkiSpacing.xs) {
@@ -470,7 +539,16 @@ struct EnvelopeEditorView: View {
     private var amountPage: some View {
         VStack(spacing: FolkiSpacing.page) {
             title("Сколько в месяц?")
-            Text(trimmedName).font(.headline).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            Button { pickingIcon = true } label: {
+                HStack(spacing: FolkiSpacing.xs) {
+                    CategoryIcon(symbol: symbol, color: color.color, size: 32)
+                    Text(trimmedName).font(.headline).foregroundStyle(Color.folkiInk)
+                    Image(systemName: "pencil").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(FolkiPressStyle()).frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHint("Изменить значок")
+            .sheet(isPresented: $pickingIcon) { IconPickerSheet(symbol: $symbol, color: $color).presentationDetents([.large]) }
             Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
                 .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
                 .foregroundStyle(money == nil ? .tertiary : .primary)
@@ -540,6 +618,8 @@ struct EnvelopeEditorView: View {
     private func load() {
         guard let editing else { return }
         name = editing.name; categoryID = editing.categoryID
+        let category = session.catalog.category(for: editing.categoryID ?? BuiltInCategory.other.id)
+        symbol = editing.symbol ?? category.symbol; color = editing.color ?? category.color
         amount = MoneyText.input(editing.size); day = editing.dueDay; mandatory = editing.isMandatory
     }
 
@@ -548,11 +628,11 @@ struct EnvelopeEditorView: View {
         do {
             if let editing {
                 try session.updateEnvelope(editing.with(name: trimmedName, size: money, dueDay: day,
-                                                        nextDue: firstDue, isMandatory: mandatory))
+                                                        nextDue: firstDue, isMandatory: mandatory, symbol: symbol, color: color))
                 FolkiFeedback.saved(); dismiss()
             } else {
                 let created = try session.createEnvelope(name: trimmedName, size: money, nextDue: firstDue,
-                                                         isMandatory: mandatory, categoryID: categoryID)
+                                                         isMandatory: mandatory, categoryID: categoryID, symbol: symbol, color: color)
                 FolkiFeedback.saved()
                 if (session.result?.monthlyRemaining.minorUnits ?? 0) > 0 { offerFunding = created }
                 else { onCreated?(created); dismiss() }

@@ -205,6 +205,7 @@ struct DailyFundingView: View {
             })
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             HStack {
+                EnvelopeIcon(session: session, envelope: envelope, size: 28)
                 Text(envelope.name).font(.body.weight(.medium)).lineLimit(1)
                 Spacer()
                 Text("\(MoneyText.whole(fill)) из \(MoneyText.whole(need.roundedUpToWholeUnits))")

@@ -21,13 +21,14 @@ extension BudgetRepository {
 
     @discardableResult
     public func createEnvelope(name: String, size: Money, dueDay: Int, nextDue: Date, isMandatory: Bool,
-                               categoryID: UUID? = nil, in budget: StoredBudget, asOf now: Date,
+                               categoryID: UUID? = nil, symbol: String? = nil, color: CategoryColor? = nil,
+                               in budget: StoredBudget, asOf now: Date,
                                id: UUID = UUID()) throws -> RecurringEnvelope {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 80, size.currency == .rub else { throw BudgetError.invalidPlan }
         let envelope = try RecurringEnvelope(id: id, name: trimmed, size: size, dueDay: dueDay,
                                              nextDue: budget.snapshot.period.calendar.startOfDay(for: nextDue), isMandatory: isMandatory,
-                                             categoryID: categoryID)
+                                             categoryID: categoryID, symbol: symbol, color: color)
         do {
             let root = try writableRoot(budget, now: now)
             if let categoryID { try validateCategory(categoryID, household: root, allowArchived: false) }
@@ -140,7 +141,9 @@ extension BudgetRepository {
             dueDay: Int(item.value(forKey: "dueDay") as? Int16 ?? 1),
             nextDue: item.required("nextDue"),
             isMandatory: item.value(forKey: "mandatory") as? Bool ?? true,
-            categoryID: item.value(forKey: "categoryID") as? UUID)
+            categoryID: item.value(forKey: "categoryID") as? UUID,
+            symbol: item.value(forKey: "symbol") as? String,
+            color: (item.value(forKey: "color") as? String).flatMap(CategoryColor.init(rawValue:)))
     }
 
     private func encodeEnvelope(_ envelope: RecurringEnvelope, into item: NSManagedObject) {
@@ -149,6 +152,8 @@ extension BudgetRepository {
         item.setValue(Int16(envelope.dueDay), forKey: "dueDay")
         item.setValue(envelope.nextDue, forKey: "nextDue")
         item.setValue(envelope.isMandatory, forKey: "mandatory")
+        item.setValue(envelope.symbol, forKey: "symbol")
+        item.setValue(envelope.color?.rawValue, forKey: "color")
         item.setValue(UUID(), forKey: "revision")
     }
 
