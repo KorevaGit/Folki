@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes
+    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes, history
     var id: String { rawValue }
 }
 
@@ -10,10 +10,8 @@ struct BudgetRootView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var showsMonth = false
-    @State private var showingDayHistory = false
-    @State private var pageDrag: CGFloat = 0
-    @State private var historyAtTop = true
-    @State private var paging = false
+    /// 0…1 while the rings are pulled up towards the history.
+    @State private var pullProgress: CGFloat = 0
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
     @State private var sheet: BudgetSheet?
@@ -45,40 +43,23 @@ struct BudgetRootView: View {
                 }
                 VStack(spacing: 8) {
                     weekCalendar.padding(.horizontal, FolkiSpacing.page)
-                    GeometryReader { viewport in
-                        let height = viewport.size.height
-                        ZStack(alignment: .top) {
-                            VStack(spacing: 12) {
-                                if selectedDay == nil { envelopeBanner }
-                                interactiveRings(card.rings).frame(maxHeight: .infinity)
-                                distributionLine
-                                entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
-                                Button { showHistory(true) } label: {
-                                    Label("Траты за период", systemImage: "chevron.down")
-                                        .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
-                                }.buttonStyle(.plain).foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, FolkiSpacing.page)
-                            .frame(width: viewport.size.width, height: height)
-                            .offset(y: (showingDayHistory ? -height : 0) + pageDrag)
-                            .allowsHitTesting(!showingDayHistory && !paging).accessibilityHidden(showingDayHistory)
-
-                            VStack(spacing: 8) {
-                                Button { showHistory(false) } label: {
-                                    Label("К кольцу", systemImage: "chevron.up")
-                                        .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
-                                }.buttonStyle(.plain).foregroundStyle(.secondary)
-                                DailyExpenseHistoryView(personal: personal, family: family,
-                                    personalDay: personalDay, familyDay: familyDay, atTop: $historyAtTop)
-                                    .id(calendar.startOfDay(for: date))
-                            }
-                            .frame(width: viewport.size.width, height: height)
-                            .offset(y: (showingDayHistory ? 0 : height) + pageDrag)
-                            .allowsHitTesting(showingDayHistory && !paging).accessibilityHidden(!showingDayHistory)
-                        }
-                        .contentShape(Rectangle()).clipped()
-                        .simultaneousGesture(verticalPaging(height: height))
+                    VStack(spacing: 12) {
+                        if selectedDay == nil { envelopeBanner }
+                        interactiveRings(card.rings).frame(maxHeight: .infinity)
+                            // Pulling up shrinks and fades the rings under the finger, then the history sheet takes over.
+                            .scaleEffect(1 - pullProgress * 0.12, anchor: .top)
+                            .opacity(1 - pullProgress * 0.5)
+                            .offset(y: -pullProgress * 40)
+                        distributionLine
+                        entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
+                        Button { openHistory() } label: {
+                            Label("Траты за период", systemImage: "chevron.up")
+                                .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
+                        }.buttonStyle(.plain).foregroundStyle(.secondary)
                     }
+                    .padding(.horizontal, FolkiSpacing.page)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(pullUp)
                 }.padding(.top, 4).padding(.bottom, 8)
 
             }
@@ -103,38 +84,28 @@ struct BudgetRootView: View {
                 DistributionChoiceView(day: Binding(get: { session.distributionDay }, set: { session.distributionDay = $0 }),
                     apply: { try session.setDistributionDay($0) })
             case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
+            case .history: PeriodHistorySheet(personal: personal, family: family)
             }
         }
     }
 
-    private func showHistory(_ show: Bool) {
-        paging = true
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.55), completionCriteria: .removed) {
-            showingDayHistory = show; pageDrag = 0
-        } completion: { paging = false }
+    private func openHistory() {
+        FolkiFeedback.selection()
+        sheet = .history
+        withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { pullProgress = 0 }
     }
 
-    private func verticalPaging(height: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 20)
+    private var pullUp: some Gesture {
+        DragGesture(minimumDistance: 16)
             .onChanged { value in
-                guard abs(value.translation.height) > abs(value.translation.width) * 1.3 else { return }
-                if showingDayHistory {
-                    guard historyAtTop, value.translation.height > 0 else { return }
-                    pageDrag = min(height, value.translation.height)
-                } else {
-                    pageDrag = max(-height, min(0, value.translation.height))
-                }
+                guard abs(value.translation.height) > abs(value.translation.width) * 1.3, value.translation.height < 0 else { return }
+                pullProgress = min(1, -value.translation.height / 220)
             }
             .onEnded { value in
-                let distance = value.translation.height
-                let predicted = value.predictedEndTranslation.height
-                let vertical = abs(distance) > abs(value.translation.width) * 1.3
-                if vertical && !showingDayHistory && (distance < -64 || predicted < -height * 0.3) {
-                    showHistory(true)
-                } else if vertical && showingDayHistory && historyAtTop && (distance > 64 || predicted > height * 0.3) {
-                    showHistory(false)
+                if value.translation.height < -70 || value.predictedEndTranslation.height < -200 {
+                    openHistory()
                 } else {
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.4)) { pageDrag = 0 }
+                    withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { pullProgress = 0 }
                 }
             }
     }
@@ -162,11 +133,10 @@ struct BudgetRootView: View {
         }) {
             let urgency = session.envelopeUrgency(envelope)
             let missing = (try? envelope.shortfall(balance: session.envelopeBalance(envelope)).roundedUpToWholeUnits) ?? envelope.size
-            let days = session.daysUntil(envelope)
-            let when = days <= 0 ? String(localized: "сегодня") : days == 1 ? String(localized: "завтра")
-                : days == 2 ? String(localized: "послезавтра") : String(localized: "через \(days) дн.")
+            let due = envelope.nextDue.formatted(.dateTime.day().month(.abbreviated))
             Label {
-                Text("\(envelope.name) \(when) — не хватает \(MoneyText.whole(missing))").lineLimit(2)
+                // "Аренда — 12 000 ₽ до 25 окт.": what is still missing and by when.
+                Text("\(envelope.name) — \(MoneyText.whole(missing)) до \(due)").lineLimit(2)
             } icon: {
                 Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
             }
@@ -360,6 +330,18 @@ struct LedgerRow: View {
         case .reserveRelease, .contributionIn: "↙ "
         }
     }
+    private var title: String {
+        if !record.title.isEmpty { return record.title }
+        if record.transaction.kind == .income { return String(localized: "Пополнение") }
+        return session.category(for: record)?.name ?? ""
+    }
+    private var details: [String] {
+        var parts = [session.payerName(for: record)]
+        if record.transaction.kind != .income, let category = session.category(for: record) { parts.append(category.name) }
+        if record.transaction.kind == .reserveAllocation { parts.append(String(localized: "В конверт")) }
+        if showsDate { parts.append(record.transaction.date.formatted(.dateTime.day().month())) }
+        return parts
+    }
     var body: some View {
         let category = session.category(for: record)
         let layout = dynamicTypeSize.isAccessibilitySize
@@ -372,13 +354,14 @@ struct LedgerRow: View {
                 CategoryIcon(symbol: record.transaction.kind.isContribution ? "person.2.fill" : "arrow.left.arrow.right", color: .secondary)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(record.title.isEmpty ? (category?.name ?? "") : record.title)
-                Text(([session.payerName(for: record)] + (category.map { [$0.name] } ?? [])
-                    + (showsDate ? [record.transaction.date.formatted(.dateTime.day().month())] : [])).joined(separator: " · "))
+                Text(title)
+                Text(details.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
-            Text("\(prefix)\(MoneyText.string(record.transaction.amount))").monospacedDigit()
+            // Kopecks only when there are any.
+            let amount = record.transaction.amount
+            Text("\(prefix)\(amount.minorUnits % 100 == 0 ? MoneyText.whole(amount) : MoneyText.string(amount))").monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.65).layoutPriority(1)
         }.font(.subheadline).padding(.vertical, 10)
             .accessibilityElement(children: .ignore)
