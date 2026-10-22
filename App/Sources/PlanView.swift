@@ -412,6 +412,11 @@ private struct PlanOverview: View {
                         VStack(alignment: .leading, spacing: 8) {
                             LabeledContent("На жизнь", value: MoneyText.whole(session.availableForDailySpending))
                                 .font(.headline)
+                            // Moved here from the main screen: the forecast belongs with the plan.
+                            if let guide = session.plannedDailySpending {
+                                Text("По плану ≈ \(MoneyText.whole(guide.roundedDownToWholeUnits))/день")
+                                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                            }
                             Text("Распределить по конвертам").font(.subheadline).foregroundStyle(Color.folkiAccent)
                         }.budgetCard()
                     }.buttonStyle(.plain)

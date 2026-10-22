@@ -115,6 +115,22 @@
         }
       }
     },
+    "%@ · −%@ · %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · −%2$@ · %3$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · −%@ · %@"
+          }
+        }
+      }
+    },
     "%@ бюджет · %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -286,6 +302,7 @@
       }
     },
     "%@: не хватает %@ к %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4481,6 +4498,7 @@
       }
     },
     "На жизнь: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

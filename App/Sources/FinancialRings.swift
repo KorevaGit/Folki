@@ -201,10 +201,12 @@ struct BudgetRingsCard: View {
     private func center(diameter: CGFloat) -> some View {
         VStack(spacing: 4) {
             let over = !showsMonth && (personal?.todayRemaining.minorUnits ?? 0) < 0
-            Text(over ? String(localized: "Сверх дня")
-                 : showsFamily ? String(localized: "Личный") : (showsMonth ? String(localized: "На период") : String(localized: "Сегодня можно")))
-                .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.folkiOver : Color.budget(.personal))
-                .contentTransition(.opacity).animation(FolkiMotion.quick, value: over)
+            // The ring and the big figure speak for themselves; a caption only when the meaning changes.
+            if over || showsFamily || showsMonth {
+                Text(over ? String(localized: "Сверх дня") : showsFamily ? String(localized: "Личный") : String(localized: "На период"))
+                    .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.folkiOver : Color.budget(.personal))
+                    .contentTransition(.opacity).animation(FolkiMotion.quick, value: over)
+            }
             if personalNeedsFunds && isToday {
                 Button("Добавить деньги") { addFunds(.personal) }
                     .font(.system(.headline, design: .rounded)).foregroundStyle(Color.folkiAccent)

@@ -1,6 +1,32 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "%@ через %lld дн." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ через %2$lld дн."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in %lld days"
+          }
+        }
+      }
+    },
+    "%@ — сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — today"
+          }
+        }
+      }
+    },
     "%lld" : {
       "localizations" : {
         "en" : {
@@ -61,6 +87,16 @@
         }
       }
     },
+    "Завтра ≈ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tomorrow ≈ %@"
+          }
+        }
+      }
+    },
     "Записать трату" : {
       "localizations" : {
         "en" : {
@@ -103,32 +139,32 @@
     },
     "Личное: %@. Семья: %@." : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Личное: %1$@. Семья: %2$@."
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personal: %@. Family: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$@. Семья: %2$@."
           }
         }
       }
     },
     "Личное: %lld процентов. Семья: %lld процентов." : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Личное: %1$lld процентов. Семья: %2$lld процентов."
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personal: %lld percent. Family: %lld percent."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$lld процентов. Семья: %2$lld процентов."
           }
         }
       }
@@ -169,6 +205,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opens Folki straight on a new expense"
+          }
+        }
+      }
+    },
+    "Последний день периода" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last day of the period"
           }
         }
       }
@@ -254,11 +300,32 @@
       }
     },
     "личное" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "personal"
+          }
+        }
+      }
+    },
+    "сверх дня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "over today"
+          }
+        }
+      }
+    },
+    "сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "today"
           }
         }
       }

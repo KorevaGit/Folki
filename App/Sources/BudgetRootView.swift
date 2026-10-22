@@ -29,8 +29,6 @@ struct BudgetRootView: View {
     @Binding var selectedDay: Date?
     /// A `folki://spend` or `folki://add` link from a widget, Control Center or Shortcuts.
     @Binding var pendingEntry: URL?
-    /// A plan exists once either budget has envelopes.
-    private var planReady: Bool { !personal.envelopes.isEmpty || !family.envelopes.isEmpty }
     /// The first-spend hint appears once without moving either action button.
     @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
     @State private var showsSpendTip = false
@@ -87,9 +85,15 @@ struct BudgetRootView: View {
                                     distributionLine
                                     entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                     Button { scrollToHistory(page) } label: {
-                                        Label("Траты за период", systemImage: "chevron.up")
-                                            .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
-                                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                        // A grabber, like a sheet's; the words only in the first days.
+                                        Group {
+                                            if showsHistoryLabel {
+                                                Label("Траты за период", systemImage: "chevron.up").font(.footnote.weight(.semibold))
+                                            } else {
+                                                Capsule().fill(Color.secondary.opacity(0.4)).frame(width: 36, height: 5)
+                                            }
+                                        }.frame(maxWidth: .infinity, minHeight: 40).contentShape(Rectangle())
+                                    }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Траты за период")
                                 }
                                 .padding(.horizontal, FolkiSpacing.page)
                                 .padding(.bottom, bottomInset)
@@ -273,14 +277,6 @@ struct BudgetRootView: View {
                     }
                     .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }.buttonStyle(.plain)
-                if planReady, let guide = personal.plannedDailySpending {
-                    Text("По плану ≈ \(MoneyText.whole(guide.roundedDownToWholeUnits))/день")
-                        .font(.subheadline).foregroundStyle(Color.folkiAccent).monospacedDigit()
-                }
-                Button { selectedScope = .personal; sheet = .allocate } label: {
-                    Text("На жизнь: \(MoneyText.whole(personal.availableForDailySpending))")
-                        .font(.footnote.weight(.medium)).monospacedDigit()
-                }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
         // The first-spend hint sits over these lines; they step aside instead of showing through it.
@@ -339,6 +335,13 @@ struct BudgetRootView: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 
+    /// The history hint is spelled out during the first three days with a budget.
+    private var showsHistoryLabel: Bool {
+        guard let first = personal.periods.first?.start else { return true }
+        return (calendar.dateComponents([.day], from: calendar.startOfDay(for: first),
+                                        to: calendar.startOfDay(for: personal.referenceDate)).day ?? 0) < 3
+    }
+
     /// From the third day with a budget, while there is no family yet.
     private var showsInviteOffer: Bool {
         guard !inviteDismissed, family.household == nil, personal.hasFunding,
@@ -363,7 +366,8 @@ struct BudgetRootView: View {
         return HStack(spacing: FolkiSpacing.item) {
             Button { selectedScope = session.scope; sheet = .allocate } label: {
                 Label {
-                    Text("\(envelope.name): не хватает \(MoneyText.whole(missing)) к \(due)").lineLimit(2)
+                    // One line: what, how much is missing, by when.
+                    Text("\(envelope.name) · −\(MoneyText.whole(missing)) · \(due)").lineLimit(1).minimumScaleFactor(0.8)
                         .multilineTextAlignment(.leading)
                 } icon: {
                     Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")

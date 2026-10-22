@@ -6,6 +6,7 @@ import AppIntents
 struct FolkiWidgetBundle: WidgetBundle {
     var body: some Widget {
         FolkiBudgetWidget()
+        FolkiSpendShortcut()
         FolkiSpendControl()
     }
 }
@@ -251,10 +252,10 @@ struct FolkiWidgetView: View {
                 lockRing(family, width: 3).padding(6)
             }
             VStack(spacing: 0) {
+                // Just the figure: an 8 pt caption cannot be read on the lock screen.
                 Text(shortAmount(personal.today))
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-                Text("личное").font(.system(size: 8, weight: .medium))
             }
             .frame(maxWidth: 38)
         }
@@ -277,13 +278,49 @@ struct FolkiWidgetView: View {
         .padding(width / 2)
     }
 
-    private var rectangular: some View {
-        HStack(spacing: 12) {
-            lockBudget("Личное", budget: personal)
-            lockBudget("Семья", budget: entry.family)
+    @ViewBuilder private var rectangular: some View {
+        if entry.family != nil {
+            HStack(spacing: 12) {
+                lockBudget("Личное", budget: personal)
+                lockBudget("Семья", budget: entry.family)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .widgetAccentable()
+        } else {
+            // Without a family: today large, then the one thing worth knowing next.
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(FolkiWidgetText.rub(personal.today))
+                        .font(.system(size: 22, weight: .bold, design: .rounded)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Text(personal.isOver ? "сверх дня" : "сегодня").font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.primary.opacity(0.22))
+                        Capsule().fill(.primary).frame(width: geometry.size.width * personal.fraction)
+                    }
+                }.frame(height: 3)
+                Text(lockNextLine).font(.system(size: 12, weight: .medium)).lineLimit(1).minimumScaleFactor(0.7)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .widgetAccentable()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .widgetAccentable()
+    }
+
+    /// A payment due within a week that still needs money, otherwise tomorrow's figure.
+    private var lockNextLine: String {
+        if let envelope = entry.envelope, envelope.missing > 0 {
+            let days = envelope.daysLeft(from: entry.date)
+            if days <= 7 {
+                return days <= 0 ? String(localized: "\(envelope.name) — сегодня")
+                    : String(localized: "\(envelope.name) через \(days) дн.")
+            }
+        }
+        if let tomorrow = personal.tomorrow { return String(localized: "Завтра ≈ \(FolkiWidgetText.rub(tomorrow))") }
+        return String(localized: "Последний день периода")
     }
 
     private func lockBudget(_ label: LocalizedStringKey, budget: FolkiWidgetSnapshot.Budget?) -> some View {
@@ -359,3 +396,22 @@ struct FolkiSpendControl: ControlWidget {
 #Preview(as: .systemSmall) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }
 
 #Preview(as: .accessoryRectangular) { FolkiBudgetWidget() } timeline: { FolkiEntry.preview }
+
+/// A round lock-screen button that opens straight on entering a spend.
+struct FolkiSpendShortcut: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "FolkiSpendShortcut", provider: FolkiProvider()) { _ in
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "minus").font(.system(size: 22, weight: .bold))
+            }
+            .widgetAccentable()
+            .containerBackground(.clear, for: .widget)
+            .widgetURL(FolkiLinks.spend)
+            .accessibilityLabel("Записать трату")
+        }
+        .configurationDisplayName("Записать трату")
+        .description("Открывает Folki на вводе траты")
+        .supportedFamilies([.accessoryCircular])
+    }
+}
