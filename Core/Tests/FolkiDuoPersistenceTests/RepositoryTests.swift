@@ -17,10 +17,12 @@ struct RepositoryTests {
                         date: Date? = nil, old: LedgerRecord? = nil, deleted: Bool = false) -> LedgerRecord {
         LedgerRecord(transaction: TransactionSnapshot(id: old?.id ?? UUID(), amount: rub(amount), kind: kind,
             funding: funding, date: date ?? now, authorID: old?.transaction.authorID ?? author,
-            payerID: budget.members.first(where: { $0.id != author })!.id, isDeleted: deleted), title: "Покупка", categoryID: BuiltInCategory.groceries.id)
+            payerID: (budget.members.first(where: { $0.id != author }) ?? budget.members[0]).id, isDeleted: deleted), title: "Покупка", categoryID: BuiltInCategory.groceries.id)
     }
     private func setup(_ repo: BudgetRepository) throws -> StoredBudget {
         try repo.createPlan(monthlyPlan: rub(120000), available: rub(41550), asOf: now, timeZone: "Europe/Moscow")
+        // A second member added by name, so records can have a different payer.
+        try repo.addFamilyMember(name: "Маша", in: try #require(try repo.load(asOf: now)), asOf: now)
         return try #require(try repo.load(asOf: now))
     }
 
@@ -233,7 +235,7 @@ struct RepositoryTests {
         let repo = try await open(path, UUID())
         let model = repo.container.managedObjectModel
         #expect(Set(model.entities.compactMap(\.name)) == ["Household", "Member", "BudgetPeriod", "Transaction", "Reserve", "Category", "Envelope"])
-        #expect(model.versionIdentifiers.contains(AnyHashable("3")))
+        #expect(model.versionIdentifiers.contains(AnyHashable("4")))
         for entity in model.entities {
             #expect(entity.uniquenessConstraints.isEmpty)
             for relationship in entity.relationshipsByName.values {

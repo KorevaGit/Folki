@@ -11,6 +11,16 @@ command -v xcodegen >/dev/null 2>&1 || {
 
 cd "$FOLKI_ROOT"
 swift test --package-path Core
+# Every string in use needs an English translation; a key without one shows Russian in the English app.
+python3 -I - App/Resources/Localizable.xcstrings Widgets/Localizable.xcstrings \
+  Core/Sources/FolkiDuoCore/Resources/Localizable.xcstrings Core/Sources/FolkiDuoPersistence/Resources/Localizable.xcstrings <<'PY'
+import json, sys
+missing = [(path, key) for path in sys.argv[1:] for key, value in json.load(open(path))["strings"].items()
+           if value.get("extractionState") != "stale" and value.get("shouldTranslate", True)
+           and "en" not in value.get("localizations", {})]
+for path, key in missing: print(f"{path}: no English for {key!r}", file=sys.stderr)
+sys.exit(1 if missing else 0)
+PY
 xcodegen generate
 for FOLKI_CONFIG in Debug Release Demo Cloud; do
   FOLKI_SCHEME=Folki

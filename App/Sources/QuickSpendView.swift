@@ -196,9 +196,9 @@ struct QuickSpendView: View {
             HStack(spacing: 10) {
                 Image(systemName: envelope == nil ? "wallet.bifold" : "tray.full.fill")
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(envelope.map { String(localized: "Из конверта «\($0.name)»") } ?? String(localized: "Повседневная трата"))
+                    Text(envelope.map { String(localized: "Из конверта «\($0.name)»") } ?? String(localized: "Из денег на жизнь"))
                         .font(.subheadline.weight(.semibold))
-                    Text(envelope == nil ? "Из денег на повседневное · категория для статистики" : "Из отложенных денег · изменить источник")
+                    Text(envelope == nil ? "Можно взять из конверта" : "Изменить источник")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -249,7 +249,7 @@ struct QuickSpendView: View {
                 ProgressView(value: max(0, min(1, progress))).tint(Color.folkiAccent)
             }
             if let money, money.minorUnits > left.minorUnits {
-                Text("+ \(MoneyText.whole(Money(minorUnits: money.minorUnits - left.minorUnits))) из повседневного")
+                Text("+ \(MoneyText.whole(Money(minorUnits: money.minorUnits - left.minorUnits))) из денег на жизнь")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -399,7 +399,7 @@ struct CategoryGridSheet: View {
                 VStack(alignment: .leading, spacing: FolkiSpacing.page) {
                     if !session.envelopes.isEmpty {
                         Text("Конверты с деньгами").font(.headline)
-                        Text("Сумма спишется из выбранного конверта. Если её не хватит, разница — из повседневного бюджета.")
+                        Text("Если в конверте не хватит, разницу возьму из денег на жизнь.")
                             .font(.footnote).foregroundStyle(.secondary)
                         ForEach(session.envelopes) { envelope in
                             Button {
@@ -417,8 +417,8 @@ struct CategoryGridSheet: View {
                         }
                         Divider()
                     }
-                    Text("Повседневные траты").font(.headline)
-                    Text("Категории собирают расходы для статистики. Деньги списываются из повседневного бюджета.")
+                    Text("На жизнь").font(.headline)
+                    Text("Категория нужна только для статистики.")
                         .font(.footnote).foregroundStyle(.secondary)
                 LazyVGrid(columns: columns, spacing: FolkiSpacing.page) {
                     ForEach(session.catalog.selectable) { category in

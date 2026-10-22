@@ -1,5 +1,6 @@
 import SwiftUI
 import CloudKit
+import FolkiDuoCore
 import FolkiDuoPersistence
 
 @MainActor @Observable
@@ -9,6 +10,8 @@ final class FolkiApplication {
     var personalSession: BudgetSession?
     var openingError: String?
     var invitationError: String?
+    /// An invitation that would replace a family budget with records; waits for the user's answer.
+    var replacementPending = false
     private var pendingInvitations: [CKShare.Metadata] = []
     private var acceptingInvitation = false
 
@@ -46,21 +49,28 @@ final class FolkiApplication {
         pendingInvitations.append(metadata)
         Task { await acceptPendingInvitations() }
     }
-    func acceptPendingInvitations() async {
+    func acceptPendingInvitations(replacingExisting: Bool = false) async {
         guard !acceptingInvitation, let repository = session?.repository else { return }
         acceptingInvitation = true
         defer { acceptingInvitation = false }
         while let metadata = pendingInvitations.first {
             do {
-                try await repository.accept(metadata)
+                try await repository.accept(metadata, replacingExisting: replacingExisting)
                 pendingInvitations.removeFirst()
                 invitationError = nil
                 session?.refresh()
+            } catch LedgerError.familyHasRecords {
+                replacementPending = true
+                return
             } catch {
-                invitationError = String(localized: "Приглашение не принято. Для вступления нужно пустое пространство и доступный iCloud. Локальный бюджет не заменён.")
+                invitationError = String(localized: "Не получилось принять приглашение. Проверь, что iCloud включён, и открой ссылку ещё раз. Личный бюджет не изменился.")
                 return
             }
         }
+    }
+    func declinePendingInvitation() {
+        if !pendingInvitations.isEmpty { pendingInvitations.removeFirst() }
+        replacementPending = false
     }
 }
 
@@ -122,6 +132,15 @@ struct FolkiApp: App {
                 Button("Повторить") { Task { await model.acceptPendingInvitations() } }
                 Button("Закрыть", role: .cancel) { model.invitationError = nil }
             } message: { Text(model.invitationError ?? "") }
+            .alert("Вступить в другую семью?", isPresented: Binding(get: { model.replacementPending }, set: { if !$0 { model.replacementPending = false } })) {
+                Button("Вступить", role: .destructive) {
+                    model.replacementPending = false
+                    Task { await model.acceptPendingInvitations(replacingExisting: true) }
+                }
+                Button("Отмена", role: .cancel) { model.declinePendingInvitation() }
+            } message: {
+                Text("Записи и конверты твоего семейного бюджета удалятся. Личный бюджет не изменится.")
+            }
         }
     }
 }

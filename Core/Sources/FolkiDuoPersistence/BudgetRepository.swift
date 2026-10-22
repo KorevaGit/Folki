@@ -283,7 +283,7 @@ public final class BudgetRepository {
     public func createPlan(monthlyPlan: Money, available: Money, asOf now: Date,
                            timeZone: String = TimeZone.current.identifier,
                            reserves: [ProtectedReserve] = [], scope: BudgetScope = .family,
-                           payday: Date? = nil, closeCurrent: Bool = false) throws {
+                           payday: Date? = nil, closeCurrent: Bool = false, startingAt start: Date? = nil) throws {
         try writable()
         guard monthlyPlan.currency == .rub, available.currency == .rub,
               monthlyPlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
@@ -299,7 +299,8 @@ public final class BudgetRepository {
                 household.setValue(timeZone, forKey: "timeZone")
                 household.setValue(now, forKey: "createdAt")
                 try context.obtainPermanentIDs(for: [household])
-                for (id, name) in (scope == .personal ? [(localMemberID, String(localized: "Я", bundle: .module))] : [(localMemberID, String(localized: "Я", bundle: .module)), (UUID(), String(localized: "Партнёр", bundle: .module))]) {
+                // Only real people: others join through an invitation or are added by name.
+                for (id, name) in [(localMemberID, String(localized: "Я", bundle: .module))] {
                     let member = insert("Member", id: id, household: household)
                     member.setValue(name, forKey: "name")
                     if id == localMemberID { member.setValue(cloudIdentity, forKey: "cloudIdentity") }
@@ -310,6 +311,11 @@ public final class BudgetRepository {
                   container.canModifyManagedObjects(in: store) else { throw LedgerError.accessDenied }
             var period = try payday.map { try BudgetPeriod.untilPayday(from: now, payday: $0, timeZoneIdentifier: zone) }
                 ?? BudgetPeriod(monthContaining: now, timeZoneIdentifier: zone)
+            // A period that follows the previous one starts where it ended, so every device that extends
+            // a shared budget creates the same period.
+            if let start, start <= now, payday != nil {
+                period = try BudgetPeriod(start: start, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
+            }
             if closeCurrent, payday != nil {
                 period = try BudgetPeriod(start: now, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
             }
@@ -438,6 +444,15 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
+    /// Moves a period's spending plan by `delta`, never below zero.
+    func changePlan(of periodID: UUID, by delta: Int64) throws {
+        let period = try object("BudgetPeriod", id: periodID)
+        let plan: Int64 = try period.required("monthlyPlan")
+        let next = plan.addingReportingOverflow(delta)
+        guard !next.overflow else { throw BudgetError.amountOverflow }
+        period.setValue(max(0, next.partialValue), forKey: "monthlyPlan")
+    }
+
     /// How the budget's period is extended; nil until one is chosen or when written by a newer app.
     public func periodRule(scope: BudgetScope) throws -> PeriodRule? {
         let roots = try households(in: scope)
@@ -511,6 +526,9 @@ public final class BudgetRepository {
                 item.setValue(try object("BudgetPeriod", id: budget.periodID), forKey: "period")
                 encode(record, into: item, updatedAt: now)
             }
+            // The money leaves one spending plan and joins the other.
+            try changePlan(of: currentPersonal.periodID, by: -amount.minorUnits)
+            try changePlan(of: currentFamily.periodID, by: amount.minorUnits)
             try commit()
         } catch { context.rollback(); throw error }
     }
@@ -529,6 +547,11 @@ public final class BudgetRepository {
                 item.setValue(true, forKey: "tombstone")
                 item.setValue(UUID(), forKey: "revision")
                 item.setValue(now, forKey: "updatedAt")
+                // Undo the plan move made with the contribution.
+                if let period = item.value(forKey: "period") as? NSManagedObject, let amount = item.value(forKey: "amount") as? Int64 {
+                    let out = item.value(forKey: "kind") as? String == "contributionOut"
+                    try changePlan(of: try period.required("id"), by: out ? amount : -amount)
+                }
             }
             try commit()
         } catch { context.rollback(); throw error }
@@ -910,17 +933,22 @@ public final class BudgetRepository {
         }
         changeToken = UUID()
     }
-    public func accept(_ metadata: CKShare.Metadata) async throws {
+    /// An invitation is always accepted. An empty family of one's own is replaced silently;
+    /// one with records needs `replacingExisting` after the user confirms.
+    public func accept(_ metadata: CKShare.Metadata, replacingExisting: Bool = false) async throws {
         try writable()
         guard metadata.containerIdentifier == cloudIdentifier, cloudIdentity != nil,
               let sharedStore else { throw LedgerError.cloudNotConfigured }
         guard metadata.share.participants.count <= 5, metadata.share.publicPermission == .none else { throw LedgerError.familyFull }
-        // Do not silently replace a budget with an invitation to a different household.
         let households = try households(in: .family)
-        if let household = households.first {
+        for household in households {
             let existing = try container.fetchShares(matching: [household.objectID])[household.objectID]
-            guard households.count == 1, existing?.recordID == metadata.share.recordID else { throw LedgerError.multipleHouseholds }
-            return
+            if existing?.recordID == metadata.share.recordID { return }
+        }
+        if !households.isEmpty {
+            let empty = try familyIsEmpty()
+            guard replacingExisting || empty else { throw LedgerError.familyHasRecords }
+            try removeOwnFamily()
         }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             container.acceptShareInvitations(from: [metadata], into: sharedStore) { _, error in
@@ -929,6 +957,65 @@ public final class BudgetRepository {
         }
         changeToken = UUID()
     }
+    /// Nothing worth keeping: no operations, envelopes or own categories, and nobody else has joined.
+    public func familyIsEmpty() throws -> Bool {
+        for household in try households(in: .family) {
+            for entity in ["Transaction", "Envelope"] {
+                if !(try fetch(entity, predicate: NSPredicate(format: "household == %@", household))).isEmpty { return false }
+            }
+            let categories = try fetch("Category", predicate: NSPredicate(format: "household == %@", household))
+            if categories.contains(where: { BuiltInCategory.named(($0.value(forKey: "id") as? UUID) ?? UUID()) == nil }) { return false }
+            let others = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
+                .filter { $0.value(forKey: "id") as? UUID != localMemberID && $0.value(forKey: "cloudIdentity") != nil }
+            if !others.isEmpty { return false }
+        }
+        return true
+    }
+
+    /// Deletes this device's own family budget before joining another one. The personal budget is untouched.
+    public func removeOwnFamily() throws {
+        do {
+            for household in try households(in: .family) {
+                guard let store = household.objectID.persistentStore, store == privateStore else { continue }
+                context.delete(household)
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Two devices that extend a shared budget at the same time each create the period. Both then hold the
+    /// same start: keep the one with the smallest identifier and move the other's operations into it.
+    /// Every device makes the same choice, so they converge. Returns whether anything changed.
+    @discardableResult
+    public func mergeDuplicatePeriods(scope: BudgetScope) throws -> Bool {
+        do {
+            var changed = false
+            for household in try households(in: scope) {
+                let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
+                let groups = Dictionary(grouping: periods) { $0.value(forKey: "month") as? Date ?? .distantPast }
+                for (_, group) in groups where group.count > 1 {
+                    let sorted = group.sorted { ($0.value(forKey: "id") as? UUID)?.uuidString ?? "" < ($1.value(forKey: "id") as? UUID)?.uuidString ?? "" }
+                    let keep = sorted[0]
+                    guard let store = keep.objectID.persistentStore, container.canModifyManagedObjects(in: store) else { continue }
+                    let kept = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", keep)).compactMap { $0.value(forKey: "id") as? UUID }
+                    for duplicate in sorted.dropFirst() {
+                        for item in try fetch("Transaction", predicate: NSPredicate(format: "period == %@", duplicate)) {
+                            item.setValue(keep, forKey: "period")
+                        }
+                        for reserve in try fetch("Reserve", predicate: NSPredicate(format: "period == %@", duplicate)) {
+                            if let id = reserve.value(forKey: "id") as? UUID, kept.contains(id) { context.delete(reserve) }
+                            else { reserve.setValue(keep, forKey: "period") }
+                        }
+                        context.delete(duplicate)
+                        changed = true
+                    }
+                }
+            }
+            if changed { try commit() }
+            return changed
+        } catch { context.rollback(); throw error }
+    }
+
     public func reportSharingError() {
         syncError = String(localized: "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова.", bundle: .module)
     }

@@ -50,6 +50,8 @@ public enum LedgerError: Error, Equatable {
     case unavailable, corruptStore, conflict, missingRecord, invalidMember, existingPeriod, multipleHouseholds
     case cloudNotConfigured, accessDenied, accountChanged, privateBudgetCannotBeShared, familyFull
     case missingCategory, invalidCategory, duplicateCategory
+    /// Joining another family would delete one's own family budget that already has records.
+    case familyHasRecords
 }
 
 public enum LedgerRules {

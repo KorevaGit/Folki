@@ -16,7 +16,7 @@ import FolkiDuoCore
         }
         // The short envelope due soonest across both budgets, the way the main screen's banner picks it.
         let short = [personal, family].flatMap { session in
-            session.envelopes.compactMap { envelope -> (BudgetSession, RecurringEnvelope)? in
+            session.payments.compactMap { envelope -> (BudgetSession, RecurringEnvelope)? in
                 session.envelopeUrgency(envelope) == .funded ? nil : (session, envelope)
             }
         }.min { $0.1.nextDue < $1.1.nextDue }

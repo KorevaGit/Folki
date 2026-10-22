@@ -81,7 +81,8 @@ struct DailyFundingView: View {
     private var familyShare: Money {
         guard !distributesExisting, scope == .personal, hasFamily, shareToFamily, let money else { return Money(minorUnits: 0) }
         return (try? ContributionAdvisor.suggestion(topUp: money, percent: family.contributionPercent,
-                                                     urgentFamilyShortfalls: family.urgentShortfalls)) ?? Money(minorUnits: 0)
+                                                     urgentFamilyShortfalls: family.urgentShortfalls,
+                                                     personalObligations: personal.mandatoryObligations)) ?? Money(minorUnits: 0)
     }
     private var envelopeBase: Money {
         guard let money, !isContribution else { return Money(minorUnits: 0) }
@@ -319,7 +320,8 @@ struct DailyFundingView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("В семью \(family.contributionPercent)%").font(.body.weight(.medium))
                     Text(MoneyText.whole(shareToFamily ? familyShare : (money.flatMap { try? ContributionAdvisor.suggestion(topUp: $0,
-                        percent: family.contributionPercent, urgentFamilyShortfalls: family.urgentShortfalls) } ?? Money(minorUnits: 0))))
+                        percent: family.contributionPercent, urgentFamilyShortfalls: family.urgentShortfalls,
+                        personalObligations: personal.mandatoryObligations) } ?? Money(minorUnits: 0))))
                         .font(.footnote).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
@@ -364,6 +366,9 @@ struct DailyFundingView: View {
     }
 
     private func dueLine(_ envelope: RecurringEnvelope) -> String {
+        if let target = envelope.target {
+            return String(localized: "Копилка · \(MoneyText.whole(session.envelopeBalance(envelope))) из \(MoneyText.whole(target))")
+        }
         let days = session.daysUntil(envelope)
         let date = envelope.nextDue.formatted(.dateTime.day().month(.abbreviated))
         return days <= 0 ? String(localized: "Оплата сегодня") : String(localized: "Оплата \(date) · через \(days) дн.")
@@ -376,7 +381,7 @@ struct DailyFundingView: View {
 
     private var livingRow: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("На повседневное").font(.headline)
+            Text("На жизнь").font(.headline)
             Spacer()
             Text(MoneyText.whole(living)).font(.system(.title2, design: .rounded, weight: .bold)).monospacedDigit()
                 .foregroundStyle(Color.folkiAccent).contentTransition(.numericText()).animation(FolkiMotion.quick, value: living)

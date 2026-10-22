@@ -111,7 +111,7 @@ struct CategoriesView: View {
                 Button("Новая категория", systemImage: "plus.circle.fill") { creating = true }
                     .disabled(session.result == nil || session.isDemo)
             } header: { Text("Свои") } footer: {
-                Text(session.scope == .personal ? String(localized: "Их видишь только ты 🤫") : String(localized: "Их видит вся семья 💚"))
+                Text(session.scope == .personal ? String(localized: "Их видишь только ты") : String(localized: "Их видит вся семья"))
             }
             // Built-ins grouped by kind, so the tag on every row is not needed.
             Section("Используются") {
@@ -136,7 +136,7 @@ struct CategoriesView: View {
                         row(category).swipeActions { Button("Вернуть") { setArchived(category, false) }.tint(Color.folkiAccent) }
                     }
                 } header: { Text("Архив") } footer: {
-                    Text("Старые записи с ними никуда не денутся 📦")
+                    Text("Старые записи с ними сохранятся")
                 }
             }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -206,7 +206,7 @@ struct CategoryEditorView: View {
                 Section {
                     Toggle("Обязательная трата", isOn: $isEssential).sensoryFeedback(.selection, trigger: isEssential)
                 } footer: {
-                    Text("Обязательное — жильё, еда, лечение. Остальное — желания 🎈")
+                    Text("Обязательное — жильё, еда, лечение. Остальное — желания")
                 }
                 Section("Цвет") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {

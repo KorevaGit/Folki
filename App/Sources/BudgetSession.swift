@@ -73,6 +73,8 @@ final class BudgetSession {
         overviewCache = [:]
         if let repository {
             do {
+                // Two iPhones may have opened the same new family period; fold the copies together first.
+                _ = try? repository.mergeDuplicatePeriods(scope: scope)
                 let stored = try repository.load(asOf: referenceDate, scope: scope)
                 household = stored?.snapshot
                 periods = try repository.periods(scope: scope)
@@ -147,11 +149,12 @@ final class BudgetSession {
         }
     }
 
-    func createPlan(monthlyPlan: Money, available: Money, reserves: [ProtectedReserve] = [], payday: Date, closeCurrent: Bool = false) throws {
+    func createPlan(monthlyPlan: Money, available: Money, reserves: [ProtectedReserve] = [], payday: Date,
+                    closeCurrent: Bool = false, startingAt start: Date? = nil) throws {
         overviewCache = [:]
         if let repository {
             try repository.createPlan(monthlyPlan: monthlyPlan, available: available, asOf: referenceDate, reserves: reserves, scope: scope,
-                                      payday: payday, closeCurrent: closeCurrent)
+                                      payday: payday, closeCurrent: closeCurrent, startingAt: start)
             refresh()
             return
         }
@@ -176,7 +179,8 @@ final class BudgetSession {
         // The next period follows the previous one: a week stays a week, a payday stays the same date.
         let anchor = household?.period.endExclusive ?? calendar.startOfDay(for: referenceDate)
         try createPlan(monthlyPlan: freePlan, available: funds,
-                       reserves: reserves, payday: periodRule.end(after: anchor, now: referenceDate, calendar: calendar))
+                       reserves: reserves, payday: periodRule.end(after: anchor, now: referenceDate, calendar: calendar),
+                       startingAt: household.map { _ in anchor })
     }
     /// Changes how this and later periods end; the current period is recut from its own start.
     func setPeriodRule(_ rule: PeriodRule) throws {
@@ -248,6 +252,7 @@ final class BudgetSession {
            let end = calendar.date(byAdding: .month, value: 1, to: start) {
             days = max(1, calendar.dateComponents([.day], from: start, to: end).day ?? days)
         }
+        // A jar's size is one contribution, so it counts like a monthly payment here.
         let reserved = envelopes.reduce(Int64(0)) { $0 + $1.size.minorUnits }
         return Money(minorUnits: max(0, income - reserved) / Int64(days))
     }
@@ -284,17 +289,20 @@ final class BudgetSession {
     }
     /// The most urgent short envelope, for the banner on the main screen.
     var mostUrgentEnvelope: RecurringEnvelope? {
-        envelopes.filter { envelopeUrgency($0) >= .attention }
-            .max { (envelopeUrgency($0), -daysUntil($0)) < (envelopeUrgency($1), -daysUntil($1)) }
+        envelopes.filter { envelopeUrgency($0) >= .attention }.max { bannerRank($0) < bannerRank($1) }
+    }
+    /// Louder first, then mandatory before optional, then the nearest date.
+    func bannerRank(_ envelope: RecurringEnvelope) -> (EnvelopeUrgency, Int, Int) {
+        (envelopeUrgency(envelope), envelope.isMandatory ? 1 : 0, -daysUntil(envelope))
     }
     func createEnvelope(name: String, size: Money, nextDue: Date, isMandatory: Bool, categoryID: UUID?,
-                        symbol: String? = nil, color: CategoryColor? = nil,
+                        symbol: String? = nil, color: CategoryColor? = nil, kind: EnvelopeKind = .payment, target: Money? = nil,
                         id: UUID = UUID(), initialFunding: Money = Money(minorUnits: 0)) throws -> RecurringEnvelope {
         try ensureDailyPeriod()
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
         let day = calendar.component(.day, from: nextDue)
         let envelope = try repository.createEnvelope(name: name, size: size, dueDay: day, nextDue: nextDue, isMandatory: isMandatory,
-                                                     categoryID: categoryID, symbol: symbol, color: color,
+                                                     categoryID: categoryID, symbol: symbol, color: color, kind: kind, target: target,
                                                      in: budget, asOf: referenceDate, id: id, initialFunding: initialFunding)
         refresh()
         return envelope
@@ -331,6 +339,20 @@ final class BudgetSession {
         try repository.spendFromEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
         refresh()
     }
+    /// A bill not paid this time moves to its coming date.
+    func skipEnvelope(_ envelope: RecurringEnvelope) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.skipEnvelope(envelope.id, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    /// What this period's mandatory bills still need; a personal top-up covers them before the family share.
+    var mandatoryObligations: Money {
+        let end = household?.period.endExclusive ?? referenceDate
+        return Money(minorUnits: envelopes.filter { $0.isMandatory && !$0.isSavings && $0.nextDue < end }
+            .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: envelopeBalance($1)).minorUnits) ?? 0) })
+    }
+    var payments: [RecurringEnvelope] { envelopes.filter { !$0.isSavings } }
+    var jars: [RecurringEnvelope] { envelopes.filter(\.isSavings) }
     func archiveEnvelope(_ envelope: RecurringEnvelope) throws {
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
         try repository.archiveEnvelope(envelope.id, in: budget, asOf: referenceDate)
@@ -361,7 +383,7 @@ final class BudgetSession {
     }
     /// What is still missing in envelopes due within a week.
     var urgentShortfalls: [Money] {
-        envelopes.filter { daysUntil($0) <= 7 }
+        envelopes.filter { !$0.isSavings && daysUntil($0) <= 7 }
             .compactMap { try? $0.shortfall(balance: envelopeBalance($0)) }.filter { $0.minorUnits > 0 }
     }
     /// The default split of `incoming` into this budget's envelopes due this period.
@@ -557,8 +579,10 @@ final class BudgetSession {
         let used = selectable.filter { counts[$0.id] != nil && $0.id != BuiltInCategory.other.id }
             .sorted { counts[$0.id]! == counts[$1.id]! ? $0.name < $1.name : counts[$0.id]! > counts[$1.id]! }
         let defaults = [BuiltInCategory.groceries, .cafes, .transport].map(\.category).filter { selectable.contains($0) }
+        // Without cafés switched on, any other category fills the third chip.
+        let rest = selectable.filter { $0.id != BuiltInCategory.other.id }
         var result: [SpendingCategory] = []
-        for category in used + defaults where !result.contains(category) && result.count < limit { result.append(category) }
+        for category in used + defaults + rest where !result.contains(category) && result.count < limit { result.append(category) }
         return result
     }
     /// The chip picked in advance: the one most used around this hour (±1 h) among the chips.
@@ -633,8 +657,9 @@ final class BudgetSession {
         formatter.minimumFractionDigits = fractionDigits; formatter.maximumFractionDigits = fractionDigits
         return formatter.string(from: NSDecimalNumber(decimal: money.decimalValue)) ?? "—"
     }
+    /// Keypad text for an amount: digits and the keypad's comma ("1500,5").
     static func input(_ money: Money) -> String {
-        NSDecimalNumber(decimal: money.decimalValue).stringValue
+        NSDecimalNumber(decimal: money.decimalValue).stringValue.replacingOccurrences(of: ".", with: ",")
     }
     /// Keypad text with thin-space thousands: "60000,5" → "60 000,5".
     static func grouped(_ text: String) -> String {

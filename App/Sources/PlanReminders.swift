@@ -80,7 +80,7 @@ struct PlanSettings: Codable, Equatable {
         guard settings.paymentReminders else { return }
         for session in sessions {
             let calendar = session.calendar
-            for envelope in session.envelopes {
+            for envelope in session.payments {
                 let missing = (try? envelope.shortfall(balance: session.envelopeBalance(envelope))) ?? envelope.size
                 let amount = MoneyText.whole(envelope.size)
                 var offsets: [Int] = []

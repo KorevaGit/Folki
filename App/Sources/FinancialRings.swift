@@ -91,7 +91,8 @@ private struct FinancialRing: View, Animatable {
             .padding(lineWidth / 2)
             // The arc provides its own round endpoint. Add depth only where the end
             // overlaps the beginning, keeping the shadow on the ring itself.
-            if progress > 0.5 && capDistance < lineWidth {
+            // A closed ring has no end to lift, so no dot at twelve o'clock.
+            if progress > 0.5 && progress < 0.999 && capDistance < lineWidth {
                 Circle().fill(palette.start)
                     .frame(width: lineWidth, height: lineWidth)
                     .shadow(color: .black.opacity(0.32 * Double(1 - capDistance / lineWidth)),
@@ -268,7 +269,7 @@ struct BudgetRingsCard: View {
             return (scope, AnyView(HStack(alignment: .firstTextBaseline) {
                 Text("\(name): период превышен на \(MoneyText.whole(over))").font(.subheadline)
                 Spacer(minLength: 8)
-                Button("Пересмотреть план") { reviewPlan(scope) }.font(.subheadline.weight(.semibold))
+                Button("Внести деньги") { reviewPlan(scope) }.font(.subheadline.weight(.semibold))
             }))
         }
         guard isToday, result.todayRemaining.minorUnits < 0, let next = result.futureAllocation else { return nil }
@@ -281,8 +282,10 @@ struct BudgetRingsCard: View {
             HStack(spacing: 6) {
                 Text("Период").foregroundStyle(.secondary)
                 monthValue(personal, scope: .personal)
-                Text("·").foregroundStyle(.tertiary)
-                monthValue(family, scope: .family)
+                if showsFamily {
+                    Text("·").foregroundStyle(.tertiary)
+                    monthValue(family, scope: .family)
+                }
             }.fixedSize(horizontal: true, vertical: false)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -290,10 +293,12 @@ struct BudgetRingsCard: View {
                     Spacer(minLength: 8)
                     monthValue(personal, scope: .personal)
                 }
-                HStack {
-                    Text("Семейный · период").foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
-                    monthValue(family, scope: .family)
+                if showsFamily {
+                    HStack {
+                        Text("Семейный · период").foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        monthValue(family, scope: .family)
+                    }
                 }
             }
         }.font(.subheadline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)

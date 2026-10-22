@@ -43,7 +43,7 @@ private struct PlanIntro: View {
                 PlanHeroArt().frame(maxWidth: 340).rise(0)
                 VStack(spacing: FolkiSpacing.item) {
                     Text("Финансовый план").font(.largeTitle.bold()).rise(1)
-                    Text("Сейчас я считаю только повседневные траты. Давай учтём и регулярные: аренду, связь, подписки")
+                    Text("Учту аренду, связь и подписки — и они не съедят деньги на жизнь")
                         .font(.body).foregroundStyle(.secondary).rise(2)
                 }.multilineTextAlignment(.center)
             }.padding(.bottom, FolkiSpacing.huge)
@@ -388,7 +388,7 @@ private struct PlanOverview: View {
                     }
                     Button { distributing = true } label: {
                         VStack(alignment: .leading, spacing: 8) {
-                            LabeledContent("На повседневное", value: MoneyText.whole(session.availableForDailySpending))
+                            LabeledContent("На жизнь", value: MoneyText.whole(session.availableForDailySpending))
                                 .font(.headline)
                             Text("Распределить по конвертам").font(.subheadline).foregroundStyle(Color.folkiAccent)
                         }.budgetCard()
@@ -412,15 +412,15 @@ private struct PlanOverview: View {
                                 options: [(String(localized: "Личные"), .personal), (String(localized: "Семейные"), .family)], minimumHeight: 36)
                         }
                         EnvelopesSection(session: session, creating: $creating)
-                        Text("Здесь откладываем деньги на платежи и цели. Пополнение не считается расходом.")
+                        Text("Пополнение конверта — не трата")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                        Text("Повседневные траты").font(.title2.bold())
-                        Text("Продукты, кафе и другие категории собирают расходы для статистики. Пополнять их не нужно.")
+                        Text("Траты на жизнь").font(.title2.bold())
+                        Text("Продукты, кафе и остальное — только для статистики, пополнять не нужно")
                             .font(.subheadline).foregroundStyle(.secondary)
                         NavigationLink { CategoriesView(session: session) } label: {
-                            Label("Категории повседневных трат", systemImage: "tag")
+                            Label("Категории трат", systemImage: "tag")
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }.buttonStyle(FolkiSoftButtonStyle())
                     }
@@ -476,7 +476,7 @@ private struct PlanOverview: View {
             .confirmationDialog("Сбросить план?", isPresented: $confirmingReset, titleVisibility: .visible) {
                 Button("Сбросить", role: .destructive, action: resetPlan)
             } message: {
-                Text("Конверты и напоминания удалятся, деньги из конвертов вернутся на жизнь")
+                Text("Личные конверты и напоминания удалятся, деньги из них вернутся на жизнь. Семейные конверты останутся")
             }
         }
     }
@@ -485,7 +485,7 @@ private struct PlanOverview: View {
         do {
             for envelope in personal.envelopes { try personal.archiveEnvelope(envelope) }
         } catch {
-            resetError = String(localized: "Не все конверты закрылись. Деньги из уже закрытых вернулись на повседневное. Попробуй ещё раз.")
+            resetError = String(localized: "Не все конверты закрылись. Деньги из закрытых уже вернулись на жизнь. Попробуй ещё раз.")
             return
         }
         UserDefaults.standard.removeObject(forKey: "FolkiPlanSettings")

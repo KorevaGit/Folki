@@ -236,7 +236,6 @@ struct FolkiEntryLayout<Fields: View, Keypad: View>: View {
     /// Picking a value: chips, toggles, days, segments.
     static func selection() { selector.selectionChanged(); selector.prepare() }
     /// A digit on the Folki keypad: quiet, like the system keyboard.
-    static func pageChange() { rigid.impactOccurred(intensity: 0.65); rigid.prepare() }
     static func key() { soft.impactOccurred(intensity: 0.4); soft.prepare() }
     /// A saved spend, top-up or payment. `crossedIntoMinus` turns it into the warning.
     static func saved(crossedIntoMinus: Bool = false) {

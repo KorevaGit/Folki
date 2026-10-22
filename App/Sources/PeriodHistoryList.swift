@@ -29,7 +29,10 @@ struct PeriodHistoryList: View {
         case .personal: [personal]
         case .family: [family]
         }
-        return sessions.flatMap { session in session.records.map { PeriodEntry(record: $0, session: session) } }
+        // Spends and refunds only: top-ups, contributions and envelope moves are not spending.
+        return sessions.flatMap { session in
+            session.records.filter { [.expense, .refund].contains($0.transaction.kind) }.map { PeriodEntry(record: $0, session: session) }
+        }
             .sorted { $0.record.transaction.date > $1.record.transaction.date }
     }
     private var days: [(Date, [PeriodEntry])] {
@@ -77,7 +80,9 @@ struct PeriodHistoryList: View {
     }
 
     private func header(_ day: Date, _ items: [PeriodEntry]) -> some View {
-        let spent = items.filter { $0.record.transaction.kind == .expense }.reduce(Int64(0)) { $0 + $1.record.transaction.amount.minorUnits }
+        let spent = items.reduce(Int64(0)) {
+            $0 + ($1.record.transaction.kind == .refund ? -1 : 1) * $1.record.transaction.amount.minorUnits
+        }
         return HStack {
             Text(dayTitle(day)).font(.subheadline.weight(.semibold))
             Spacer()

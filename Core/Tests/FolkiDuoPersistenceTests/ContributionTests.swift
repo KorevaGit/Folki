@@ -39,6 +39,9 @@ import FolkiDuoCore
         #expect(family.records.map(\.transaction.kind) == [.contributionIn])
         #expect(personal.records.first?.linkID == link && family.records.first?.linkID == link)
         #expect(family.records.first?.transaction.payerID == author)
+        // The plans move with the money, so both period rings stay full after a contribution.
+        #expect(personal.snapshot.monthlyFreePlan == rub(25000) && family.snapshot.monthlyFreePlan == rub(65000))
+        #expect(own.periodRemaining == own.periodPlan && shared.periodRemaining == shared.periodPlan)
 
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: "Europe/Moscow")!
         let month = try BudgetAnalytics.calculate(records: family.records, period: .month, anchor: now, asOf: now, calendar: calendar)
@@ -106,6 +109,17 @@ import FolkiDuoCore
         let personalSide = try #require(try repo.container.viewContext.fetch(request).first)
         #expect(personalSide.objectID.persistentStore == repo.privateStore)
         #expect((personalSide.value(forKey: "household") as? NSManagedObject)?.value(forKey: "id") as? UUID == personal.snapshot.id)
+        try repo.close()
+    }
+
+    @Test func cancellingAContributionMovesThePlansBack() async throws {
+        let directory = path(); defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try await open(directory, author: UUID())
+        let link = UUID()
+        try repo.contribute(rub(5000), from: budget(repo, .personal), to: budget(repo, .family), asOf: now, linkID: link)
+        try repo.cancelContribution(linkID: link, asOf: now)
+        #expect(try budget(repo, .personal).snapshot.monthlyFreePlan == rub(30000))
+        #expect(try budget(repo, .family).snapshot.monthlyFreePlan == rub(60000))
         try repo.close()
     }
 }

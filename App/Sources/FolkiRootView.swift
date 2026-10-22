@@ -100,30 +100,6 @@ extension FolkiRootView {
     }
 }
 
-/// Who is in the family, with a way to invite more. Lives in Settings.
-struct FamilyMembersCard: View {
-    let family: BudgetSession
-    let manage: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(family.members.filter(\.isActive)) { member in
-                HStack(spacing: 12) {
-                    MemberAvatar(name: member.name)
-                    Text(family.memberName(member.id)).font(.body.weight(.medium))
-                    Spacer()
-                    if member.id == family.authorID {
-                        Text("Ты").font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Button(action: manage) {
-                Label("Пригласить", systemImage: "person.badge.plus")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }.buttonStyle(FolkiSoftButtonStyle())
-        }.budgetCard()
-    }
-}
-
 /// iCloud-style initials for members without an uploaded profile photo.
 struct MemberAvatar: View {
     let name: String

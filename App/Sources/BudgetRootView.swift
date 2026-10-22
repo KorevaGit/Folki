@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case setup, spend, income, expense, contribution, details, settings, limits, distribution, envelopes, allocate
+    case spend, income, settings, distribution, allocate, sharing
     var id: String { rawValue }
 }
 
@@ -41,8 +41,9 @@ struct BudgetRootView: View {
     var returnRequest: Int = 0
     /// Switches to the plan tab.
     var openPlan: () -> Void = {}
-    @AppStorage("FolkiPlanOfferDismissed") private var planOfferDismissed = false
-    @State private var entryKind: TransactionKind = .expense
+    /// "Позови семью" is offered once; envelopes in the amber zone can be dismissed until their next date.
+    @AppStorage("FolkiInviteOfferDismissed") private var inviteDismissed = false
+    @AppStorage("FolkiDismissedEnvelopeBanners") private var dismissedEnvelopes = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -65,7 +66,8 @@ struct BudgetRootView: View {
                                            showsFamily: family.household != nil,
                                            personalNeedsFunds: !personal.hasFunding, familyNeedsFunds: !family.hasFunding,
                                            addFunds: { scope in selectedScope = scope; sheet = .income }) { scope in
-                    selectedScope = scope; sheet = .limits
+                    // The period is overspent: more money is the way back, not a smaller plan.
+                    selectedScope = scope; sheet = .income
                 }
                 VStack(spacing: 8) {
                     weekCalendar.padding(.horizontal, FolkiSpacing.page)
@@ -82,7 +84,7 @@ struct BudgetRootView: View {
                                     distributionLine
                                     entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                     Button { scrollToHistory(page) } label: {
-                                        Label("Траты за период · смахни вверх", systemImage: "chevron.down")
+                                        Label("Траты за период", systemImage: "chevron.up")
                                             .font(.footnote.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 40)
                                     }.buttonStyle(.plain).foregroundStyle(.secondary)
                                 }
@@ -112,7 +114,7 @@ struct BudgetRootView: View {
                         .onScrollGeometryChange(for: Bool.self) { geometry in
                             geometry.contentOffset.y + geometry.contentInsets.top >= page * 0.8
                         } action: { _, value in
-                            if value != inHistory { inHistory = value; FolkiFeedback.pageChange() }
+                            if value != inHistory { inHistory = value }
                         }
                         .scrollBounceBehavior(.always)
                         .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -171,18 +173,13 @@ struct BudgetRootView: View {
         } message: { Text(historyError ?? "") }
         .sheet(item: $sheet) { destination in
             switch destination {
-            case .setup: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
             case .spend: QuickSpendView(personal: personal, family: family)
             case .income: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
-            case .expense: ExpenseEditorView(session: session, initialKind: entryKind)
-            case .contribution: ContributionView(personal: personal, family: family)
-            case .limits: SpendingLimitsView(personal: personal, family: family, scope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
-            case .details: BudgetCalculationView(personal: personalDay.result, family: familyDay.result, date: date)
+            case .sharing: SharingView(session: family)
             case .distribution:
                 DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
             case .allocate: DailyFundingView(personal: personal, family: family, initialScope: selectedScope, distributesExisting: true)
-            case .envelopes: BudgetSetupView(session: session, editingCurrent: true)
             }
         }
     }
@@ -271,75 +268,89 @@ struct BudgetRootView: View {
                         .font(.subheadline).foregroundStyle(Color.folkiAccent).monospacedDigit()
                 }
                 Button { selectedScope = .personal; sheet = .allocate } label: {
-                    Text("На повседневное: \(MoneyText.whole(personal.availableForDailySpending))")
+                    Text("На жизнь: \(MoneyText.whole(personal.availableForDailySpending))")
                         .font(.footnote.weight(.medium)).monospacedDigit()
                 }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
+        // The first-spend hint sits over these lines; they step aside instead of showing through it.
+        .opacity(showsSpendTip ? 0 : 1)
+        .animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: showsSpendTip)
     }
 
-    /// One banner at a time: a short envelope first, then the plan offer.
+    /// One banner at a time, by priority: a red envelope, an amber one, then the one-time family offer.
     @ViewBuilder private var banner: some View {
-        if let available = [personal, family].first(where: { $0.availableForDailySpending.minorUnits > 0 && $0.hasUnfundedObligations }) {
-            Button {
-                selectedScope = available.scope; sheet = .allocate
-            } label: {
-                Label {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Есть незакрытые обязательства").font(.subheadline.weight(.semibold))
-                        Text("\(available.scope.title): доступно \(MoneyText.whole(available.availableForDailySpending)) · распределить")
-                            .font(.footnote)
-                    }
-                } icon: { Image(systemName: "tray.and.arrow.down.fill") }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(FolkiSpacing.item)
-                .background(Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
-            }.buttonStyle(.plain).foregroundStyle(Color.folkiWarning)
-        } else if [personal, family].contains(where: { $0.mostUrgentEnvelope != nil }) {
-            envelopeBanner
-        } else if !planReady && !planOfferDismissed && personal.hasFunding {
+        // Every loud envelope competes, so dismissing one amber banner shows the next one, if any.
+        let candidates = [personal, family].flatMap { session in
+            session.envelopes.filter { session.envelopeUrgency($0) >= .attention }.map { (session, $0) }
+        }.filter { !dismissed($0.1, in: $0.0) || $0.0.envelopeUrgency($0.1) == .serious }
+        if let (session, envelope) = candidates.max(by: { $0.0.bannerRank($0.1) < $1.0.bannerRank($1.1) }) {
+            envelopeBanner(envelope, in: session)
+        } else if showsInviteOffer {
             HStack(spacing: FolkiSpacing.item) {
-                Button(action: openPlan) {
+                Button { sheet = .sharing } label: {
                     Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Учесть аренду и подписки?").font(.subheadline.weight(.semibold))
-                            Text("Составь финансовый план").font(.footnote).foregroundStyle(.secondary)
-                        }
-                    } icon: { Image(systemName: "list.bullet.clipboard").foregroundStyle(Color.folkiAccent) }
+                        Text("Ведёшь бюджет с кем-то? Позови — общее будет видно обоим").font(.subheadline.weight(.medium))
+                            .multilineTextAlignment(.leading)
+                    } icon: { Image(systemName: "person.2.fill").foregroundStyle(RingPalette.family.start) }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }.buttonStyle(.plain)
-                Button { withAnimation(FolkiMotion.standard) { planOfferDismissed = true } } label: {
-                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 32, height: 32)
+                Button { withAnimation(FolkiMotion.standard) { inviteDismissed = true } } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).accessibilityLabel("Скрыть")
             }
-            .padding(.vertical, FolkiSpacing.xs).padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xs)
-            .background(Color.folkiAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
+            .padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xxs)
+            .background(RingPalette.family.start.opacity(0.1), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
-    /// The most urgent short envelope of either budget: red at 0–2 days, amber at 3–7.
-    @ViewBuilder private var envelopeBanner: some View {
-        let candidates = [personal, family].compactMap { session in session.mostUrgentEnvelope.map { (session, $0) } }
-        if let (session, envelope) = candidates.max(by: { session0, session1 in
-            (session0.0.envelopeUrgency(session0.1), -session0.0.daysUntil(session0.1)) < (session1.0.envelopeUrgency(session1.1), -session1.0.daysUntil(session1.1))
-        }) {
-            let urgency = session.envelopeUrgency(envelope)
-            let missing = (try? envelope.shortfall(balance: session.envelopeBalance(envelope)).roundedUpToWholeUnits) ?? envelope.size
-            let due = envelope.nextDue.formatted(.dateTime.day().month(.abbreviated))
-            Label {
-                // "Аренда — 12 000 ₽ до 25 окт.": what is still missing and by when.
-                Text("\(envelope.name) — \(MoneyText.whole(missing)) до \(due)").lineLimit(2)
-            } icon: {
-                Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
+    /// From the third day with a budget, while there is no family yet.
+    private var showsInviteOffer: Bool {
+        guard !inviteDismissed, family.household == nil, personal.hasFunding,
+              let first = personal.periods.first?.start else { return false }
+        return (calendar.dateComponents([.day], from: calendar.startOfDay(for: first),
+                                        to: calendar.startOfDay(for: personal.referenceDate)).day ?? 0) >= 2
+    }
+
+    private func bannerKey(_ envelope: RecurringEnvelope) -> String {
+        "\(envelope.id.uuidString)@\(Int(envelope.nextDue.timeIntervalSince1970))"
+    }
+    private func dismissed(_ envelope: RecurringEnvelope, in session: BudgetSession) -> Bool {
+        dismissedEnvelopes.split(separator: " ").contains { $0 == bannerKey(envelope) }
+    }
+
+    /// "Аренда: не хватает 12 000 ₽ к 25 окт." Red at 0–2 days stays; amber can be swiped away until the next date.
+    private func envelopeBanner(_ envelope: RecurringEnvelope, in session: BudgetSession) -> some View {
+        let urgency = session.envelopeUrgency(envelope)
+        let missing = (try? envelope.shortfall(balance: session.envelopeBalance(envelope)).roundedUpToWholeUnits) ?? envelope.size
+        let due = envelope.nextDue.formatted(.dateTime.day().month(.abbreviated))
+        let tint = urgency == .serious ? Color.folkiOver : Color.folkiWarning
+        return HStack(spacing: FolkiSpacing.item) {
+            Button { selectedScope = session.scope; sheet = .allocate } label: {
+                Label {
+                    Text("\(envelope.name): не хватает \(MoneyText.whole(missing)) к \(due)").lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                } icon: {
+                    Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
+                }
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }.buttonStyle(.plain)
+            if urgency != .serious {
+                Button {
+                    withAnimation(FolkiMotion.standard) { dismissedEnvelopes = (dismissedEnvelopes + " " + bannerKey(envelope)).trimmingCharacters(in: .whitespaces) }
+                } label: {
+                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).frame(width: 44, height: 44)
+                }.buttonStyle(.plain).accessibilityLabel("Скрыть")
             }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(urgency == .serious ? Color.folkiOver : Color.folkiWarning)
-            .padding(.vertical, FolkiSpacing.item).padding(.horizontal, FolkiSpacing.card)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(urgency == .serious ? Color.folkiOver.opacity(0.12) : Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
-            .transition(.move(edge: .top).combined(with: .opacity))
         }
+        .foregroundStyle(tint)
+        .padding(.leading, FolkiSpacing.card).padding(.trailing, urgency == .serious ? FolkiSpacing.card : FolkiSpacing.xxs)
+        .frame(minHeight: 48)
+        .background(urgency == .serious ? Color.folkiOver.opacity(0.12) : Color.folkiWarningGround,
+                    in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private func toggleRingPeriod() {
@@ -500,58 +511,6 @@ struct BudgetRootView: View {
         }
     }
 
-    private func openEntry(_ scope: BudgetScope, kind: TransactionKind) {
-        returnToToday {
-            selectedScope = scope
-            entryKind = kind
-            sheet = kind == .income ? .income : .expense
-        }
-    }
-
-    private func destinationRow(_ title: String, symbol: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol).foregroundStyle(Color.folkiAccent).frame(width: 24)
-            Text(title).font(.body)
-            Spacer()
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-        }.padding(.vertical, 10)
-    }
-
-}
-
-private struct BudgetCalculationView: View {
-    @Environment(\.dismiss) private var dismiss
-    let personal: DailyBudgetSnapshot?
-    let family: DailyBudgetSnapshot?
-    let date: Date
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section { Text(date, format: .dateTime.day().month(.wide).year()) }
-                calculation(personal, title: String(localized: "Личный бюджет"))
-                calculation(family, title: String(localized: "Семейный бюджет"))
-                Section("Кольца") {
-                    Text("Снаружи — личный бюджет, внутри — семейный. Нажми на кольца, чтобы переключить день и период.")
-                    Text("Накопления сюда не входят. Прогноз — если сегодня больше ничего не тратить.")
-                }
-            }
-            .folkiFormLayout()
-            .navigationTitle("Личный и семейный").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
-        }
-    }
-    @ViewBuilder private func calculation(_ snapshot: DailyBudgetSnapshot?, title: String) -> some View {
-        Section(title) {
-            if let result = snapshot {
-                LabeledContent("Ориентир дня", value: MoneyText.whole(result.todayGuide))
-                LabeledContent("Потрачено с учётом возвратов", value: MoneyText.whole(result.todayNetSpending))
-                LabeledContent("Сегодня осталось", value: MoneyText.whole(result.todayRemaining))
-                LabeledContent("План на период", value: MoneyText.whole(result.periodPlan))
-                LabeledContent("Остаток периода", value: MoneyText.whole(result.periodRemaining))
-                LabeledContent("Из них на повседневное", value: MoneyText.whole(result.monthlyRemaining))
-            } else { Text("Тут пока нет плана").foregroundStyle(.secondary) }
-        }
-    }
 }
 
 struct LedgerRow: View {
@@ -640,7 +599,7 @@ private struct BudgetDaySpendingSummary: View {
                                      count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
                       alignment: .leading, spacing: FolkiSpacing.card) {
                 summary(personal, overview: personalDay)
-                summary(family, overview: familyDay)
+                if family.household != nil { summary(family, overview: familyDay) }
             }
         }
         .padding(.horizontal, 4)

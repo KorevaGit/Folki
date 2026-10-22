@@ -308,7 +308,7 @@ struct PlanWizardView: View {
             PlanHeroArt().frame(maxWidth: 340).rise(0)
             VStack(spacing: FolkiSpacing.item) {
                 Text("Финансовый план").font(.largeTitle.bold()).rise(1)
-                Text("Сейчас я считаю только повседневные траты. Давай учтём и регулярные: аренду, связь, подписки")
+                Text("Учту аренду, связь и подписки — и они не съедят деньги на жизнь")
                     .font(.body).foregroundStyle(.secondary).rise(2)
             }.multilineTextAlignment(.center)
         }
@@ -404,9 +404,9 @@ struct PlanWizardView: View {
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
             .rise(1)
             VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Сейчас на повседневное", value: MoneyText.whole(personal.availableForDailySpending))
+                LabeledContent("Сейчас на жизнь", value: MoneyText.whole(personal.availableForDailySpending))
                     .font(.headline)
-                Text("После сохранения предложим распределить эти деньги по конвертам. Остаток останется на повседневные траты.")
+                Text("После сохранения предложу отложить часть в срочные конверты")
                     .font(.footnote).foregroundStyle(.secondary)
             }.budgetCard()
             reviewSection(String(localized: "Доход"), .income) {
@@ -553,15 +553,27 @@ struct PlanWizardView: View {
             }
             for item in items where item.minor > 0 {
                 let size = Money(minorUnits: item.minor)
-                if item.existing, let envelope = personal.envelopes.first(where: { $0.id == item.id }) {
+                // Savings are jars: one contribution per income, collected up to the goal.
+                let goal = item.mandatory ? nil : Money(minorUnits: max(item.typed, item.minor))
+                var existing = item.existing ? personal.envelopes.first(where: { $0.id == item.id }) : nil
+                var carried = Money(minorUnits: 0)
+                if let envelope = existing, envelope.isSavings != !item.mandatory {
+                    // An older optional payment becomes a jar: its money moves into the new jar.
+                    carried = Money(minorUnits: min(personal.envelopeBalance(envelope).minorUnits, (goal ?? size).minorUnits))
+                    try personal.archiveEnvelope(envelope)
+                    existing = nil
+                }
+                if let envelope = existing {
                     let due = envelope.dueDay == item.day ? envelope.nextDue
                         : try EnvelopeSchedule.firstDue(day: item.day, onOrAfter: personal.referenceDate, calendar: calendar)
                     try personal.updateEnvelope(envelope.with(name: item.name, size: size, dueDay: item.day, nextDue: due,
-                        isMandatory: item.mandatory, symbol: item.symbol, color: item.color))
+                        isMandatory: item.mandatory, symbol: item.symbol, color: item.color, target: goal))
                 } else {
                     let due = try EnvelopeSchedule.firstDue(day: item.day, onOrAfter: personal.referenceDate, calendar: calendar)
                     _ = try personal.createEnvelope(name: item.name, size: size, nextDue: due, isMandatory: item.mandatory,
-                        categoryID: item.categoryID, symbol: item.symbol, color: item.color, id: item.id)
+                        categoryID: item.categoryID, symbol: item.symbol, color: item.color,
+                        kind: item.mandatory ? .payment : .savings, target: goal,
+                        id: item.existing ? UUID() : item.id, initialFunding: carried)
                 }
             }
             settings.save()
@@ -591,9 +603,17 @@ struct PlanWizardView: View {
         let saved = UserDefaults.standard.integer(forKey: Self.incomeKey)
         if saved > 0 { incomeText = String(saved / 100) }
         items = personal.envelopes.map { envelope in
-            Item(id: envelope.id, existing: true, name: envelope.name, symbol: envelope.symbol ?? "tag.fill",
-                 color: envelope.color ?? .blue, categoryID: envelope.categoryID ?? BuiltInCategory.other.id,
-                 mandatory: envelope.isMandatory, amount: String(envelope.size.minorUnits / 100), day: envelope.dueDay, months: 1)
+            var item = Item(id: envelope.id, existing: true, name: envelope.name, symbol: envelope.symbol ?? "tag.fill",
+                            color: envelope.color ?? .blue, categoryID: envelope.categoryID ?? BuiltInCategory.other.id,
+                            mandatory: envelope.isMandatory && !envelope.isSavings, amount: MoneyText.input(envelope.size),
+                            day: envelope.dueDay, months: 1)
+            // A jar comes back with its goal and its contribution, not just one month of it.
+            if let target = envelope.target {
+                item.amount = MoneyText.input(target)
+                item.monthly = MoneyText.input(envelope.size)
+                item.byMonthly = true
+            }
+            return item
         }
     }
 }

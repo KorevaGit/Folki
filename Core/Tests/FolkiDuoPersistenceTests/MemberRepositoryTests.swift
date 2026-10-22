@@ -13,7 +13,7 @@ import FolkiDuoCore
         let directory = path(); defer { try? FileManager.default.removeItem(at: directory) }
         let author = UUID(), repo = try await BudgetRepository.open(directory: directory, localMemberID: author)
         for scope in BudgetScope.allCases { try repo.createPlan(monthlyPlan: rub(10000), available: rub(10000), asOf: now, scope: scope) }
-        for name in ["Третий", "Четвёртый", "Пятый"] { try repo.addFamilyMember(name: name, in: budget(repo, scope: .family), asOf: now) }
+        for name in ["Второй", "Третий", "Четвёртый", "Пятый"] { try repo.addFamilyMember(name: name, in: budget(repo, scope: .family), asOf: now) }
         #expect(try budget(repo, scope: .family).members.count == 5)
         #expect(throws: LedgerError.familyFull) { try repo.addFamilyMember(name: "Шестой", in: budget(repo, scope: .family), asOf: now) }
         #expect(throws: LedgerError.accessDenied) { try repo.addFamilyMember(name: "Нет", in: budget(repo), asOf: now) }
@@ -28,7 +28,7 @@ import FolkiDuoCore
         let directory = path(); defer { try? FileManager.default.removeItem(at: directory) }
         let author = UUID(), repo = try await BudgetRepository.open(directory: directory, localMemberID: author)
         try repo.createPlan(monthlyPlan: rub(1000), available: rub(1000), asOf: now)
-        for name in ["Третий", "Четвёртый", "Пятый"] { try repo.addFamilyMember(name: name, in: budget(repo, scope: .family), asOf: now) }
+        for name in ["Второй", "Третий", "Четвёртый", "Пятый"] { try repo.addFamilyMember(name: name, in: budget(repo, scope: .family), asOf: now) }
         let b = try budget(repo, scope: .family), member = try #require(b.members.first { $0.name == "Пятый" })
         let record = LedgerRecord(transaction: TransactionSnapshot(amount: rub(50), kind: .expense, date: now, authorID: author, payerID: member.id), title: "Покупка")
         try repo.save(record, in: b, expectedRevision: nil, asOf: now)

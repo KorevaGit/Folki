@@ -241,6 +241,51 @@ import FolkiDuoCore
         #expect(try repo.envelopes(scope: .personal).isEmpty)
         try repo.close()
     }
+
+    @Test func aJarKeepsItsGoalAndGrowsAcrossContributions() async throws {
+        let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
+        let jar = try repo.createEnvelope(name: "Отпуск", size: rub(5_000), dueDay: 10, nextDue: rentDue, isMandatory: false,
+            kind: .savings, target: rub(30_000), in: budget(repo), asOf: now, initialFunding: rub(12_000))
+        let reopened = repo
+        let stored = try #require(try reopened.envelopes(scope: .personal).first)
+        #expect(stored.kind == .savings && stored.target == rub(30_000) && stored.size == rub(5_000))
+        let current = try #require(try reopened.load(asOf: now, scope: .personal))
+        try reopened.fundEnvelope(jar.id, amount: rub(5_000), in: current, asOf: now)
+        let after = try DailyBudgetCalculator.calculate(try #require(try reopened.load(asOf: now, scope: .personal)).snapshot, asOf: now)
+        #expect(after.reserveBalances[jar.id] == rub(17_000))
+        #expect(throws: BudgetError.invalidPlan) {
+            try reopened.skipEnvelope(jar.id, in: try #require(try reopened.load(asOf: now, scope: .personal)), asOf: now)
+        }
+        try reopened.close()
+    }
+
+    @Test func depositSendsTheFamilyShareToTheFamilyPlan() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try await BudgetRepository.open(directory: directory, localMemberID: UUID())
+        try repo.createPlan(monthlyPlan: rub(0), available: rub(0), asOf: now, timeZone: "Europe/Moscow", scope: .personal)
+        try repo.createPlan(monthlyPlan: rub(0), available: rub(0), asOf: now, timeZone: "Europe/Moscow", scope: .family)
+        let personal = try #require(try repo.load(asOf: now, scope: .personal))
+        let family = try #require(try repo.load(asOf: now, scope: .family))
+        try repo.deposit(rub(10_000), fills: [:], familyShare: rub(3_000), in: personal, family: family, asOf: now, operationID: UUID())
+        let own = try #require(try repo.load(asOf: now, scope: .personal)), shared = try #require(try repo.load(asOf: now, scope: .family))
+        #expect(own.snapshot.monthlyFreePlan == rub(7_000))
+        #expect(shared.snapshot.monthlyFreePlan == rub(3_000))
+        let ownResult = try DailyBudgetCalculator.calculate(own.snapshot, asOf: now)
+        #expect(ownResult.periodRemaining == ownResult.periodPlan)
+        try repo.close()
+    }
+
+    @Test func aSkippedBillMovesToItsComingDateAndKeepsItsMoney() async throws {
+        let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
+        let missed = ISO8601DateFormatter().date(from: "2026-09-24T21:00:00Z")!
+        let rent = try repo.createEnvelope(name: "Аренда", size: rub(25_000), dueDay: 25, nextDue: missed,
+            isMandatory: true, in: budget(repo), asOf: now, initialFunding: rub(5_000))
+        try repo.skipEnvelope(rent.id, in: budget(repo), asOf: now)
+        #expect(try repo.envelopes(scope: .personal).first?.nextDue == rentDue)
+        #expect(try result(repo).reserveBalances[rent.id] == rub(5_000))
+        try repo.close()
+    }
 }
 
 @MainActor struct ContributionPercentTests {

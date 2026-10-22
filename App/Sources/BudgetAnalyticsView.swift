@@ -42,24 +42,19 @@ struct BudgetAnalyticsSection: View {
             if let result = try? session.analytics(period, on: baseDate) {
                 periodNavigation(result)
                 let monthPlan = period == .month ? session.overview(on: result.cutoff).result : nil
-                let insights = PeriodInsights(result: result, records: session.historyRecords, catalog: session.catalog,
-                                              snapshot: monthPlan, isMonth: period == .month)
-                if let tip = insights.tip { InsightTip(text: tip).folkiAppear(0) }
                 if period == .month, let plan = monthPlan {
                     pace(result, plan: plan).folkiAppear(1)
                 } else {
                     overview(result).folkiAppear(1)
                 }
-                changes(result).folkiAppear(2)
                 if result.recordCount == 0 {
                     ContentUnavailableView("Пока без операций", systemImage: "chart.bar.xaxis",
-                        description: Text("Здесь пока пусто — запиши первую трату 🙂"))
+                        description: Text("Запиши первую трату — здесь появится, на что уходят деньги"))
                 }
                 if result.expenses.minorUnits > 0 || result.refunds.minorUnits > 0 {
                     spendingSources(result).folkiAppear(3)
-                    if period == .month { balance(result).folkiAppear(3) }
+                    needsAndWants(result).folkiAppear(3)
                     chart(result, plan: monthPlan).budgetCard().folkiAppear(4)
-                    HabitsCard(insights: insights).folkiAppear(5)
                     categories(result, plan: monthPlan).folkiAppear(6)
                 }
                 if result.contributions.minorUnits > 0 || result.reserveTransfers.minorUnits != 0 {
@@ -73,7 +68,7 @@ struct BudgetAnalyticsSection: View {
                 }.buttonStyle(FolkiSoftButtonStyle())
             } else {
                 ContentUnavailableView("Не получилось посчитать", systemImage: "chart.bar.xaxis",
-                    description: Text("Загляни в историю и попробуй ещё раз 🙏"))
+                    description: Text("Открой историю операций и попробуй ещё раз"))
             }
         }
         .environment(\.calendar, analyticsCalendar).environment(\.timeZone, session.calendar.timeZone)
@@ -123,10 +118,10 @@ struct BudgetAnalyticsSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Из чего состоят расходы").font(.headline)
             amountRow(String(localized: "Из конвертов"), result.envelopeNetSpending)
-            amountRow(String(localized: "Повседневные"), result.flexibleNetSpending)
+            amountRow(String(localized: "На жизнь"), result.flexibleNetSpending)
             Divider()
             amountRow(String(localized: "Всего потрачено"), (try? result.netSpending) ?? result.expenses)
-            Text("С учётом возвратов. Пополнение конвертов не считается расходом. Если конверта не хватило, доплата входит в повседневные.")
+            Text("С учётом возвратов. Пополнение конвертов — не расход.")
                 .font(.footnote).foregroundStyle(.secondary)
         }.budgetCard()
     }
@@ -167,7 +162,7 @@ struct BudgetAnalyticsSection: View {
                         over: net.minorUnits > plan)
                 Text(finished ? String(localized: "Период завершён") : String(localized: "Прошло \(passed) из \(days) дней"))
                     .font(.footnote).foregroundStyle(.secondary)
-                Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, snapshot: snapshot))
+                Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, passed: passed, snapshot: snapshot))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(net.minorUnits > plan ? Color.folkiOver : Color.folkiInk)
                     .fixedSize(horizontal: false, vertical: true)
@@ -176,54 +171,18 @@ struct BudgetAnalyticsSection: View {
         }.budgetCard()
     }
 
-    private func verdict(ahead: Int64, overPlan: Int64, finished: Bool, snapshot: DailyBudgetSnapshot) -> String {
+    private func verdict(ahead: Int64, overPlan: Int64, finished: Bool, passed: Int, snapshot: DailyBudgetSnapshot) -> String {
         if overPlan > 0 { return String(localized: "План превышен на \(MoneyText.whole(Money(minorUnits: overPlan).roundedUpToWholeUnits))") }
         // Round to 100 ₽: an estimate should not look more exact than it is.
         let gap = MoneyText.whole(Money(minorUnits: abs(ahead) / 10_000 * 10_000))
-        if finished { return String(localized: "Уложился в план, осталось \(gap) 🎉") }
-        if ahead <= 0 { return String(localized: "Идёшь с запасом \(gap) — так держать 💪") }
+        if finished { return String(localized: "Период закончился, осталось \(gap)") }
+        // A few days say nothing about the pace yet.
+        if passed < 7 { return String(localized: "Темп покажу через неделю — пока мало дней") }
+        if ahead <= 0 { return String(localized: "Траты медленнее плана на \(gap)") }
         if let next = snapshot.futureAllocation {
             return String(localized: "Тратишь быстрее плана на \(gap). Дальше лучше держаться около \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день")
         }
         return String(localized: "Тратишь быстрее плана на \(gap)")
-    }
-
-    /// Categories that changed noticeably against the same stretch of the previous period.
-    @ViewBuilder private func changes(_ result: BudgetAnalyticsSnapshot) -> some View {
-        if let previous = previousComparison(result), previous.recordCount > 0 {
-            let before = Dictionary(previous.categories.map { ($0.categoryID, net($0).minorUnits) }, uniquingKeysWith: +)
-            let now = Dictionary(result.categories.map { ($0.categoryID, net($0).minorUnits) }, uniquingKeysWith: +)
-            let items = Set(before.keys).union(now.keys).compactMap { id -> (UUID, Int64, Int64)? in
-                let old = before[id] ?? 0, new = now[id] ?? 0, diff = new - old
-                // Ignore small moves: under 300 ₽ or under a fifth of the old amount.
-                guard abs(diff) >= 30_000, old == 0 || abs(diff) * 5 >= abs(old) else { return nil }
-                return (id, diff, old)
-            }.sorted { abs($0.1) > abs($1.1) }.prefix(3)
-            if !items.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Что изменилось").font(.headline)
-                    Text(period == .month ? String(localized: "По сравнению с тем же числом дней прошлого периода") : String(localized: "По сравнению с прошлой неделей на этот день"))
-                        .font(.footnote).foregroundStyle(.secondary)
-                    ForEach(Array(items), id: \.0) { id, diff, old in
-                        let category = session.catalog.category(for: id)
-                        HStack(spacing: 12) {
-                            CategoryIcon(category: category, size: 32)
-                            Text(category.name).font(.subheadline)
-                            Spacer(minLength: 8)
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text((diff > 0 ? "+" : "−") + MoneyText.whole(Money(minorUnits: abs(diff)).roundedDownToWholeUnits))
-                                    .font(.subheadline.weight(.semibold)).monospacedDigit()
-                                    .foregroundStyle(diff > 0 ? Color.budget(.personal) : Color.budget(.family))
-                                if old > 0 {
-                                    Text("\(diff > 0 ? "+" : "−")\(Int((Double(abs(diff)) / Double(old) * 100).rounded()))%")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }.budgetCard()
-            }
-        }
     }
 
     private func amountRow(_ title: String, _ amount: Money) -> some View {
@@ -315,47 +274,16 @@ struct BudgetAnalyticsSection: View {
     private func net(_ item: CategorySpending) -> Money {
         (try? item.expenses.subtracting(item.refunds)) ?? item.expenses
     }
-    private func previousComparison(_ result: BudgetAnalyticsSnapshot) -> BudgetAnalyticsSnapshot? {
-        if period == .month {
-            guard let previous = session.periods.last(where: { $0.start < result.interval.start }) else { return nil }
-            let elapsedDays = analyticsCalendar.dateComponents([.day], from: analyticsCalendar.startOfDay(for: result.interval.start),
-                to: analyticsCalendar.startOfDay(for: result.cutoff)).day ?? 0
-            let endDay = analyticsCalendar.date(byAdding: .day, value: elapsedDays + 1,
-                to: analyticsCalendar.startOfDay(for: previous.start)) ?? previous.endExclusive
-            let cutoff = min(endDay, previous.endExclusive).addingTimeInterval(-0.001)
-            return try? session.analytics(.month, on: previous.start, through: cutoff)
-        }
-        guard let previous = analyticsCalendar.date(byAdding: component, value: -1, to: result.cutoff) else { return nil }
-        return try? session.analytics(period, on: previous, through: previous)
-    }
-    private func previousMonths(before result: BudgetAnalyticsSnapshot) -> [UUID: [Money]] {
-        var history: [UUID: [Money]] = [:]
-        for period in session.periods.filter({ $0.endExclusive <= result.interval.start }).suffix(3) {
-            guard let past = try? session.analytics(.month, on: period.start) else { continue }
-            for item in past.everydayCategories { history[item.categoryID, default: []].append(net(item)) }
-        }
-        return history
-    }
-
     private func categories(_ result: BudgetAnalyticsSnapshot, plan: DailyBudgetSnapshot?) -> some View {
         let source = showsEnvelopeSpending ? result.envelopeCategories : result.everydayCategories
         let sorted = source.sorted { net($0).minorUnits > net($1).minorUnits }
         let positiveTotal = sorted.reduce(Int64(0)) { $0 + max(0, net($1).minorUnits) }
         let items = showsAllCategories ? sorted : Array(sorted.prefix(5))
-        // Monthly hints only: a week is too short to compare with a monthly amount.
-        let history = plan == nil || showsEnvelopeSpending ? [:] : previousMonths(before: result)
-        let hint: (UUID) -> Money? = { id in
-            guard !showsEnvelopeSpending, let plan else { return nil }
-            return CategoryPlanStore.hint(for: id, scope: session.scope, plan: plan.monthlyPlan, history: history[id] ?? [])
-        }
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("На что ушли деньги").font(.headline)
                 FolkiSegmentedPicker(title: String(localized: "Источник расходов"), selection: $showsEnvelopeSpending,
-                    options: [(String(localized: "Повседневные"), false), (String(localized: "Конверты"), true)])
-                if plan != nil && !showsEnvelopeSpending {
-                    Text("Рядом — подсказка, сколько примерно стоит закладывать в период 💡").font(.footnote).foregroundStyle(.secondary)
-                }
+                    options: [(String(localized: "На жизнь"), false), (String(localized: "Конверты"), true)])
             }
             if items.isEmpty {
                 Text("В этой группе пока нет расходов").font(.subheadline).foregroundStyle(.secondary)
@@ -367,28 +295,15 @@ struct BudgetAnalyticsSection: View {
                     let layout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                         : AnyLayout(HStackLayout(spacing: 12))
-                    let limit = hint(item.categoryID)
-                    let over = limit.map { amount.minorUnits > $0.minorUnits } ?? false
                     layout {
                         Label { Text(category.name) } icon: { CategoryIcon(category: category, size: 32) }
                         if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
                             Text(MoneyText.whole(amount)).fontWeight(.semibold).monospacedDigit()
-                                .foregroundStyle(over ? Color.budget(.personal) : Color.folkiInk)
-                            if let limit {
-                                Text("/ ~\(MoneyText.whole(limit))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                            }
+                                .foregroundStyle(Color.folkiInk)
                         }.lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
                     }.font(.subheadline).frame(minHeight: 44)
-                    if let limit, limit.minorUnits > 0 {
-                        // Against the hint: fills up as the month goes, warm when above it.
-                        ProgressView(value: min(1, Double(max(0, amount.minorUnits)) / Double(limit.minorUnits)))
-                            .tint(over ? Color.budget(.personal) : category.color.color)
-                        if over {
-                            Text("Больше подсказки на \(MoneyText.whole(Money(minorUnits: amount.minorUnits - limit.minorUnits).roundedUpToWholeUnits)) — без паники, просто на заметку 🙂")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    } else if positiveTotal > 0 {
+                    if positiveTotal > 0 {
                         ProgressView(value: Double(max(0, amount.minorUnits)) / Double(positiveTotal))
                             .tint(category.color.color)
                     }
@@ -405,50 +320,23 @@ struct BudgetAnalyticsSection: View {
         }.budgetCard()
     }
 
-    /// The beginner's 50/30/20 frame: needs, wants and money put aside, as shares of this month's money.
-    /// Counted from what was actually spent and saved, so it works without recording income.
-    @ViewBuilder private func balance(_ result: BudgetAnalyticsSnapshot) -> some View {
-        let needs = max(0, result.essentialSpending.minorUnits)
-        let wants = max(0, result.wantsSpending.minorUnits)
-        let saved = max(0, result.reserveTransfers.minorUnits)
-        let total = needs + wants + saved
-        if total > 0 {
-            let parts: [(String, String, Int64, Int, Color)] = [
-                (String(localized: "Обязательное"), String(localized: "жильё, еда, транспорт"), needs, 50, Color.budget(.family)),
-                (String(localized: "Желания"), String(localized: "кафе, покупки, развлечения"), wants, 30, Color.budget(.personal)),
-                (String(localized: "Отложено"), String(localized: "в накопления"), saved, 20, Color.folkiAccent)]
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Баланс периода").font(.headline)
-                    Text("Ориентир: 50% на обязательное, 30% на желания, 20% в копилку 🐷")
-                        .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                ForEach(parts, id: \.0) { title, hint, amount, target, color in
-                    let share = Int((Double(amount) / Double(total) * 100).rounded())
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(title).font(.subheadline.weight(.semibold))
-                            Text(hint).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            Spacer(minLength: 8)
-                            Text("\(share)%").font(.subheadline.weight(.bold)).monospacedDigit()
-                            Text("/ \(target)%").font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        ShareBar(share: Double(share) / 100, target: Double(target) / 100, color: color)
+    /// Needs against wants, as shares of what was spent. No target to measure against.
+    @ViewBuilder private func needsAndWants(_ result: BudgetAnalyticsSnapshot) -> some View {
+        let needs = max(0, result.essentialSpending.minorUnits), wants = max(0, result.wantsSpending.minorUnits)
+        if needs + wants > 0 {
+            let share = Double(needs) / Double(needs + wants)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Обязательные и желания").font(.headline)
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        Capsule().fill(Color.folkiAccent).frame(width: max(0, (geo.size.width - 2) * share))
+                        Capsule().fill(Color.secondary.opacity(0.35))
                     }
-                    .accessibilityElement(children: .combine)
-                }
-                Text(balanceAdvice(needs: needs, wants: wants, saved: saved, total: total))
-                    .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                }.frame(height: 8).accessibilityHidden(true)
+                Text("Обязательные \(Int((share * 100).rounded()))% · желания \(100 - Int((share * 100).rounded()))%")
+                    .font(.subheadline).monospacedDigit()
             }.budgetCard()
         }
-    }
-
-    private func balanceAdvice(needs: Int64, wants: Int64, saved: Int64, total: Int64) -> String {
-        let wantsShare = Double(wants) / Double(total), savedShare = Double(saved) / Double(total)
-        if saved == 0 { return String(localized: "Пока ничего не отложено. Начни с малого — даже 5% уже привычка 🌱") }
-        if wantsShare > 0.35 { return String(localized: "Желаний больше ориентира — не страшно, просто держи в голове 😉") }
-        if savedShare >= 0.2 { return String(localized: "Откладываешь 20% и больше — огонь 🔥") }
-        return String(localized: "Хороший баланс 👍 Если получится, откладывай чуть больше.")
     }
 
     private func transfers(_ result: BudgetAnalyticsSnapshot) -> some View {
@@ -468,7 +356,7 @@ struct BudgetAnalyticsSection: View {
                     amountRow(session.memberName(item.memberID), item.amount)
                 }
             }
-            Text("Это не траты — деньги остаются в семье 💚").font(.footnote).foregroundStyle(.secondary)
+            Text("Это не траты: деньги остаются в семье").font(.footnote).foregroundStyle(.secondary)
         }.budgetCard()
     }
 }
@@ -495,24 +383,6 @@ private struct PaceBar: View {
         .accessibilityElement()
         .accessibilityLabel("Потрачено \(Int((spent * 100).rounded())) процентов плана")
         .accessibilityValue(expected.map { String(localized: "К сегодняшнему дню по плану \(Int(($0 * 100).rounded())) процентов") } ?? "")
-    }
-}
-
-/// A share with a mark at the 50/30/20 guide.
-private struct ShareBar: View {
-    let share: Double
-    let target: Double
-    let color: Color
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(color.opacity(0.15))
-                Capsule().fill(color).frame(width: max(8, geo.size.width * min(1, share)))
-                RoundedRectangle(cornerRadius: 1).fill(Color.folkiInk.opacity(0.6))
-                    .frame(width: 2, height: geo.size.height + 6)
-                    .offset(x: geo.size.width * target - 1)
-            }
-        }.frame(height: 8).padding(.vertical, 3).accessibilityHidden(true)
     }
 }
 

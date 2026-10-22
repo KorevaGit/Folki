@@ -26,7 +26,7 @@ struct SeparatedBudgetTests {
         let personal = try create(repo, scope: .personal, amount: 30000)
         let family = try create(repo, scope: .family, amount: 120000)
         #expect(personal.members.count == 1)
-        #expect(family.members.count == 2)
+        #expect(family.members.count == 1)
         #expect(personal.snapshot.id != family.snapshot.id)
         try repo.save(entry(personal, author: author, amount: 1000), in: personal, expectedRevision: nil, asOf: now)
         try repo.save(entry(family, author: author, amount: 2330), in: family, expectedRevision: nil, asOf: now)
@@ -66,7 +66,8 @@ struct SeparatedBudgetTests {
                 if let children = object.value(forKey: relationship.name) as? Set<NSManagedObject> { queue.append(contentsOf: children) }
             }
         }
-        #expect(visited.count >= 4)
+        // Household, the member and the period at least.
+        #expect(visited.count >= 3)
         let forged = StoredBudget(snapshot: personal.snapshot, periodID: personal.periodID,
             members: personal.members, records: personal.records, scope: .family)
         #expect(throws: LedgerError.accessDenied) {

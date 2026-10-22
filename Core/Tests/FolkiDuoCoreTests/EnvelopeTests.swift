@@ -76,7 +76,7 @@ struct EnvelopeTests {
         #expect(calm.fills.isEmpty)
     }
 
-    @Test func incomeFillsDueEnvelopesProportionally() throws {
+    @Test func incomeFillsDueEnvelopesNearestFirst() throws {
         let rent = try envelope("Аренда", size: 25_000, day: 25, due: "2026-10-24T21:00:00Z")
         let internet = try envelope("Интернет", size: 800, day: 15, due: "2026-11-14T21:00:00Z")
         let later = try envelope("Страховка", size: 9_000, day: 1, due: "2026-12-01T21:00:00Z")
@@ -88,8 +88,49 @@ struct EnvelopeTests {
 
         let short = try EnvelopeDistributor.distribute(incoming: rub(10_000), envelopes: [internet, rent],
             balances: [:], periodEnd: periodEnd)
-        #expect(short.fills == [rent.id: Money(minorUnits: 968_992), internet.id: Money(minorUnits: 31_008)])
+        // Not enough for both: rent on the 25th comes before internet on the 15th of next month.
+        #expect(short.fills == [rent.id: rub(10_000)])
         #expect(short.living == rub(0))
+    }
+
+    @Test func mandatoryPaymentsComeBeforeOptionalOnesAndJarsComeLast() throws {
+        let end = date("2026-11-19T21:00:00Z")
+        let gym = try envelope("Спортзал", size: 3_000, day: 23, due: "2026-10-22T21:00:00Z", mandatory: false)
+        let rent = try envelope("Аренда", size: 20_000, day: 5, due: "2026-11-04T21:00:00Z")
+        let trip = try RecurringEnvelope(name: "Отпуск", size: rub(5_000), dueDay: 10, nextDue: date("2026-11-09T21:00:00Z"),
+                                         isMandatory: false, kind: .savings, target: rub(60_000))
+        let tight = try EnvelopeDistributor.distribute(incoming: rub(22_000), envelopes: [trip, gym, rent], balances: [:], periodEnd: end)
+        #expect(tight.fills == [rent.id: rub(20_000), gym.id: rub(2_000)])
+        let plenty = try EnvelopeDistributor.distribute(incoming: rub(40_000), envelopes: [trip, gym, rent], balances: [:], periodEnd: end)
+        #expect(plenty.fills == [rent.id: rub(20_000), gym.id: rub(3_000), trip.id: rub(5_000)])
+    }
+
+    @Test func aJarGrowsOneContributionAtATimeUpToItsGoal() throws {
+        let end = date("2026-11-19T21:00:00Z")
+        let cushion = try RecurringEnvelope(name: "Подушка", size: rub(10_000), dueDay: 1, nextDue: date("2026-10-31T21:00:00Z"),
+                                            isMandatory: false, kind: .savings, target: rub(25_000))
+        // Unlike a bill, a jar keeps collecting after one contribution.
+        #expect(try cushion.shortfall(balance: rub(10_000)) == rub(10_000))
+        #expect(try cushion.shortfall(balance: rub(20_000)) == rub(5_000))
+        #expect(try cushion.shortfall(balance: rub(25_000)) == rub(0))
+        let split = try EnvelopeDistributor.distribute(incoming: rub(50_000), envelopes: [cushion],
+            balances: [cushion.id: rub(20_000)], periodEnd: end)
+        #expect(split.fills[cushion.id] == rub(5_000))
+        // No date to miss: calm until full, never red.
+        let now = date("2026-11-05T09:00:00Z")
+        #expect(try EnvelopeSchedule.urgency(of: cushion, balance: rub(0), now: now, calendar: calendar) == .calm)
+        #expect(try EnvelopeSchedule.urgency(of: cushion, balance: rub(25_000), now: now, calendar: calendar) == .funded)
+        #expect(throws: BudgetError.invalidAmount) {
+            try RecurringEnvelope(name: "Без цели", size: rub(1_000), dueDay: 1, nextDue: now, isMandatory: false, kind: .savings)
+        }
+    }
+
+    @Test func aLatePaymentMovesToItsComingDate() throws {
+        let missed = date("2026-08-24T21:00:00Z")
+        #expect(try EnvelopeSchedule.nextDue(after: missed, day: 25, notBefore: date("2026-10-21T09:00:00Z"), calendar: calendar)
+                == date("2026-10-24T21:00:00Z"))
+        #expect(try EnvelopeSchedule.nextDue(after: missed, day: 25, notBefore: date("2026-10-26T09:00:00Z"), calendar: calendar)
+                == date("2026-11-24T21:00:00Z"))
     }
 
     @Test func shortIncomeKeepsDailyLivingAndDoesNotDependOnCreationOrder() throws {
@@ -153,5 +194,10 @@ struct EnvelopeTests {
         #expect(try ContributionAdvisor.suggestion(topUp: rub(100_000), percent: 30, urgentFamilyShortfalls: [rub(15_000)]) == rub(45_000))
         #expect(try ContributionAdvisor.suggestion(topUp: rub(10_000), percent: 30, urgentFamilyShortfalls: [rub(15_000)]) == rub(10_000))
         #expect(throws: BudgetError.invalidAmount) { try ContributionAdvisor.suggestion(topUp: rub(1), percent: 120, urgentFamilyShortfalls: []) }
+        // Personal bills first: 30% of what 100 000 leaves after 40 000 of mandatory payments.
+        #expect(try ContributionAdvisor.suggestion(topUp: rub(100_000), percent: 30, urgentFamilyShortfalls: [],
+                                                   personalObligations: rub(40_000)) == rub(18_000))
+        #expect(try ContributionAdvisor.suggestion(topUp: rub(30_000), percent: 30, urgentFamilyShortfalls: [rub(15_000)],
+                                                   personalObligations: rub(40_000)) == rub(0))
     }
 }

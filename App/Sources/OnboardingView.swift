@@ -128,9 +128,9 @@ private struct HelloPage: View {
             VStack(spacing: FolkiSpacing.large) {
                 AnimatedHouse().frame(width: 220, height: 220)
                 VStack(spacing: FolkiSpacing.item) {
-                    Text("Привет! Я Folki 👋")
+                    Text("Привет! Я Folki")
                         .font(.largeTitle.bold()).rise(8)
-                    Text("Твой помощник с финансами")
+                    Text("Ты тратишь, я считаю. Каждый день покажу, сколько ещё можно")
                         .font(.body).foregroundStyle(.secondary).rise(9)
                 }.multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             }.padding(.bottom, FolkiSpacing.huge)
@@ -248,7 +248,7 @@ private struct BudgetStartPage: View {
                 .padding(.top, FolkiSpacing.large)
                 // The first money is only for everyday spending; regular bills come with the plan.
                 Label {
-                    Text("Это деньги на повседневные траты. Аренду, связь и подписки я пока не учитываю — для них есть финансовый план, настроишь когда захочешь")
+                    Text("Аренду и подписки учту позже, во вкладке «План»")
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: { Image(systemName: "info.circle").foregroundStyle(Color.folkiAccent) }
                 .font(.footnote).foregroundStyle(.secondary).padding(.top, FolkiSpacing.item)
@@ -297,7 +297,7 @@ private struct FeaturesPage: View {
                 row(RingsDemo(), "Общее и личное",
                     invited ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
                         : String(localized: "Семья видит общее, твоё — только ты")).rise(2)
-                row(EnvelopesDemo(), "Финансовый план — когда будешь готов", String(localized: "Учту аренду и подписки, напомню о платежах. Вкладка «План»")).rise(3)
+                row(EnvelopesDemo(), "Финансовый план — когда захочется", String(localized: "Учту аренду и подписки, напомню о платежах. Вкладка «План»")).rise(3)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
         } actions: {
             Button("Перейти к Folki") { FolkiFeedback.saved(); done() }

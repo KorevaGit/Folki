@@ -27,12 +27,12 @@ struct SharingView: View {
                             editingMember = member; editedName = session.memberName(member.id)
                         } label: { HStack(spacing: 12) { MemberAvatar(name: member.name); Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(.secondary) } }
                         if member.id != session.authorID {
-                            Button("Убрать \(member.name) из семьи", role: .destructive) {
+                            Button("Убрать \(session.memberName(member.id)) из семьи", role: .destructive) {
                                 removingMember = member
                             }.font(.caption)
                         }
                     }
-                    Text("Ты можешь позвать до 4 близких 🏡 Личные бюджеты у каждого свои.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Можно позвать до четырёх близких. Личный бюджет у каждого свой.").font(.footnote).foregroundStyle(.secondary)
                 }
                 if session.household == nil {
                     Section {
@@ -52,15 +52,15 @@ struct SharingView: View {
                                 Task {
                                     defer { preparing = false }
                                     do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
-                                    catch { errorMessage = String(localized: "Не получилось 😕 Проверь Apple ID и попробуй ещё раз.") }
+                                    catch { errorMessage = String(localized: "Не получилось. Проверь Apple ID и попробуй ещё раз.") }
                                 }
                             }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
                             if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
-                            Text("Отправь ссылку — человек откроет её и сразу окажется в вашем бюджете 💌").font(.footnote).foregroundStyle(.secondary)
+                            Text("Отправь ссылку: человек откроет её и сразу окажется в вашем бюджете").font(.footnote).foregroundStyle(.secondary)
                         } else {
                             Button("Добавить для учёта") {
                                 do { try session.addMember(name: name); name = "" }
-                                catch { errorMessage = String(localized: "В семье уже 5 человек — это максимум 🙂") }
+                                catch { errorMessage = String(localized: "В семье уже пять человек — это максимум") }
                             }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
                             Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
                         }
@@ -73,7 +73,7 @@ struct SharingView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } } }
             .confirmationDialog("Убрать участника? Его записи сохранятся, облачный доступ будет отозван.", isPresented: Binding(get: { removingMember != nil }, set: { if !$0 { removingMember = nil } }), titleVisibility: .visible) {
                 if let member = removingMember {
-                    Button("Убрать \(member.name)", role: .destructive) {
+                    Button("Убрать \(session.memberName(member.id))", role: .destructive) {
                         guard let repository = session.repository, let budget = session.storedBudget else { return }
                         Task {
                             do { try await repository.removeFamilyMember(member, in: budget, asOf: session.referenceDate); session.refresh() }

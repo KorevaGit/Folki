@@ -1,142 +1,281 @@
 {
-  "sourceLanguage": "ru",
-  "strings": {
-    "Записать трату": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Log an expense"
+  "sourceLanguage" : "ru",
+  "strings" : {
+    "%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
           }
         }
       }
     },
-    "Открывает Folki сразу на вводе траты": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Folki straight on a new expense"
+    "Folki: %@ сверх дня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki: %@ over today"
           }
         }
       }
     },
-    "Сегодня можно": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Available today"
+    "Folki: %@ сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki: %@ today"
           }
         }
       }
     },
-    "Сколько ещё можно потратить сегодня": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How much you can still spend today"
+    "Аренда" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rent"
           }
         }
       }
     },
-    "Открой Folki": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Folki"
+    "Будущий день" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Future day"
           }
         }
       }
     },
-    "Folki: %@ сверх дня": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folki: %@ over today"
+    "Бюджет не задан" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No budget yet"
           }
         }
       }
     },
-    "Folki: %@ сегодня": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folki: %@ today"
+    "Записать трату" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log an expense"
           }
         }
       }
     },
-    "Сверх дня": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Over today"
+    "Личное" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal"
           }
         }
       }
     },
-    "Семья ≈ %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Family ≈ %@"
+    "Личное и семья" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal and family"
           }
         }
       }
     },
-    "− Потратить": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "− Spend"
+    "Личное: %@. Семейный бюджет не задан." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal: %@. No family budget yet."
           }
         }
       }
     },
-    "₽": {
-      "shouldTranslate": false
-    },
-    "Открой Folki, чтобы задать бюджет": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Folki to set a budget"
+    "Личное: %@. Семья: %@." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$@. Семья: %2$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal: %@. Family: %@."
           }
         }
       }
     },
-    "Открывает Folki на вводе траты": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opens Folki on a new expense"
+    "Личное: %lld процентов. Семья: %lld процентов." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$lld процентов. Семья: %2$lld процентов."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal: %lld percent. Family: %lld percent."
           }
         }
       }
     },
-    "Сегодня": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Today"
+    "Открой Folki" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Folki"
           }
         }
       }
     },
-    "≈ %@": {
-      "shouldTranslate": false
+    "Открой Folki, чтобы задать бюджет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Folki to set a budget"
+          }
+        }
+      }
+    },
+    "Открывает Folki на вводе траты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens Folki on a new expense"
+          }
+        }
+      }
+    },
+    "Открывает Folki сразу на вводе траты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens Folki straight on a new expense"
+          }
+        }
+      }
+    },
+    "Сверх дня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over today"
+          }
+        }
+      }
+    },
+    "Сверх дня: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over today: %@"
+          }
+        }
+      }
+    },
+    "Сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "Сегодня можно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available today"
+          }
+        }
+      }
+    },
+    "Сегодня можно: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available today: %@"
+          }
+        }
+      }
+    },
+    "Семья" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family"
+          }
+        }
+      }
+    },
+    "Семья ≈ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family ≈ %@"
+          }
+        }
+      }
+    },
+    "Сколько ещё можно потратить сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much you can still spend today"
+          }
+        }
+      }
+    },
+    "личное" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "personal"
+          }
+        }
+      }
+    },
+    "− Потратить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "− Spend"
+          }
+        }
+      }
+    },
+    "≈ %@" : {
+      "shouldTranslate" : false
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

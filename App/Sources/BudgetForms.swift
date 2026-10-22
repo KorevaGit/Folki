@@ -72,7 +72,7 @@ struct ExpenseEditorView: View {
                         }
                     }
                     LabeledContent("Бюджет", value: session.scope.title)
-                    Picker(kind == "expense" ? String(localized: "Оплатил") : String(localized: "Получил"), selection: $payerID) {
+                    Picker(kind == "expense" ? String(localized: "Кто платил") : String(localized: "Кому пришло"), selection: $payerID) {
                         ForEach(session.members.filter { $0.isActive || $0.id == editing?.transaction.payerID }) { Text(session.memberName($0.id)).tag($0.id) }
                     }
                     if let budget = editingBudget {
@@ -95,7 +95,7 @@ struct ExpenseEditorView: View {
                         ImpactLines(before: before, after: impact).frame(maxWidth: .infinity)
                     }
                 } else if !amount.isEmpty && impact == nil {
-                    Text("Что-то не сходится — проверь сумму и дату 🙏").foregroundStyle(.secondary)
+                    Text("Что-то не сходится: проверь сумму и дату").foregroundStyle(.secondary)
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 if let editing, session.isEditable(editing), !editing.transaction.isDeleted {

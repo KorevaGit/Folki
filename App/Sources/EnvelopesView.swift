@@ -24,10 +24,17 @@ struct EnvelopesSection: View {
             if session.envelopes.isEmpty {
                 empty
             } else {
-                summary.padding(.bottom, FolkiSpacing.xs)
+                if !session.payments.isEmpty { summary.padding(.bottom, FolkiSpacing.xs) }
                 ForEach(sorted) { envelope in
                     NavigationLink(value: envelope) { EnvelopeCard(session: session, envelope: envelope) }
                         .buttonStyle(FolkiPressStyle(scale: 0.98))
+                }
+                if !session.jars.isEmpty {
+                    Text("Копилки").font(.headline).padding(.top, FolkiSpacing.xs)
+                    ForEach(session.jars) { jar in
+                        NavigationLink(value: jar) { EnvelopeCard(session: session, envelope: jar) }
+                            .buttonStyle(FolkiPressStyle(scale: 0.98))
+                    }
                 }
                 Button { creating = true } label: {
                     Label("Добавить конверт", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 44)
@@ -38,18 +45,18 @@ struct EnvelopesSection: View {
 
     /// Short envelopes first by date; full ones sink to the bottom.
     private var sorted: [RecurringEnvelope] {
-        session.envelopes.sorted { lhs, rhs in
+        session.payments.sorted { lhs, rhs in
             let left = session.envelopeUrgency(lhs) == .funded, right = session.envelopeUrgency(rhs) == .funded
             return left != right ? !left : lhs.nextDue < rhs.nextDue
         }
     }
 
     private var summary: some View {
-        let saved = session.envelopes.reduce(Int64(0)) { $0 + min(session.envelopeBalance($1).minorUnits, $1.size.minorUnits) }
-        let total = session.envelopes.reduce(Int64(0)) { $0 + $1.size.minorUnits }
-        let missing = session.envelopes.filter(\.isMandatory)
+        let saved = session.payments.reduce(Int64(0)) { $0 + min(session.envelopeBalance($1).minorUnits, $1.size.minorUnits) }
+        let total = session.payments.reduce(Int64(0)) { $0 + $1.size.minorUnits }
+        let missing = session.payments.filter(\.isMandatory)
             .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: session.envelopeBalance($1)).minorUnits) ?? 0) }
-        let worst = session.envelopes.map(session.envelopeUrgency).max() ?? .funded
+        let worst = session.payments.map(session.envelopeUrgency).max() ?? .funded
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("Отложено").font(.body).foregroundStyle(.secondary)
@@ -176,10 +183,11 @@ private struct EnvelopeCard: View {
                         Text(MoneyText.whole(balance)).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
                             .foregroundStyle(Color.folkiInk)
                     }
-                    Text("из \(MoneyText.whole(envelope.size))").font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+                    Text("из \(MoneyText.whole(envelope.capacity))").font(.footnote).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
-            ProgressBar(fraction: Double(balance.minorUnits) / Double(envelope.size.minorUnits), color: urgency.color)
+            ProgressBar(fraction: Double(balance.minorUnits) / Double(envelope.capacity.minorUnits),
+                        color: envelope.isSavings && urgency != .funded ? Color.folkiAccent : urgency.color)
         }
         .padding(FolkiSpacing.card)
         .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
@@ -188,6 +196,7 @@ private struct EnvelopeCard: View {
 }
 
 @MainActor private func dueText(_ envelope: RecurringEnvelope, session: BudgetSession) -> String {
+    if envelope.isSavings { return String(localized: "Копилка · по \(MoneyText.whole(envelope.size)) с поступления") }
     let date = envelope.nextDue.formatted(.dateTime.day().month(.abbreviated))
     let days = session.daysUntil(envelope)
     switch days {
@@ -208,7 +217,8 @@ struct EnvelopeDetailView: View {
     @State private var paidCheck = false
     @State private var askNewSize: Money?
     @State private var errorMessage: String?
-    enum Sheet: String, Identifiable { case fund, pay, edit; var id: String { rawValue } }
+    @State private var confirmingDelete = false
+    enum Sheet: String, Identifiable { case fund, pay, spend, edit; var id: String { rawValue } }
     private var envelope: RecurringEnvelope? { session.envelopes.first { $0.id == envelopeID } }
 
     var body: some View {
@@ -219,14 +229,14 @@ struct EnvelopeDetailView: View {
                 VStack(spacing: FolkiSpacing.section) {
                     ZStack {
                         Circle().stroke(Color.folkiSoft, lineWidth: 16)
-                        Circle().trim(from: 0, to: Double(balance.minorUnits) / Double(envelope.size.minorUnits))
+                        Circle().trim(from: 0, to: Double(balance.minorUnits) / Double(envelope.capacity.minorUnits))
                             .stroke(urgency.color, style: StrokeStyle(lineWidth: 16, lineCap: .round)).rotationEffect(.degrees(-90))
                             .animation(FolkiMotion.ring, value: balance)
                         VStack(spacing: 2) {
                             Text(MoneyText.whole(balance)).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(0.5)
                                 .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
-                            Text("из \(MoneyText.whole(envelope.size))").font(.subheadline).foregroundStyle(.secondary)
+                            Text("из \(MoneyText.whole(envelope.capacity))").font(.subheadline).foregroundStyle(.secondary)
                                 .lineLimit(1).minimumScaleFactor(0.7)
                         }.padding(.horizontal, 28)
                         if paidCheck {
@@ -237,11 +247,17 @@ struct EnvelopeDetailView: View {
                     VStack(spacing: FolkiSpacing.xxs) {
                         EnvelopeIcon(session: session, envelope: envelope, size: 44).padding(.bottom, FolkiSpacing.xs)
                         Text(envelope.name).font(.title2.weight(.semibold))
-                        Text("Каждый месяц, \(envelope.dueDay)-го · \(dueText(envelope, session: session))")
+                        Text(envelope.isSavings ? dueText(envelope, session: session)
+                             : String(localized: "Каждый месяц, \(envelope.dueDay)-го · \(dueText(envelope, session: session))"))
                             .font(.subheadline).foregroundStyle(.secondary)
-                        if !envelope.isMandatory { Text("Необязательный").font(.footnote).foregroundStyle(.tertiary) }
+                        if !envelope.isMandatory && !envelope.isSavings { Text("Необязательный").font(.footnote).foregroundStyle(.tertiary) }
                     }.multilineTextAlignment(.center)
                     actions
+                    if !envelope.isSavings && session.daysUntil(envelope) < 0 {
+                        // A missed bill does not stay red forever.
+                        Button("Не платил — перенести на следующий раз", systemImage: "calendar.badge.clock") { skip(envelope) }
+                            .buttonStyle(FolkiSoftButtonStyle())
+                    }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                     history(envelope)
                 }.folkiPagePadding()
@@ -253,7 +269,7 @@ struct EnvelopeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Изменить", systemImage: "pencil") { sheet = .edit }
-                    Button("Удалить конверт", systemImage: "trash", role: .destructive, action: archive)
+                    Button("Удалить конверт", systemImage: "trash", role: .destructive) { confirmingDelete = true }
                 } label: { Image(systemName: "ellipsis") }.accessibilityLabel("Ещё")
             }
         }
@@ -262,13 +278,22 @@ struct EnvelopeDetailView: View {
                 switch kind {
                 case .fund: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .fund) { _ in }
                 case .pay: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .pay) { paid in afterPayment(paid, envelope) }
+                case .spend: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .spend) { _ in }
                 case .edit: EnvelopeEditorView(session: session, editing: envelope)
                 }
             }
         }
+        .confirmationDialog("Удалить конверт?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Удалить", role: .destructive, action: archive)
+        } message: {
+            Text("Деньги из него вернутся на жизнь, история сохранится")
+        }
         .alert("Сделать новым размером?", isPresented: Binding(get: { askNewSize != nil }, set: { if !$0 { askNewSize = nil } })) {
             Button("Да") {
-                if let size = askNewSize, let envelope, let updated = try? envelope.with(size: size) { try? session.updateEnvelope(updated) }
+                if let size = askNewSize, let envelope {
+                    do { try session.updateEnvelope(envelope.with(size: size)) }
+                    catch { errorMessage = String(localized: "Не получилось сохранить новый размер. Попробуй ещё раз.") }
+                }
                 askNewSize = nil
             }
             Button("Только сейчас", role: .cancel) { askNewSize = nil }
@@ -282,8 +307,8 @@ struct EnvelopeDetailView: View {
             ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
         return GlassEffectContainer(spacing: 12) {
             layout {
-                Button { sheet = .pay } label: {
-                    Text("Оплачено")
+                Button { sheet = envelope?.isSavings == true ? .spend : .pay } label: {
+                    Text(envelope?.isSavings == true ? String(localized: "Потратить") : String(localized: "Оплачено"))
                         .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
                         .foregroundStyle(.white)
                         .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
@@ -315,7 +340,7 @@ struct EnvelopeDetailView: View {
                     let paid = record.transaction.kind == .expense
                     let released = record.transaction.kind == .reserveRelease
                     HStack {
-                        Text(paid ? "Оплачено" : released ? "Вернулось на жизнь" : "Пополнение").font(.body)
+                        Text(paid ? (envelope.isSavings ? "Потрачено" : "Оплачено") : released ? "Вернулось на жизнь" : "Пополнение").font(.body)
                         Spacer()
                         Text("\(paid || released ? "−" : "+")\(MoneyText.whole(record.transaction.amount))")
                             .font(.system(.body, design: .rounded)).monospacedDigit()
@@ -337,6 +362,11 @@ struct EnvelopeDetailView: View {
         }
     }
 
+    private func skip(_ envelope: RecurringEnvelope) {
+        do { try session.skipEnvelope(envelope); errorMessage = nil }
+        catch { errorMessage = String(localized: "Не получилось перенести платёж. Попробуй ещё раз.") }
+    }
+
     private func archive() {
         guard let envelope else { return }
         do { try session.archiveEnvelope(envelope); dismiss() }
@@ -346,7 +376,7 @@ struct EnvelopeDetailView: View {
 
 /// Amount sheet for "Пополнить" (from living money) and "Оплачено" (the real bill).
 private struct EnvelopeAmountSheet: View {
-    enum Mode { case fund, pay }
+    enum Mode { case fund, pay, spend }
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
     let envelope: RecurringEnvelope
@@ -360,7 +390,8 @@ private struct EnvelopeAmountSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: FolkiSpacing.page) {
-                Text(mode == .pay ? "Сколько заплатил за «\(envelope.name)»?" : "Сколько положить в «\(envelope.name)»?")
+                Text(mode == .pay ? "Сколько ушло на «\(envelope.name)»?" : mode == .spend ? "Сколько взять из «\(envelope.name)»?"
+                     : "Сколько положить в «\(envelope.name)»?")
                     .font(.headline).multilineTextAlignment(.center)
                 Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
                     .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
@@ -370,7 +401,7 @@ private struct EnvelopeAmountSheet: View {
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 Spacer(minLength: 0)
                 AmountKeypad(text: $amount)
-                Button(mode == .pay ? "Оплачено" : "Положить", action: save)
+                Button(mode == .pay ? "Оплачено" : mode == .spend ? "Потратить" : "Положить", action: save)
                     .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             }
             .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs).padding(.top, FolkiSpacing.page)
@@ -379,7 +410,11 @@ private struct EnvelopeAmountSheet: View {
         .onAppear {
             let need = (try? envelope.shortfall(balance: session.envelopeBalance(envelope))) ?? envelope.size
             let free = session.result?.monthlyRemaining.nonnegative ?? Money(minorUnits: 0)
-            let start = mode == .pay ? envelope.size : Money(minorUnits: min(need.minorUnits, free.minorUnits))
+            let start = switch mode {
+            case .pay: envelope.size
+            case .spend: Money(minorUnits: 0)
+            case .fund: Money(minorUnits: min(need.minorUnits, free.minorUnits))
+            }
             amount = start.minorUnits > 0 ? MoneyText.input(start) : ""
         }
         .presentationDetents([.large])
@@ -391,6 +426,11 @@ private struct EnvelopeAmountSheet: View {
         switch mode {
         case .fund:
             return String(localized: "Из денег на жизнь")
+        case .spend:
+            if money.minorUnits > balance.minorUnits {
+                return String(localized: "\(MoneyText.whole(Money(minorUnits: money.minorUnits - balance.minorUnits))) возьму из денег на жизнь")
+            }
+            return String(localized: "В копилке останется \(MoneyText.whole(Money(minorUnits: balance.minorUnits - money.minorUnits)))")
         case .pay:
             if money.minorUnits > balance.minorUnits {
                 let diff = Money(minorUnits: money.minorUnits - balance.minorUnits)
@@ -409,6 +449,7 @@ private struct EnvelopeAmountSheet: View {
             switch mode {
             case .fund: try session.fundEnvelope(envelope, amount: money, operationID: operationID)
             case .pay: try session.payEnvelope(envelope, amount: money, operationID: operationID)
+            case .spend: try session.spendFromEnvelope(envelope, amount: money, operationID: operationID)
             }
             FolkiFeedback.saved()
             dismiss()
@@ -443,11 +484,15 @@ struct EnvelopeEditorView: View {
     @State private var day = 0
     @State private var mandatory = true
     @State private var fundNow = false
+    /// Jars only: the goal, typed on the last step instead of a payment day.
+    @State private var goal = ""
     @State private var draftID = UUID()
     @State private var errorMessage: String?
     @FocusState private var nameFocused: Bool
     private var money: Money? { (try? MoneyText.parse(amount)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var isJar: Bool { editing?.isSavings == true }
+    private var goalMoney: Money? { (try? MoneyText.parse(goal)).flatMap { $0.minorUnits > 0 ? $0 : nil } }
     private var calendar: Calendar { session.calendar }
     private var firstDue: Date? {
         guard day > 0 else { return nil }
@@ -506,7 +551,7 @@ struct EnvelopeEditorView: View {
         switch step {
         case .what: whatPage
         case .amount: amountPage
-        case .day: dayPage
+        case .day: if isJar { goalPage } else { dayPage }
         }
     }
 
@@ -570,7 +615,7 @@ struct EnvelopeEditorView: View {
 
     private var amountPage: some View {
         VStack(spacing: FolkiSpacing.page) {
-            title("Сколько планируем отложить?")
+            title(isJar ? "Сколько откладывать с поступления?" : "Сколько планируем отложить?")
             Button { pickingIcon = true } label: {
                 HStack(spacing: FolkiSpacing.xs) {
                     CategoryIcon(symbol: symbol, color: color.color, size: 36)
@@ -594,6 +639,27 @@ struct EnvelopeEditorView: View {
                 guard money != nil else { FolkiFeedback.boundary(); return }
                 go(.day)
             }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+        }
+    }
+
+    private var goalPage: some View {
+        VStack(spacing: FolkiSpacing.page) {
+            title("Сколько хочешь накопить?")
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                TypedAmount(text: goal)
+                Text("₽").foregroundStyle(.secondary)
+            }
+            .font(.system(size: 52, weight: .bold, design: .rounded))
+            .foregroundStyle(goalMoney == nil ? Color.secondary : color.color)
+            .frame(maxWidth: .infinity)
+            if let money, let goalMoney {
+                Text("Пополнений до цели: \(max(1, Int((goalMoney.minorUnits + money.minorUnits - 1) / money.minorUnits)))")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            if let errorMessage { FolkiErrorMessage(message: errorMessage) }
+            Spacer(minLength: 0)
+            AmountKeypad(text: $goal)
+            Button("Сохранить", action: save).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(goalMoney == nil)
         }
     }
 
@@ -662,14 +728,17 @@ struct EnvelopeEditorView: View {
         let category = session.catalog.category(for: editing.categoryID ?? BuiltInCategory.other.id)
         symbol = editing.symbol ?? category.symbol; color = editing.color ?? category.color
         amount = MoneyText.input(editing.size); day = editing.dueDay; mandatory = editing.isMandatory
+        goal = editing.target.map(MoneyText.input) ?? ""
     }
 
     private func save() {
         guard let money, !trimmedName.isEmpty, let firstDue else { FolkiFeedback.boundary(); return }
         do {
             if let editing {
+                guard !isJar || goalMoney != nil else { FolkiFeedback.boundary(); return }
                 try session.updateEnvelope(editing.with(name: trimmedName, size: money, dueDay: day,
-                                                        nextDue: firstDue, isMandatory: mandatory, symbol: symbol, color: color))
+                                                        nextDue: firstDue, isMandatory: mandatory, symbol: symbol, color: color,
+                                                        target: isJar ? goalMoney : nil))
                 FolkiFeedback.saved(); dismiss()
             } else {
                 let created = try session.createEnvelope(name: trimmedName, size: money, nextDue: firstDue,
@@ -685,4 +754,9 @@ struct EnvelopeEditorView: View {
     }
 
 
+}
+
+/// The thirteen built-in categories, with a separate custom-envelope action.
+@MainActor enum PaymentTemplates {
+    static let all = BuiltInCategory.allCases.filter { $0 != .other }.map(\.category)
 }

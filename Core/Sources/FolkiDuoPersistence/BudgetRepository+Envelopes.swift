@@ -22,13 +22,14 @@ extension BudgetRepository {
     @discardableResult
     public func createEnvelope(name: String, size: Money, dueDay: Int, nextDue: Date, isMandatory: Bool,
                                categoryID: UUID? = nil, symbol: String? = nil, color: CategoryColor? = nil,
+                               kind: EnvelopeKind = .payment, target: Money? = nil,
                                in budget: StoredBudget, asOf now: Date,
                                id: UUID = UUID(), initialFunding: Money = Money(minorUnits: 0)) throws -> RecurringEnvelope {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.count <= 80, size.currency == .rub else { throw BudgetError.invalidPlan }
         let envelope = try RecurringEnvelope(id: id, name: trimmed, size: size, dueDay: dueDay,
                                              nextDue: budget.snapshot.period.calendar.startOfDay(for: nextDue), isMandatory: isMandatory,
-                                             categoryID: categoryID, symbol: symbol, color: color)
+                                             categoryID: categoryID, symbol: symbol, color: color, kind: kind, target: target)
         do {
             let root = try writableRoot(budget, now: now)
             if let categoryID { try validateCategory(categoryID, household: root, allowArchived: false) }
@@ -42,7 +43,7 @@ extension BudgetRepository {
             encodeEnvelope(envelope, into: item)
             try ensureReserve(for: envelope, in: budget, root: root)
             guard initialFunding.currency == size.currency, initialFunding.minorUnits >= 0,
-                  initialFunding.minorUnits <= size.minorUnits else { throw BudgetError.invalidAmount }
+                  initialFunding.minorUnits <= envelope.capacity.minorUnits else { throw BudgetError.invalidAmount }
             if initialFunding.minorUnits > 0 {
                 guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.unavailable }
                 let free = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).monthlyRemaining
@@ -197,8 +198,23 @@ extension BudgetRepository {
             }
             try write(records, in: current, root: root, now: now)
             let calendar = current.snapshot.period.calendar
-            let next = try EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, calendar: calendar)
+            let next = try EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, notBefore: now, calendar: calendar)
             try encodeEnvelope(envelope.with(nextDue: next), into: item)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// A bill that was not paid this time: it moves to its coming date and keeps what it holds.
+    public func skipEnvelope(_ id: UUID, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Envelope", id: id, budget: budget)
+            let envelope = try decodeEnvelope(item)
+            guard !envelope.isSavings else { throw BudgetError.invalidPlan }
+            let next = try envelope.with(nextDue: EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay,
+                                                                          notBefore: now, calendar: budget.snapshot.period.calendar))
+            encodeEnvelope(next, into: item)
+            try ensureReserve(for: next, in: budget, root: root)
             try commit()
         } catch { context.rollback(); throw error }
     }
@@ -213,7 +229,15 @@ extension BudgetRepository {
             isMandatory: item.value(forKey: "mandatory") as? Bool ?? true,
             categoryID: item.value(forKey: "categoryID") as? UUID,
             symbol: item.value(forKey: "symbol") as? String,
-            color: (item.value(forKey: "color") as? String).flatMap(CategoryColor.init(rawValue:)))
+            color: (item.value(forKey: "color") as? String).flatMap(CategoryColor.init(rawValue:)),
+            // Envelopes from before jars existed, or of a kind this version does not know, are payments.
+            kind: savingsTarget(item) == nil ? .payment : .savings, target: savingsTarget(item))
+    }
+
+    private func savingsTarget(_ item: NSManagedObject) -> Money? {
+        guard item.value(forKey: "kind") as? String == EnvelopeKind.savings.rawValue,
+              let target = item.value(forKey: "target") as? Int64, target > 0 else { return nil }
+        return Money(minorUnits: target)
     }
 
     private func encodeEnvelope(_ envelope: RecurringEnvelope, into item: NSManagedObject) {
@@ -224,6 +248,8 @@ extension BudgetRepository {
         item.setValue(envelope.isMandatory, forKey: "mandatory")
         item.setValue(envelope.symbol, forKey: "symbol")
         item.setValue(envelope.color?.rawValue, forKey: "color")
+        item.setValue(envelope.kind.rawValue, forKey: "kind")
+        item.setValue(envelope.target?.minorUnits, forKey: "target")
         item.setValue(UUID(), forKey: "revision")
     }
 
@@ -242,7 +268,7 @@ extension BudgetRepository {
         reserve.setValue(envelope.name, forKey: "name")
         reserve.setValue(true, forKey: "isRegularPayment")
         reserve.setValue(envelope.nextDue, forKey: "dueDate")
-        reserve.setValue(envelope.size.minorUnits, forKey: "targetAmount")
+        reserve.setValue(envelope.capacity.minorUnits, forKey: "targetAmount")
     }
 
     private func movement(_ kind: TransactionKind, amount: Money, envelope: UUID, title: String, budget: StoredBudget,
@@ -352,6 +378,7 @@ extension BudgetRepository {
                 let record = LedgerRecord(transaction: TransactionSnapshot(amount: familyShare, kind: .contributionIn, date: now,
                     authorID: familyAuthor, payerID: familyAuthor), title: String(localized: "Взнос в семейный бюджет", bundle: .module), linkID: operationID)
                 try write([record], in: family, root: familyRoot, now: now)
+                try changePlan(of: family.periodID, by: familyShare.minorUnits)
             }
             try commit()
         } catch { context.rollback(); throw error }
