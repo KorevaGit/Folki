@@ -138,16 +138,16 @@
     },
     "%@ в месяц · %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ в месяц · %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ a month · %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ в месяц · %2$@"
           }
         }
       }
@@ -287,16 +287,16 @@
     },
     "%@: не хватает %@ к %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: не хватает %2$@ к %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: %@ short by %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: не хватает %2$@ к %3$@"
           }
         }
       }
@@ -572,6 +572,7 @@
       }
     },
     "Folki: %@ сверх дня" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -582,6 +583,7 @@
       }
     },
     "Folki: %@ сегодня" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -846,6 +848,16 @@
         }
       }
     },
+    "Больше всего" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most spent on"
+          }
+        }
+      }
+    },
     "Больше всего из желаний — «%@»: %@. Если тратить на четверть меньше, до конца месяца будет на %@ в день больше 👀" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -875,6 +887,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your top want is “%@”: %@. That's the easiest place to save 👀"
+          }
+        }
+      }
+    },
+    "Больше всего: %@ %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Больше всего: %1$@ %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most on: %@ %@"
           }
         }
       }
@@ -963,6 +991,7 @@
       }
     },
     "Бюджет не задан" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1058,16 +1087,16 @@
     },
     "В конверте %@ · ориентир %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "В конверте %1$@ · ориентир %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ in the envelope · about %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "В конверте %1$@ · ориентир %2$@"
           }
         }
       }
@@ -2800,6 +2829,16 @@
         }
       }
     },
+    "Записей" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records"
+          }
+        }
+      }
+    },
     "Записей пока нет" : {
       "localizations" : {
         "en" : {
@@ -3344,6 +3383,16 @@
         }
       }
     },
+    "Итоги %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Results %@"
+          }
+        }
+      }
+    },
     "Их видит вся семья" : {
       "localizations" : {
         "en" : {
@@ -3811,6 +3860,7 @@
       }
     },
     "Конверты и напоминания удалятся, деньги из конвертов вернутся на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3854,16 +3904,16 @@
     },
     "Копилка · %@ из %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Копилка · %1$@ из %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jar · %@ of %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Копилка · %1$@ из %2$@"
           }
         }
       }
@@ -4001,6 +4051,7 @@
       }
     },
     "Личное" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4011,6 +4062,7 @@
       }
     },
     "Личное и семья" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4021,6 +4073,7 @@
       }
     },
     "Личное: %@. Семейный бюджет не задан." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4031,33 +4084,35 @@
       }
     },
     "Личное: %@. Семья: %@." : {
+      "extractionState" : "stale",
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Личное: %1$@. Семья: %2$@."
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personal: %@. Family: %@."
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$@. Семья: %2$@."
+          }
         }
       }
     },
     "Личное: %lld процентов. Семья: %lld процентов." : {
+      "extractionState" : "stale",
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Личное: %1$lld процентов. Семья: %2$lld процентов."
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personal: %lld percent. Family: %lld percent."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Личное: %1$lld процентов. Семья: %2$lld процентов."
           }
         }
       }
@@ -4078,6 +4133,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Personal categories"
+          }
+        }
+      }
+    },
+    "Личные конверты и напоминания удалятся, деньги из них вернутся на жизнь. Семейные конверты останутся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your personal envelopes and reminders will be deleted and their money goes back to living. Family envelopes stay"
           }
         }
       }
@@ -5718,16 +5783,16 @@
     },
     "Обязательные %lld%% · желания %lld%%" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Обязательные %1$lld%% · желания %2$lld%%"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Needs %lld%% · wants %lld%%"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Обязательные %1$lld%% · желания %2$lld%%"
           }
         }
       }
@@ -5878,7 +5943,6 @@
       }
     },
     "Осталось" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5975,6 +6039,16 @@
         }
       }
     },
+    "Остаток уже перенесён в новый период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The leftover is already in the new period"
+          }
+        }
+      }
+    },
     "Отдых" : {
       "localizations" : {
         "en" : {
@@ -6007,6 +6081,7 @@
       }
     },
     "Открой Folki" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6017,6 +6092,7 @@
       }
     },
     "Открой Folki, чтобы задать бюджет" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6078,6 +6154,7 @@
       }
     },
     "Открывает Folki на вводе траты" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6407,6 +6484,16 @@
         }
       }
     },
+    "Перерасход уже учтён: новый период начат с минусом" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The overspend is already counted: the new period started below zero"
+          }
+        }
+      }
+    },
     "Пересмотреть план" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6444,6 +6531,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Period complete"
+          }
+        }
+      }
+    },
+    "Период закончился, новый уже идёт. Посмотреть итоги" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The period ended and a new one has started. See the results"
           }
         }
       }
@@ -6546,6 +6643,16 @@
     },
     "План на период" : {
       "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period plan"
+          }
+        }
+      }
+    },
+    "План периода" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7997,11 +8104,22 @@
       }
     },
     "Сверх дня: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Over today: %@"
+          }
+        }
+      }
+    },
+    "Сверх плана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over the plan"
           }
         }
       }
@@ -8214,6 +8332,7 @@
       }
     },
     "Сегодня можно: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8421,6 +8540,7 @@
       }
     },
     "Семья ≈ %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8568,6 +8688,7 @@
       }
     },
     "Сколько ещё можно потратить сегодня" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10468,6 +10589,7 @@
       }
     },
     "личное" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10634,16 +10756,16 @@
     },
     "цель %@ · %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "цель %1$@ · %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "goal %@ · %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "цель %1$@ · %2$@"
           }
         }
       }
@@ -10736,16 +10858,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "≈ %1$@/day until %2$@"
-          }
-        }
-      }
-    },
-    "Личные конверты и напоминания удалятся, деньги из них вернутся на жизнь. Семейные конверты останутся" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your personal envelopes and reminders will be deleted and their money goes back to living. Family envelopes stay"
           }
         }
       }

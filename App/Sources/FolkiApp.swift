@@ -122,7 +122,7 @@ struct FolkiApp: App {
                     } description: { Text(error) } actions: {
                         Button("Повторить") { Task { await model.open() } }
                     }
-                } else { ProgressView(String(localized: "Открываем Folki…")) }
+                } else { LaunchHouseView() }
             }
             .task { await model.open() }
             .onChange(of: scenePhase) { _, phase in
@@ -141,6 +141,23 @@ struct FolkiApp: App {
             } message: {
                 Text("Записи и конверты твоего семейного бюджета удалятся. Личный бюджет не изменится.")
             }
+        }
+    }
+}
+
+/// While the store opens: the launch screen's house stays in place; words appear only if it takes a while.
+private struct LaunchHouseView: View {
+    @State private var slow = false
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground).ignoresSafeArea()
+            Image("LaunchHouse").accessibilityHidden(true)
+            Text("Открываем Folki…").font(.subheadline).foregroundStyle(.secondary)
+                .offset(y: 72).opacity(slow ? 1 : 0)
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(600))
+            withAnimation(FolkiMotion.quick) { slow = true }
         }
     }
 }

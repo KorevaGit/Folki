@@ -2,7 +2,7 @@ import SwiftUI
 import FolkiDuoCore
 
 private enum BudgetSheet: String, Identifiable {
-    case spend, income, settings, distribution, allocate, sharing
+    case spend, income, settings, distribution, allocate, sharing, summary
     var id: String { rawValue }
 }
 
@@ -44,6 +44,7 @@ struct BudgetRootView: View {
     /// "Позови семью" is offered once; envelopes in the amber zone can be dismissed until their next date.
     @AppStorage("FolkiInviteOfferDismissed") private var inviteDismissed = false
     @AppStorage("FolkiDismissedEnvelopeBanners") private var dismissedEnvelopes = ""
+    @AppStorage("FolkiSeenPeriodSummary") private var seenSummary = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -177,6 +178,13 @@ struct BudgetRootView: View {
             case .income: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .sharing: SharingView(session: family)
+            case .summary:
+                if let period = personal.finishedPeriod {
+                    PeriodSummaryView(session: personal, period: period) {
+                        selectedScope = .personal
+                        Task { try? await Task.sleep(for: .milliseconds(450)); sheet = .income }
+                    }
+                }
             case .distribution:
                 DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
             case .allocate: DailyFundingView(personal: personal, family: family, initialScope: selectedScope, distributesExisting: true)
@@ -284,7 +292,12 @@ struct BudgetRootView: View {
         let candidates = [personal, family].flatMap { session in
             session.envelopes.filter { session.envelopeUrgency($0) >= .attention }.map { (session, $0) }
         }.filter { !dismissed($0.1, in: $0.0) || $0.0.envelopeUrgency($0.1) == .serious }
-        if let (session, envelope) = candidates.max(by: { $0.0.bannerRank($0.1) < $1.0.bannerRank($1.1) }) {
+        let loudest = candidates.max(by: { $0.0.bannerRank($0.1) < $1.0.bannerRank($1.1) })
+        if let (session, envelope) = loudest, session.envelopeUrgency(envelope) == .serious {
+            envelopeBanner(envelope, in: session)
+        } else if let finished = personal.finishedPeriod, seenSummary != finished.start.timeIntervalSince1970 {
+            periodBanner(finished)
+        } else if let (session, envelope) = loudest {
             envelopeBanner(envelope, in: session)
         } else if showsInviteOffer {
             HStack(spacing: FolkiSpacing.item) {
@@ -303,6 +316,25 @@ struct BudgetRootView: View {
             .background(RingPalette.family.start.opacity(0.1), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
             .transition(.move(edge: .top).combined(with: .opacity))
         }
+    }
+
+    /// "Период закончился": the new one started on its own; the results open only on a tap.
+    private func periodBanner(_ period: BudgetPeriod) -> some View {
+        HStack(spacing: FolkiSpacing.item) {
+            Button { seenSummary = period.start.timeIntervalSince1970; sheet = .summary } label: {
+                Label {
+                    Text("Период закончился, новый уже идёт. Посмотреть итоги").font(.subheadline.weight(.medium))
+                        .multilineTextAlignment(.leading)
+                } icon: { Image(systemName: "calendar.badge.checkmark").foregroundStyle(Color.folkiAccent) }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }.buttonStyle(.plain)
+            Button { withAnimation(FolkiMotion.standard) { seenSummary = period.start.timeIntervalSince1970 } } label: {
+                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 44, height: 44)
+            }.buttonStyle(.plain).accessibilityLabel("Скрыть")
+        }
+        .padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xxs)
+        .background(Color.folkiAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     /// From the third day with a budget, while there is no family yet.
@@ -381,6 +413,8 @@ struct BudgetRootView: View {
     private var weekCalendar: some View {
         BudgetWeekCalendar(selection: $selectedDay, today: session.referenceDate, calendar: calendar, showsFamily: family.household != nil) { day in
             (personal.overview(on: day).result?.dayRingFraction, family.overview(on: day).result?.dayRingFraction)
+        } overspent: { day in
+            (personal.overview(on: day).result?.todayRemaining.minorUnits ?? 0) < 0
         }
     }
 
@@ -620,6 +654,10 @@ private struct BudgetDaySpendingSummary: View {
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                 let count = overview.records.filter { $0.transaction.kind == .expense }.count
                 Text("Трат: \(count)").font(.caption).foregroundStyle(.secondary)
+                if let top = result.categories.first(where: { $0.expenses.minorUnits > 0 }) {
+                    Text("Больше всего: \(session.catalog.category(for: top.categoryID).name) \(MoneyText.whole(top.expenses))")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
                 if result.refunds.minorUnits > 0 {
                     Text("Возвраты: \(MoneyText.whole(result.refunds))").font(.caption).foregroundStyle(.secondary)
                 }

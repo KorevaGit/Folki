@@ -148,7 +148,7 @@ private struct StartPage: View {
     var body: some View {
         OnboardingPage(centered: true) {
             VStack(spacing: FolkiSpacing.large) {
-                FamilyBubbles(family: family) { FolkiFeedback.selection(); choose(.invited) }.frame(height: 290)
+                FamilyBubbles(family: family).frame(height: 290).accessibilityHidden(true)
                 VStack(spacing: FolkiSpacing.item) {
                     Text("Вместе с близкими").font(.largeTitle.bold())
                     Text("Общие траты — вместе. Личные — только твои").font(.body).foregroundStyle(.secondary)

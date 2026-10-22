@@ -5,7 +5,8 @@ import FolkiDuoCore
 /// Bubbles pop in one by one and drift slightly, like soap bubbles.
 struct FamilyBubbles: View {
     let family: BudgetSession
-    let invite: () -> Void
+    /// Nil on the welcome screen: there the bubbles only illustrate, and the buttons below choose.
+    var invite: (() -> Void)? = nil
     @State private var shown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -30,6 +31,7 @@ struct FamilyBubbles: View {
                         .modifier(Pop(shown: shown || reduceMotion, delay: Double(index) * 0.08))
                         .modifier(Drift(seed: index, active: !reduceMotion))
                 }
+                if let invite {
                 Button(action: invite) {
                     Image(systemName: "plus").font(.system(size: side * 0.1, weight: .medium)).foregroundStyle(.white)
                         .frame(width: side * 0.26, height: side * 0.26)
@@ -41,6 +43,7 @@ struct FamilyBubbles: View {
                 .position(x: geo.size.width / 2 - side * 0.17, y: geo.size.height - side * 0.13)
                 .modifier(Pop(shown: shown || reduceMotion, delay: 0.45))
                 .accessibilityLabel("Пригласить")
+                }
             }
         }
         .onAppear { shown = true }

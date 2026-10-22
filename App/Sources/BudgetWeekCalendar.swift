@@ -8,6 +8,8 @@ struct BudgetWeekCalendar: View {
     var showsFamily = true
     /// Personal and family day-ring fractions for a past or current day; nil where no plan exists.
     var rings: (Date) -> (Double?, Double?) = { _ in (nil, nil) }
+    /// Days that went over their guide get a red dot.
+    var overspent: (Date) -> Bool = { _ in false }
     @State private var showingMonth = false
     @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -83,10 +85,23 @@ struct BudgetWeekCalendar: View {
         Button { showingMonth = true } label: {
             HStack(spacing: 6) {
                 Image(systemName: "calendar").font(.subheadline.weight(.semibold))
-                Text(selected, format: .dateTime.month(.wide)).font(.subheadline.weight(.semibold))
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                Group {
+                    if isCurrentWeek {
+                        Text(selected, format: .dateTime.month(.wide))
+                    } else {
+                        // An earlier week names its days: "13–19 окт."
+                        Text(weekRange)
+                    }
+                }.font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
             }.frame(minWidth: 44, minHeight: 44, alignment: .leading)
         }.buttonStyle(.plain).accessibilityLabel("Выбрать дату в календаре")
+    }
+    private var weekRange: String {
+        let last = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
+        var style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+        style.timeZone = calendar.timeZone
+        let sameMonth = calendar.component(.month, from: weekStart) == calendar.component(.month, from: last)
+        return (sameMonth ? "\(calendar.component(.day, from: weekStart))" : weekStart.formatted(style)) + "–" + last.formatted(style)
     }
     private var todayButton: some View {
         Button("Сегодня") {
@@ -111,6 +126,7 @@ struct BudgetWeekCalendar: View {
         let isFuture = calendar.startOfDay(for: date) > calendar.startOfDay(for: today)
         let weekday = date.formatted(.dateTime.weekday(.abbreviated)).lowercased().replacingOccurrences(of: ".", with: "")
         let fractions = isFuture ? (nil, nil) : rings(date)
+        let over = !isFuture && overspent(date)
         return Button { select(date) } label: {
             VStack(spacing: 4) {
                 Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
@@ -119,7 +135,7 @@ struct BudgetWeekCalendar: View {
                     .padding(3)
                 Text("\(calendar.component(.day, from: date))")
                     .font(.system(.footnote, design: .rounded, weight: .heavy)).monospacedDigit()
-                Circle().fill(isToday ? (isSelected ? Color.white : Color.folkiAccent) : .clear)
+                Circle().fill(over ? Color.folkiOver : isToday ? (isSelected ? Color.white : Color.folkiAccent) : .clear)
                     .frame(width: 5, height: 5)
             }
             .lineLimit(1).minimumScaleFactor(0.7)
@@ -175,8 +191,11 @@ private struct MiniRings: View {
         }
     }
     private func ring(_ fraction: Double?, palette: RingPalette) -> some View {
-        ZStack {
-            Circle().stroke((onAccent ? Color.white : palette.start).opacity(onAccent ? 0.3 : 0.4), lineWidth: 3.5)
+        // A day without a budget is a neutral outline, not an empty coloured ring that reads as a failed day.
+        let track = fraction == nil ? Color.secondary.opacity(onAccent ? 0.5 : 0.15)
+            : (onAccent ? Color.white : palette.start).opacity(onAccent ? 0.3 : 0.4)
+        return ZStack {
+            Circle().stroke(track, lineWidth: 3.5)
             Circle().trim(from: 0, to: max(0, min(1, fraction ?? 0)))
                 .stroke(onAccent ? Color.white : palette.start, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))

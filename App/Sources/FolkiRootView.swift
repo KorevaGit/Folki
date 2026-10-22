@@ -6,7 +6,9 @@ struct FolkiRootView: View {
     let personal: BudgetSession
     let family: BudgetSession
     @State private var selectedDay: Date?
-    @AppStorage("FolkiOnboarded") private var onboarded = false
+    /// Whether this iPhone had no personal budget when Folki opened. Decided once from the data, not a flag:
+    /// a reinstall or a second device with the budget already in iCloud skips the welcome.
+    @State private var startedWithoutBudget: Bool
     /// The step reached so far; survives a relaunch (for example after changing the app language).
     @AppStorage("FolkiOnboardingStep") private var onboardingStep = OnboardingView.Step.hello.rawValue
     @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
@@ -21,6 +23,11 @@ struct FolkiRootView: View {
     @State private var pendingEnvelope: UUID?
     @Environment(\.scenePhase) private var scenePhase
 
+    init(personal: BudgetSession, family: BudgetSession) {
+        self.personal = personal; self.family = family
+        _startedWithoutBudget = State(initialValue: personal.household == nil)
+    }
+
     /// Everything the plan reminders and widgets depend on: envelopes, what is put aside, today's figures.
     private var reminderSignature: [String] {
         [personal, family].flatMap { session in
@@ -34,7 +41,7 @@ struct FolkiRootView: View {
         guard !finishedOnboarding else { return false }
         // `-FolkiShowOnboarding YES` forces it for checks.
         if UserDefaults.standard.bool(forKey: "FolkiShowOnboarding") { return true }
-        return !onboarded && !personal.isDemo
+        return startedWithoutBudget && !personal.isDemo
     }
 
     private func selectTab(_ value: TabID) {
@@ -53,7 +60,6 @@ struct FolkiRootView: View {
                     firstSpendTip = true
                     onboardingStep = OnboardingView.Step.hello.rawValue
                     finishedOnboarding = true
-                    onboarded = true
                 }
             }
             .transition(.opacity)

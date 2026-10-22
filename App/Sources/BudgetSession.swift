@@ -441,6 +441,15 @@ final class BudgetSession {
         try updateSalaryPlan(available: result.totalFunds, reserves: existing + [reserve], expected: expected)
     }
 
+    /// The period that just ended, while the one that followed it is in its first three days.
+    var finishedPeriod: BudgetPeriod? {
+        guard let current = household?.period,
+              let previous = periods.last(where: { $0.endExclusive <= current.start }),
+              previous.endExclusive == current.start,
+              let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: current.start),
+                                                 to: calendar.startOfDay(for: referenceDate)).day, days <= 2 else { return nil }
+        return previous
+    }
     var periodEnded: Bool { household.map { referenceDate >= $0.period.endExclusive } ?? false }
     var periodTitle: String {
         guard let period = household?.period else { return String(localized: "До зарплаты") }

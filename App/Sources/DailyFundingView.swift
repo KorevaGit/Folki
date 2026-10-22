@@ -266,7 +266,8 @@ struct DailyFundingView: View {
                             Capsule().fill(RingPalette.family.start).frame(width: max(0, geometry.size.width - 4) * Double(familyShare.minorUnits) / Double(money.minorUnits))
                         }
                         if total > 0 {
-                            Capsule().fill(RingPalette.personal.start).frame(width: max(0, geometry.size.width - 4) * Double(total) / Double(money.minorUnits))
+                            // Envelopes are neither budget's colour: neutral ink, living money in the accent.
+                            Capsule().fill(Color.folkiInk.opacity(0.3)).frame(width: max(0, geometry.size.width - 4) * Double(total) / Double(money.minorUnits))
                         }
                         Capsule().fill(Color.folkiAccent)
                     }

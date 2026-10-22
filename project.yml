@@ -37,6 +37,9 @@ targets:
         CKSharingSupported: true
         UIBackgroundModes: [remote-notification]
         FolkiCloudContainer: "$(FOLKI_CLOUD_CONTAINER)"
+        # The same house as the onboarding hero, centred on the system background.
+        UILaunchScreen:
+          UIImageName: LaunchHouse
         CFBundleURLTypes:
           - CFBundleURLName: dev.korevagit.folki
             CFBundleURLSchemes: [folki]
@@ -50,7 +53,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Folki
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
