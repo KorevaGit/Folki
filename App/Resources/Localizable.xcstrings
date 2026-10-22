@@ -893,16 +893,16 @@
     },
     "Больше всего: %@ %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Больше всего: %1$@ %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Most on: %@ %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Больше всего: %1$@ %2$@"
           }
         }
       }
@@ -3261,6 +3261,16 @@
         }
       }
     },
+    "Изменить название" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change name"
+          }
+        }
+      }
+    },
     "Изменить план повседневных трат" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4579,11 +4589,22 @@
       }
     },
     "На что копим" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saving for"
+          }
+        }
+      }
+    },
+    "На что копим?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What are we saving for?"
           }
         }
       }
@@ -4629,6 +4650,7 @@
       }
     },
     "Название платежа" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4799,6 +4821,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "E.g. rent — this money won't count toward your daily spending 🏠"
+          }
+        }
+      }
+    },
+    "Например, отпуск" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For example, a vacation"
           }
         }
       }
@@ -10160,6 +10192,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "What's in the plan"
+          }
+        }
+      }
+    },
+    "Что за платёж?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What payment is it?"
           }
         }
       }

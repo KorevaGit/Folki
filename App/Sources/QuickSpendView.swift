@@ -303,7 +303,10 @@ struct AmountKeypad: View {
                     }
                     .font(.system(.title2, design: .rounded, weight: .medium))
                     .frame(maxWidth: .infinity, minHeight: keyHeight)
-                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius, style: .continuous))
+                    // A solid key, as in the spec: glass keys merge inside glass containers and
+                    // materialize after the rest of a page during transitions.
+                    .background(Color(uiColor: .secondarySystemFill), in: RoundedRectangle(cornerRadius: FolkiSpacing.card, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: FolkiSpacing.card, style: .continuous))
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.92))
                 .accessibilityLabel(key == "⌫" ? String(localized: "Стереть") : key == "," ? String(localized: "Запятая") : key)

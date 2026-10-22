@@ -8,7 +8,8 @@ struct PlanWizardView: View {
     let family: BudgetSession
     /// Reconfiguring an existing plan skips the welcome.
     var startsWithHello = true
-    let finish: () -> Void
+    /// Saved. `offerDistribution`: there is money to put into the new envelopes, offered once the wizard has closed.
+    let finish: (_ offerDistribution: Bool) -> Void
     /// Leaving without saving; nil when the wizard is the tab itself, which then starts over.
     var cancel: (() -> Void)? = nil
     @State private var confirmingExit = false
@@ -25,7 +26,6 @@ struct PlanWizardView: View {
     @State private var shake = 0
     @State private var errorMessage: String?
     @State private var loaded = false
-    @State private var distributing = false
     /// The envelope whose amount the keypad is typing.
     /// The envelope open on top of the list: a new one until added, or a copy of an existing one.
     @State private var draft: Item?
@@ -139,9 +139,6 @@ struct PlanWizardView: View {
         .toolbar(.hidden, for: .tabBar)
         .background { FolkiBackground() }
         .onAppear(perform: load)
-        .sheet(isPresented: $distributing, onDismiss: finish) {
-            DailyFundingView(personal: personal, family: family, distributesExisting: true)
-        }
         .sensoryFeedback(.warning, trigger: over) { _, new in new }
         .sheet(isPresented: Binding(get: { draft != nil }, set: { if !$0 { draft = nil } })) {
             if draft != nil {
@@ -585,8 +582,8 @@ struct PlanWizardView: View {
             UserDefaults.standard.set(income, forKey: Self.incomeKey)
             FolkiFeedback.saved()
             if personal.availableForDailySpending.minorUnits > 0 {
-                distributing = true
-            } else { finish() }
+                finish(!personal.payments.isEmpty)
+            } else { finish(false) }
         } catch {
             errorMessage = String(localized: "Не получилось сохранить план. Уже сохранённые конверты останутся; можно повторить")
         }
@@ -691,6 +688,9 @@ private struct DraftSheet: View {
     let cancel: () -> Void
     let remove: () -> Void
     @FocusState private var naming: Bool
+    /// A new envelope of one's own is named first, with the system keyboard, and only then
+    /// gets its amount on the Folki keypad: the two keyboards never share the screen.
+    @State private var namingStep = false
     @State private var pickingIcon = false
     /// Which amount the keypad types into: the goal or the monthly sum.
     @State private var typingMonthly = false
@@ -700,7 +700,61 @@ private struct DraftSheet: View {
 
     var body: some View {
         NavigationStack {
-            FolkiEntryLayout(hidesKeypad: naming) { _ in
+            Group { if namingStep { nameStep } else { amountStep } }
+            .background { FolkiBackground() }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: cancel) { Image(systemName: "xmark") }.accessibilityLabel("Закрыть")
+                }
+                if !namingStep { ToolbarItem(placement: .principal) { header } }
+            }
+            .sheet(isPresented: $pickingIcon) {
+                IconPickerSheet(symbol: $item.symbol, color: $item.color).presentationDetents([.medium, .large])
+            }
+            .onAppear { if item.custom && item.name.isEmpty { namingStep = true } }
+            .animation(FolkiMotion.quick, value: item.byMonthly)
+            .animation(FolkiMotion.standard, value: namingStep)
+        }
+        .interactiveDismissDisabled(item.typed > 0)
+    }
+
+    private var trimmedName: String { item.name.trimmingCharacters(in: .whitespaces) }
+
+    /// Step one for an envelope of one's own: icon and name.
+    private var nameStep: some View {
+        VStack(alignment: .leading, spacing: FolkiSpacing.page) {
+            Text(item.mandatory ? "Что за платёж?" : "На что копим?").font(.largeTitle.bold())
+            HStack(spacing: FolkiSpacing.item) {
+                Button { pickingIcon = true } label: {
+                    CategoryIcon(symbol: item.symbol, color: item.color.color, size: 56)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "pencil.circle.fill").font(.system(size: 18)).foregroundStyle(.white, Color.folkiAccent)
+                        }
+                }.buttonStyle(.plain).accessibilityLabel("Значок и цвет")
+                TextField(item.mandatory ? "Например, аренда" : "Например, отпуск", text: $item.name)
+                    .font(.title3.weight(.semibold)).focused($naming).submitLabel(.next)
+                    .onSubmit(finishNaming)
+            }
+            .padding(FolkiSpacing.item)
+            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            Spacer(minLength: 0)
+            Button("Дальше", action: finishNaming).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                .disabled(trimmedName.isEmpty)
+        }
+        .padding(.horizontal, FolkiSpacing.page).padding(.top, FolkiSpacing.card).padding(.bottom, FolkiSpacing.card)
+        .onAppear { naming = true }
+    }
+
+    private func finishNaming() {
+        guard !trimmedName.isEmpty else { FolkiFeedback.boundary(); return }
+        naming = false
+        namingStep = false
+    }
+
+    /// Step two, or the only step for a template: the amount on the Folki keypad.
+    private var amountStep: some View {
+            FolkiEntryLayout { _ in
                 VStack(spacing: FolkiSpacing.page) {
                     if item.mandatory {
                         amount(item.amount, label: String(localized: "Ожидаемый платёж"), active: true) {}
@@ -742,25 +796,6 @@ private struct DraftSheet: View {
                 }
                 .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
             }
-            .background { FolkiBackground() }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(action: cancel) { Image(systemName: "xmark") }.accessibilityLabel("Закрыть")
-                }
-                ToolbarItem(placement: .principal) { header }
-                if naming {
-                    ToolbarItem(placement: .confirmationAction) { Button("Готово") { naming = false } }
-                }
-            }
-            .sheet(isPresented: $pickingIcon) {
-                IconPickerSheet(symbol: $item.symbol, color: $item.color).presentationDetents([.medium, .large])
-            }
-            .onAppear { if item.custom && item.name.isEmpty { naming = true } }
-            .animation(FolkiMotion.quick, value: naming)
-            .animation(FolkiMotion.quick, value: item.byMonthly)
-        }
-        .interactiveDismissDisabled(item.typed > 0)
     }
 
     /// The icon (tap to change it and its colour) and the name, at the top.
@@ -775,8 +810,9 @@ private struct DraftSheet: View {
             }
             .buttonStyle(.plain).accessibilityLabel("Значок и цвет")
             if item.custom {
-                TextField(item.mandatory ? "Название платежа" : "На что копим", text: $item.name)
-                    .font(.headline).focused($naming).submitLabel(.done).frame(maxWidth: 200)
+                // The name was typed on the first step; a tap goes back to it.
+                Button { namingStep = true } label: { Text(item.name).font(.headline).lineLimit(1) }
+                    .buttonStyle(.plain).accessibilityHint("Изменить название")
             } else {
                 Text(item.name).font(.headline).lineLimit(1)
             }

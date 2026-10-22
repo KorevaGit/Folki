@@ -13,19 +13,37 @@ struct PlanTab: View {
     /// The wizard is open over the tab: keep the page under it until it closes.
     @State private var editing = false
     @State private var frozen: Bool?
+    @State private var distributeAfterWizard = false
+    @State private var distributing = false
     /// A plan exists when either budget has envelopes; the data decides, not a flag on this iPhone.
     private var hasPlan: Bool { !personal.envelopes.isEmpty || !family.envelopes.isEmpty }
 
     var body: some View {
         Group {
             if frozen ?? hasPlan {
-                PlanOverview(personal: personal, family: family, pendingEnvelope: $pendingEnvelope, wizardOpen: $editing)
+                PlanOverview(personal: personal, family: family, pendingEnvelope: $pendingEnvelope, wizardOpen: $editing,
+                             saved: { distributeAfterWizard = $0 }, closed: wizardClosed)
             } else {
-                PlanIntro(personal: personal, family: family, settingUp: $editing)
+                PlanIntro(personal: personal, family: family, settingUp: $editing,
+                          saved: { distributeAfterWizard = $0 }, closed: wizardClosed)
             }
         }
         .animation(FolkiMotion.standard, value: frozen ?? hasPlan)
-        .onChange(of: editing) { _, open in frozen = open ? hasPlan : nil }
+        .onChange(of: editing) { _, open in if open { frozen = hasPlan } }
+        .sheet(isPresented: $distributing) {
+            DailyFundingView(personal: personal, family: family, distributesExisting: true)
+        }
+    }
+
+    /// One thing at a time: the wizard closes, then the page changes, then the distribution is offered.
+    private func wizardClosed() {
+        withAnimation(FolkiMotion.standard) { frozen = nil }
+        guard distributeAfterWizard else { return }
+        distributeAfterWizard = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            distributing = true
+        }
     }
 }
 
@@ -36,6 +54,8 @@ private struct PlanIntro: View {
     let personal: BudgetSession
     let family: BudgetSession
     @Binding var settingUp: Bool
+    let saved: (Bool) -> Void
+    let closed: () -> Void
     @Namespace private var zoom
     var body: some View {
         OnboardingPage(centered: true) {
@@ -53,10 +73,10 @@ private struct PlanIntro: View {
         }
         .padding(.bottom, FolkiSpacing.item)
         .background { FolkiBackground() }
-        .fullScreenCover(isPresented: $settingUp) {
+        .fullScreenCover(isPresented: $settingUp, onDismiss: closed) {
             NavigationStack {
                 PlanWizardView(personal: personal, family: family, startsWithHello: false,
-                               finish: { settingUp = false }, cancel: { settingUp = false })
+                               finish: { saved($0); settingUp = false }, cancel: { settingUp = false })
                     .toolbar(.hidden, for: .navigationBar)
             }
             .navigationTransition(.zoom(sourceID: "plan", in: zoom))
@@ -356,6 +376,8 @@ private struct PlanOverview: View {
     @Binding var pendingEnvelope: UUID?
     /// The wizard is open; the tab keeps this page under it.
     @Binding var wizardOpen: Bool
+    let saved: (Bool) -> Void
+    let closed: () -> Void
     @State private var path: [RecurringEnvelope] = []
     @State private var scope: BudgetScope = .personal
     @State private var creating = false
@@ -458,10 +480,10 @@ private struct PlanOverview: View {
             }
             .sheet(isPresented: $creating) { EnvelopeEditorView(session: session) }
             .onChange(of: basics) { _, open in wizardOpen = open }
-            .fullScreenCover(isPresented: $basics) {
+            .fullScreenCover(isPresented: $basics, onDismiss: closed) {
                 NavigationStack {
                     PlanWizardView(personal: personal, family: family, startsWithHello: false,
-                                   finish: { basics = false }, cancel: { basics = false })
+                                   finish: { saved($0); basics = false }, cancel: { basics = false })
                         .toolbar(.hidden, for: .navigationBar)
                 }
                 .navigationTransition(.zoom(sourceID: "plan", in: zoom))
