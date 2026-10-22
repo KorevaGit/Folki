@@ -180,7 +180,7 @@ struct BudgetRingsCard: View {
 
     private func accessibleAmount(_ result: DailyBudgetSnapshot?, title: String) -> some View {
         let money = showsMonth ? result?.periodRemaining : result?.todayRemaining
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             Text("\(title) · \(showsMonth ? String(localized: "период") : String(localized: "день"))").font(.subheadline).foregroundStyle(.secondary)
             Text(money.map(MoneyText.whole) ?? String(localized: "Не настроен"))
                 .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
@@ -190,7 +190,7 @@ struct BudgetRingsCard: View {
     }
 
     var outlook: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             if showsMonth { monthLine }
             notes
         }
@@ -257,7 +257,7 @@ struct BudgetRingsCard: View {
             result.flatMap { note(for: scope, result: $0) }
         }
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 10) { ForEach(items, id: \.0) { $0.1 } }
+            VStack(alignment: .leading, spacing: FolkiSpacing.item) { ForEach(items, id: \.0) { $0.1 } }
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -279,7 +279,7 @@ struct BudgetRingsCard: View {
 
     private var monthLine: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
+            HStack(spacing: FolkiSpacing.xs) {
                 Text("Период").foregroundStyle(.secondary)
                 monthValue(personal, scope: .personal)
                 if showsFamily {

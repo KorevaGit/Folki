@@ -193,9 +193,9 @@ struct QuickSpendView: View {
 
     private var spendSource: some View {
         Button { showingAllCategories = true } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: envelope == nil ? "wallet.bifold" : "tray.full.fill")
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text(envelope.map { String(localized: "Из конверта «\($0.name)»") } ?? String(localized: "Из денег на жизнь"))
                         .font(.subheadline.weight(.semibold))
                     Text(envelope == nil ? "Можно взять из конверта" : "Изменить источник")
@@ -291,7 +291,7 @@ struct QuickSpendView: View {
 /// Digits, one comma and up to two decimals; the system keyboard would cover the impact lines.
 struct AmountKeypad: View {
     @Binding var text: String
-    @ScaledMetric(relativeTo: .title2) private var keyHeight: CGFloat = 50
+    @ScaledMetric(relativeTo: .title2) private var keyHeight: CGFloat = 56
     private let keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "0", "⌫"]
 
     var body: some View {

@@ -31,7 +31,7 @@ struct BudgetWeekCalendar: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: FolkiSpacing.xs) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 4) {
@@ -49,7 +49,7 @@ struct BudgetWeekCalendar: View {
             }.foregroundStyle(.secondary)
             .animation(reduceMotion ? nil : FolkiMotion.quick, value: selection == nil)
             ZStack {
-                HStack(spacing: 2) {
+                HStack(spacing: FolkiSpacing.xxs) {
                     ForEach(0..<7, id: \.self) { offset in
                         if let date = calendar.date(byAdding: .day, value: offset, to: weekStart) {
                             day(date)
@@ -83,7 +83,7 @@ struct BudgetWeekCalendar: View {
 
     private var monthButton: some View {
         Button { showingMonth = true } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: FolkiSpacing.xs) {
                 Image(systemName: "calendar").font(.subheadline.weight(.semibold))
                 Group {
                     if isCurrentWeek {
@@ -132,14 +132,14 @@ struct BudgetWeekCalendar: View {
                 Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
                 MiniRings(personal: fractions.0, family: fractions.1, onAccent: isSelected, showsFamily: showsFamily).frame(width: 30, height: 30)
                     .accessibilityHidden(true)
-                    .padding(3)
+                    .padding(FolkiSpacing.xxs)
                 Text("\(calendar.component(.day, from: date))")
                     .font(.system(.footnote, design: .rounded, weight: .heavy)).monospacedDigit()
                 Circle().fill(over ? Color.folkiOver : isToday ? (isSelected ? Color.white : Color.folkiAccent) : .clear)
                     .frame(width: 5, height: 5)
             }
             .lineLimit(1).minimumScaleFactor(0.7)
-            .padding(.vertical, 6)
+            .padding(.vertical, FolkiSpacing.xs)
             .frame(maxWidth: .infinity)
             .foregroundStyle(isSelected ? Color.white : Color.folkiInk)
             .background {

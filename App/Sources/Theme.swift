@@ -88,7 +88,7 @@ struct RingPalette {
     let text: Color
 
     static let personal = RingPalette(
-        start: .adaptive(light: (0.91, 0.54, 0.10), dark: (0.95, 0.66, 0.23)),
+        start: .adaptive(light: (0.937, 0.624, 0.153), dark: (0.95, 0.66, 0.23)), // #EF9F27 by day
         end: .adaptive(light: (0.96, 0.70, 0.29), dark: (0.98, 0.79, 0.47)),
         text: .adaptive(light: (0.52, 0.31, 0.04), dark: (0.98, 0.78, 0.46)))
     /// Berry #D4537E by day, #ED93B1 by night.
@@ -286,7 +286,7 @@ struct FolkiSoftButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
-            .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 44)
+            .padding(.horizontal, 16).padding(.vertical, FolkiSpacing.item).frame(minHeight: 44)
             .glassEffect(.regular.interactive(), in: Capsule())
             .opacity(isEnabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)

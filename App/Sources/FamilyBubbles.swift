@@ -61,9 +61,9 @@ struct FamilyBubbles: View {
                         Text("Траты \(total(for: member, kind: .expense))").font(.system(size: 10))
                         Text("Взносы \(total(for: member, kind: .contributionIn))").font(.system(size: 10))
                     }
-                }.foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.65).padding(10)
+                }.foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.65).padding(FolkiSpacing.item)
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: FolkiSpacing.xs) {
                     Image(systemName: index == 0 ? "basket.fill" : index == 1 ? "heart.fill" : "person.fill")
                         .font(.system(size: size * 0.23))
                     if size > 105 { Text(index == 0 ? "Общие траты" : "Взносы в бюджет")

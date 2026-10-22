@@ -72,7 +72,7 @@ struct FolkiBudgetWidget: Widget {
 }
 
 private enum Palette {
-    static let personal = Color(red: 0.91, green: 0.54, blue: 0.10)
+    static let personal = Color(red: 0.937, green: 0.624, blue: 0.153) // #EF9F27
     static let family = Color(red: 0.831, green: 0.325, blue: 0.494)
     static let accent = Color(red: 0.06, green: 0.43, blue: 0.34)
     static let amber = Color(red: 0.85, green: 0.60, blue: 0.12)

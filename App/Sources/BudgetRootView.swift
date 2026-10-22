@@ -34,6 +34,8 @@ struct BudgetRootView: View {
     /// The first-spend hint appears once without moving either action button.
     @AppStorage("FolkiFirstSpendTip") private var firstSpendTip = false
     @State private var showsSpendTip = false
+    /// The lines under the hint leave first, so the two never show through each other.
+    @State private var clearingForTip = false
     @State private var spendTipDismissed = false
     @State private var tipHeight: CGFloat = 64
     @State private var rolled = true
@@ -255,7 +257,7 @@ struct BudgetRootView: View {
 
     /// "≈ 1 970 ₽/день до 19 нояб." — tap to change the period.
     private var distributionLine: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: FolkiSpacing.xs) {
             if personal.hasFunding, let result = personal.result, let end = personal.household?.period.endExclusive {
                 let last = end.addingTimeInterval(-1).formatted(.dateTime.day().month(.abbreviated))
                 Button {
@@ -282,8 +284,8 @@ struct BudgetRootView: View {
             }
         }
         // The first-spend hint sits over these lines; they step aside instead of showing through it.
-        .opacity(showsSpendTip ? 0 : 1)
-        .animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: showsSpendTip)
+        .opacity(showsSpendTip || clearingForTip ? 0 : 1)
+        .animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: showsSpendTip || clearingForTip)
     }
 
     /// One banner at a time, by priority: a red envelope, an amber one, then the one-time family offer.
@@ -436,7 +438,7 @@ struct BudgetRootView: View {
     private func entryArea(date: Date, personalDay: BudgetDayOverview, familyDay: BudgetDayOverview) -> some View {
         ZStack(alignment: .top) {
             if selectedDay == nil {
-                VStack(spacing: 10) {
+                VStack(spacing: FolkiSpacing.item) {
                     spendButton.padding(.horizontal, -8)
                 }.transition(.opacity)
             } else {
@@ -481,10 +483,10 @@ struct BudgetRootView: View {
         .overlay(alignment: .topLeading) {
             if showsSpendTip {
                 Button(action: dismissSpendTip) {
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .top, spacing: FolkiSpacing.item) {
                         Text("Запиши первую трату — покажу, как поменяется день")
                             .multilineTextAlignment(.leading)
-                        Image(systemName: "xmark").font(.caption.weight(.semibold)).padding(.top, 3)
+                        Image(systemName: "xmark").font(.caption.weight(.semibold)).padding(.top, FolkiSpacing.xxs)
                     }
                         .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiBackground)
                         .padding(.horizontal, FolkiSpacing.card).padding(.vertical, FolkiSpacing.item)
@@ -514,11 +516,13 @@ struct BudgetRootView: View {
                 guard !spendTipDismissed, sheet == nil, selectedDay == nil else { return }
                 try await Task.sleep(for: .milliseconds(300))
                 guard !spendTipDismissed, sheet == nil, selectedDay == nil else { return }
+                clearingForTip = true
+                try await Task.sleep(for: .milliseconds(250))
                 withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)) { showsSpendTip = true }
                 try await Task.sleep(for: .seconds(6))
                 dismissSpendTip()
             } catch {
-                showsSpendTip = false
+                showsSpendTip = false; clearingForTip = false
             }
         }
         .onChange(of: sheet) { _, _ in dismissSpendTip() }
@@ -529,6 +533,10 @@ struct BudgetRootView: View {
         spendTipDismissed = true
         firstSpendTip = false
         withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { showsSpendTip = false }
+        Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            clearingForTip = false
+        }
     }
 
     private func returnToToday(then action: @escaping () -> Void = {}) {
@@ -602,7 +610,7 @@ struct LedgerRow: View {
             let amount = record.transaction.amount
             Text("\(prefix)\(amount.minorUnits % 100 == 0 ? MoneyText.whole(amount) : MoneyText.string(amount))").monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.65).layoutPriority(1)
-        }.font(.subheadline).padding(.vertical, 10)
+        }.font(.subheadline).padding(.vertical, FolkiSpacing.item)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel([kindTitle, record.title.isEmpty ? category?.name ?? String(localized: "Другое") : record.title,
                 session.payerName(for: record), record.transaction.date.formatted(.dateTime.day().month(.wide).year()),
@@ -641,7 +649,7 @@ private struct BudgetDaySpendingSummary: View {
     }
 
     private func summary(_ session: BudgetSession, overview: BudgetDayOverview) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             Text(session.scope.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.budget(session.scope))
             if overview.errorMessage != nil {
                 Text("Не получилось загрузить").font(.footnote).foregroundStyle(.secondary)

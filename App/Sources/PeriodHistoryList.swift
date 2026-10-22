@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import FolkiDuoCore
 
 /// One record of either budget in the period history.
@@ -21,6 +22,8 @@ struct PeriodHistoryList: View {
 
     enum Filter: Hashable { case all, personal, family }
     @State private var filter: Filter = .all
+    /// The row whose swipe actions are showing; only one at a time.
+    @State private var swiped: String?
 
     private var hasFamily: Bool { family.household != nil }
     private var entries: [PeriodEntry] {
@@ -97,8 +100,11 @@ struct PeriodHistoryList: View {
         let mine = entry.record.transaction.authorID == entry.session.authorID
         Group {
             if editable {
-                Button { edit(entry) } label: { LedgerRow(record: entry.record, session: entry.session, showsDate: false) }
-                    .buttonStyle(.plain)
+                SwipeActionsRow(id: entry.id, open: $swiped, edit: { edit(entry) }, delete: { delete(entry) }) {
+                    Button { if swiped == nil { edit(entry) } else { withAnimation(FolkiMotion.quick) { swiped = nil } } } label: {
+                        LedgerRow(record: entry.record, session: entry.session, showsDate: false)
+                    }.buttonStyle(.plain)
+                }
             } else if mine {
                 LedgerRow(record: entry.record, session: entry.session, showsDate: false)
             } else {
@@ -142,6 +148,87 @@ struct RingsPageSnap: ScrollTargetBehavior {
             target.rect.origin.y = end > threshold ? page : 0
         } else if start <= page + 32 && end < page {
             target.rect.origin.y = page - end > threshold ? 0 : page
+        }
+    }
+}
+
+/// Swipe left on one's own record to edit or delete it, like a list row. The context menu stays for a long press.
+private struct SwipeActionsRow<Content: View>: View {
+    let id: String
+    @Binding var open: String?
+    let edit: () -> Void
+    let delete: () -> Void
+    @ViewBuilder let content: () -> Content
+    @State private var drag: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let width: CGFloat = 144
+    private var offset: CGFloat { open == id ? min(0, -width + drag) : min(0, drag) }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                action(String(localized: "Изменить"), "pencil", Color.secondary) { close(); edit() }
+                action(String(localized: "Удалить"), "trash", Color.folkiOver) { close(); delete() }
+            }
+            .opacity(offset < 0 ? 1 : 0)
+            content()
+                .offset(x: offset)
+        }
+        .clipped()
+        // A UIKit pan that starts only on a sideways move, so the page above keeps scrolling vertically.
+        .gesture(HorizontalPan { drag = $0 } ended: { translation in
+            let shown = open == id ? translation < width / 2 : translation < -width / 2
+            withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) {
+                drag = 0
+                if shown { open = id } else if open == id { open = nil }
+            }
+            if shown { FolkiFeedback.selection() }
+        })
+        .accessibilityAction(named: Text("Изменить"), edit)
+        .accessibilityAction(named: Text("Удалить"), delete)
+    }
+
+    private func close() {
+        withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { open = nil }
+    }
+
+    private func action(_ title: String, _ symbol: String, _ tint: Color, run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            VStack(spacing: FolkiSpacing.xxs) {
+                Image(systemName: symbol).font(.body.weight(.semibold))
+                Text(title).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: width / 2).frame(maxHeight: .infinity)
+            .background(tint)
+        }.buttonStyle(.plain)
+    }
+}
+
+private struct HorizontalPan: UIGestureRecognizerRepresentable {
+    let changed: (CGFloat) -> Void
+    let ended: (CGFloat) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = context.coordinator
+        return pan
+    }
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let x = recognizer.translation(in: recognizer.view).x
+        switch recognizer.state {
+        case .changed: changed(x)
+        case .ended, .cancelled, .failed: ended(x)
+        default: break
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y)
         }
     }
 }

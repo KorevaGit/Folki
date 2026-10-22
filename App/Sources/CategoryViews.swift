@@ -194,12 +194,12 @@ struct CategoryEditorView: View {
             Form {
                 // A big preview, like Reminders lists.
                 Section {
-                    VStack(spacing: 14) {
+                    VStack(spacing: FolkiSpacing.card) {
                         CategoryIcon(symbol: symbol, color: color.color, size: 76)
                             .animation(FolkiMotion.quick, value: symbol)
                         TextField("Название", text: $name)
                             .font(.system(.title2, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
-                            .padding(.vertical, 10).padding(.horizontal, 14)
+                            .padding(.vertical, FolkiSpacing.item).padding(.horizontal, FolkiSpacing.card)
                             .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius, style: .continuous))
                     }.frame(maxWidth: .infinity).padding(.vertical, 8)
                 }

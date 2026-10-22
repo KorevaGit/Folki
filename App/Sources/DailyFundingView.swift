@@ -211,7 +211,7 @@ struct DailyFundingView: View {
             HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: source == value ? "checkmark.circle.fill" : "circle")
                     .font(.title3).foregroundStyle(source == value ? Color.folkiAccent : Color.secondary)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text(title).font(.body).foregroundStyle(Color.folkiInk)
                     Text(detail).font(.footnote).foregroundStyle(.secondary)
                 }
@@ -253,7 +253,7 @@ struct DailyFundingView: View {
     }
 
     private var allocationSummary: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
             Text(distributesExisting ? "Деньги в бюджете сейчас" : "Куда пойдут деньги").font(.headline)
             if familyShare.minorUnits > 0 { LabeledContent("В семью", value: MoneyText.whole(familyShare)) }
             let total = split.fills.values.reduce(Int64(0)) { $0 + $1.minorUnits }
@@ -261,7 +261,7 @@ struct DailyFundingView: View {
             livingRow
             if let money {
                 GeometryReader { geometry in
-                    HStack(spacing: 2) {
+                    HStack(spacing: FolkiSpacing.xxs) {
                         if familyShare.minorUnits > 0 {
                             Capsule().fill(RingPalette.family.start).frame(width: max(0, geometry.size.width - 4) * Double(familyShare.minorUnits) / Double(money.minorUnits))
                         }
@@ -279,7 +279,7 @@ struct DailyFundingView: View {
     }
 
     private func impact(before: DailyBudgetSnapshot?, after: DailyBudgetSnapshot?) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: FolkiSpacing.item) {
             Text("Бюджет на день · до → после").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             HStack {
                 Text(before.map { MoneyText.whole($0.todayRemaining) } ?? "—").foregroundStyle(.secondary)
@@ -318,7 +318,7 @@ struct DailyFundingView: View {
             HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: "heart.fill").foregroundStyle(RingPalette.family.start)
                     .frame(width: 36, height: 36).background(RingPalette.family.start.opacity(0.14), in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text("В семью \(family.contributionPercent)%").font(.body.weight(.medium))
                     Text(MoneyText.whole(shareToFamily ? familyShare : (money.flatMap { try? ContributionAdvisor.suggestion(topUp: $0,
                         percent: family.contributionPercent, urgentFamilyShortfalls: family.urgentShortfalls,

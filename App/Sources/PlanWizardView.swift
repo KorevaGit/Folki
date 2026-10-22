@@ -166,7 +166,7 @@ struct PlanWizardView: View {
                 Text(small).font(.headline).lineLimit(1).frame(maxWidth: .infinity)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if let index = progressSteps.firstIndex(of: step) {
-                HStack(spacing: 6) {
+                HStack(spacing: FolkiSpacing.xs) {
                     ForEach(progressSteps.indices, id: \.self) { item in
                         Capsule().fill(item <= index ? Color.folkiAccent : Color.folkiSoft).frame(height: 4)
                     }
@@ -193,13 +193,13 @@ struct PlanWizardView: View {
 
     /// The estimate and the income bar: the one place that explains every step.
     private var footer: some View {
-        GlassEffectContainer(spacing: 14) {
-        VStack(spacing: 14) {
+        GlassEffectContainer(spacing: FolkiSpacing.card) {
+        VStack(spacing: FolkiSpacing.card) {
             if income > 0 && step != .done && step != .hello {
                 HStack(spacing: 12) {
                     IncomeBar(income: income, items: planned, over: over).frame(height: 14)
                         .modifier(Shake(phase: CGFloat(shake)))
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xxs) {
                         Text("≈ \(MoneyText.whole(Money(minorUnits: daily)))")
                             .font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
                             .foregroundStyle(over ? Color.folkiOver : Color.folkiInk)
@@ -328,13 +328,13 @@ struct PlanWizardView: View {
             .padding(20)
             .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
             .rise(1)
-            HStack(spacing: 10) {
+            HStack(spacing: FolkiSpacing.item) {
                 ForEach([40_000, 80_000, 150_000], id: \.self) { value in
                     Button(MoneyText.whole(Money(minorUnits: Int64(value) * 100))) {
                         incomeText = String(value); FolkiFeedback.selection()
                     }
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiInk)
-                    .padding(.horizontal, 14).frame(height: 40)
+                    .padding(.horizontal, FolkiSpacing.card).frame(height: 40)
                     .glassEffect(.regular.interactive(), in: Capsule())
                 }
             }.rise(2)
@@ -630,7 +630,7 @@ private struct IncomeBar: View {
             let filled = items.filter { $0.minor > 0 }
             let total = max(income, filled.reduce(0) { $0 + $1.minor })
             let width = geometry.size.width - CGFloat(filled.count) * 3
-            HStack(spacing: 3) {
+            HStack(spacing: FolkiSpacing.xxs) {
                 ForEach(filled) { item in
                     let share = CGFloat(item.minor) / CGFloat(max(1, total))
                     RoundedRectangle(cornerRadius: 7).fill(item.color.color.gradient)
@@ -707,7 +707,7 @@ private struct DraftSheet: View {
                         Text("Сумма для планирования. При оплате можно указать фактическую — больше или меньше.")
                             .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     } else if item.byMonthly {
-                        HStack(spacing: 10) {
+                        HStack(spacing: FolkiSpacing.item) {
                             amount(item.amount, label: String(localized: "Цель"), active: !typingMonthly, small: true) { typingMonthly = false }
                             amount(item.monthly, label: String(localized: "В месяц"), active: typingMonthly, small: true) { typingMonthly = true }
                         }
@@ -765,7 +765,7 @@ private struct DraftSheet: View {
 
     /// The icon (tap to change it and its colour) and the name, at the top.
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: FolkiSpacing.item) {
             Button { naming = false; pickingIcon = true } label: {
                 CategoryIcon(symbol: item.symbol, color: item.color.color, size: 30)
                     .overlay(alignment: .bottomTrailing) {
@@ -785,7 +785,7 @@ private struct DraftSheet: View {
 
     private func amount(_ text: String, label: String?, active: Bool, small: Bool = false, select: @escaping () -> Void) -> some View {
         Button { naming = false; select() } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: FolkiSpacing.xxs) {
                 if let label { Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     TypedAmount(text: text)

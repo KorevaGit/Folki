@@ -146,9 +146,9 @@ struct BudgetAnalyticsSection: View {
         let expectedFraction = Double(passed) / Double(max(1, days))
         let ahead = net.minorUnits - expected
         let finished = passed >= days
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: FolkiSpacing.card) {
             Text("Как идёт период").font(.headline).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                 Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                     .contentTransition(.numericText(value: Double(net.minorUnits))).animation(FolkiMotion.quick, value: net.minorUnits)
@@ -187,7 +187,7 @@ struct BudgetAnalyticsSection: View {
 
     private func amountRow(_ title: String, _ amount: Money) -> some View {
         let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: FolkiSpacing.xs))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
         return layout {
             Text(title).foregroundStyle(.secondary)
@@ -221,7 +221,7 @@ struct BudgetAnalyticsSection: View {
         let end = result.interval.end
         return VStack(alignment: .leading, spacing: 12) {
             Text("Траты за период").font(.headline)
-            HStack(spacing: 14) {
+            HStack(spacing: FolkiSpacing.card) {
                 Label("факт", systemImage: "circle.fill").foregroundStyle(Color.folkiAccent)
                 Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(.secondary)
             }.font(.caption).labelStyle(.titleAndIcon).imageScale(.small)
@@ -325,10 +325,10 @@ struct BudgetAnalyticsSection: View {
         let needs = max(0, result.essentialSpending.minorUnits), wants = max(0, result.wantsSpending.minorUnits)
         if needs + wants > 0 {
             let share = Double(needs) / Double(needs + wants)
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                 Text("Обязательные и желания").font(.headline)
                 GeometryReader { geo in
-                    HStack(spacing: 2) {
+                    HStack(spacing: FolkiSpacing.xxs) {
                         Capsule().fill(Color.folkiAccent).frame(width: max(0, (geo.size.width - 2) * share))
                         Capsule().fill(Color.secondary.opacity(0.35))
                     }

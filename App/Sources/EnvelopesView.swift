@@ -58,7 +58,7 @@ struct EnvelopesSection: View {
             .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: session.envelopeBalance($1)).minorUnits) ?? 0) }
         let worst = session.payments.map(session.envelopeUrgency).max() ?? .funded
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                 Text("Отложено").font(.body).foregroundStyle(.secondary)
                 Text(MoneyText.whole(Money(minorUnits: saved))).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
                 Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(.body).foregroundStyle(.secondary).monospacedDigit()
@@ -113,11 +113,11 @@ struct IconPicker: View {
     @Binding var color: CategoryColor
     var body: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.page) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: FolkiSpacing.item)], spacing: FolkiSpacing.item) {
                 ForEach(CategoryColor.allCases) { item in
                     Button { FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { color = item } } label: {
                         Circle().fill(item.color).frame(width: 40, height: 40)
-                            .overlay { if item == color { Circle().strokeBorder(.white, lineWidth: 3).padding(3) } }
+                            .overlay { if item == color { Circle().strokeBorder(.white, lineWidth: 3).padding(FolkiSpacing.xxs) } }
                     }.buttonStyle(FolkiPressStyle())
                         .accessibilityLabel(item.title).accessibilityAddTraits(item == color ? .isSelected : [])
                 }
@@ -125,7 +125,7 @@ struct IconPicker: View {
             ForEach(CategorySymbols.groups, id: \.0) { group in
                 VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
                     Text(group.0).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: FolkiSpacing.item)], spacing: FolkiSpacing.item) {
                         ForEach(group.1, id: \.self) { item in
                             Button { FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { symbol = item } } label: {
                                 Image(systemName: item).font(.title3)
@@ -171,13 +171,13 @@ private struct EnvelopeCard: View {
         VStack(spacing: FolkiSpacing.item) {
             HStack(spacing: FolkiSpacing.item) {
                 EnvelopeIcon(session: session, envelope: envelope)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text(envelope.name).font(.headline).foregroundStyle(Color.folkiInk).lineLimit(1)
                     Text(dueText(envelope, session: session)).font(.footnote)
                         .foregroundStyle(urgency == .funded || urgency == .calm ? .secondary : urgency.color)
                 }
                 Spacer(minLength: FolkiSpacing.xs)
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: FolkiSpacing.xxs) {
                     HStack(spacing: 4) {
                         if urgency == .funded { Image(systemName: "checkmark").font(.footnote.bold()).foregroundStyle(Color.folkiAccent) }
                         Text(MoneyText.whole(balance)).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
@@ -232,13 +232,13 @@ struct EnvelopeDetailView: View {
                         Circle().trim(from: 0, to: Double(balance.minorUnits) / Double(envelope.capacity.minorUnits))
                             .stroke(urgency.color, style: StrokeStyle(lineWidth: 16, lineCap: .round)).rotationEffect(.degrees(-90))
                             .animation(FolkiMotion.ring, value: balance)
-                        VStack(spacing: 2) {
+                        VStack(spacing: FolkiSpacing.xxs) {
                             Text(MoneyText.whole(balance)).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(0.5)
                                 .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
                             Text("из \(MoneyText.whole(envelope.capacity))").font(.subheadline).foregroundStyle(.secondary)
                                 .lineLimit(1).minimumScaleFactor(0.7)
-                        }.padding(.horizontal, 28)
+                        }.padding(.horizontal, FolkiSpacing.large)
                         if paidCheck {
                             Image(systemName: "checkmark").font(.system(size: 64, weight: .bold)).foregroundStyle(Color.folkiAccent)
                                 .transition(.scale.combined(with: .opacity))
@@ -540,7 +540,7 @@ struct EnvelopeEditorView: View {
     }
 
     private var progress: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: FolkiSpacing.xs) {
             ForEach(0..<3) { index in
                 Capsule().fill(index <= step.rawValue ? Color.folkiAccent : Color.folkiSoft).frame(height: 4)
             }

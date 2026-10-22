@@ -207,7 +207,7 @@ struct PlanIncomeEditor: View {
             }
             switch mode {
             case .monthly, .twice:
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: FolkiSpacing.xs), count: 7), spacing: FolkiSpacing.xs) {
                     ForEach(1...31, id: \.self) { day in dayButton(day) }
                 }
             case .weekly:
@@ -254,7 +254,7 @@ struct PlanIncomeEditor: View {
         // Monday first.
         let order = [2, 3, 4, 5, 6, 7, 1]
         let current: Int = { if case .weekly(let weekday) = settings.income { weekday } else { 2 } }()
-        return HStack(spacing: 6) {
+        return HStack(spacing: FolkiSpacing.xs) {
             ForEach(order, id: \.self) { weekday in
                 let selected = current == weekday
                 Button { FolkiFeedback.selection(); settings.income = .weekly(weekday) } label: {
@@ -299,7 +299,7 @@ struct PlanPaymentsEditor: View {
                 // What a reminder will look like.
                 HStack(alignment: .top, spacing: FolkiSpacing.item) {
                     Image(systemName: "app.badge.fill").font(.title2).foregroundStyle(Color.folkiAccent)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                         Text("Аренда — 25 000 ₽ через \(max(1, settings.daysBefore)) дн.").font(.subheadline.weight(.semibold))
                         Text("Не хватает 4 000 ₽ — переложи из денег на жизнь").font(.footnote).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -337,7 +337,7 @@ struct PlanFamilyEditor: View {
             .padding(FolkiSpacing.page)
             .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
             Toggle(isOn: $forEveryone) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text("Для всей семьи")
                 }
             }
@@ -499,7 +499,7 @@ private struct PlanOverview: View {
             HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
                     .frame(width: 40, height: 40).background(Color.folkiAccent.opacity(0.12), in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text(title).font(.body.weight(.medium)).foregroundStyle(Color.folkiInk)
                     Text(value).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                 }

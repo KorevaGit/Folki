@@ -161,7 +161,7 @@ private struct StartPage: View {
                 Label { Text("Меня пригласили") } icon: {
                     Image(systemName: "envelope").overlay {
                         Image(systemName: "heart.fill").font(.system(size: 7)).foregroundStyle(RingPalette.family.start)
-                            .padding(2).background(Color(uiColor: .systemBackground), in: Circle())
+                            .padding(FolkiSpacing.xxs).background(Color(uiColor: .systemBackground), in: Circle())
                     }
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(FolkiSoftButtonStyle()).rise(5)
@@ -466,7 +466,7 @@ private struct RingsDemo: View {
     var body: some View {
         ZStack {
             ring(RingPalette.personal.start, 0.8).padding(4)
-            ring(RingPalette.family.start, 0.55).padding(14)
+            ring(RingPalette.family.start, 0.55).padding(FolkiSpacing.card)
         }.task { try? await Task.sleep(for: .seconds(0.7)); withAnimation(FolkiMotion.ring) { shown = true } }
     }
     private func ring(_ color: Color, _ value: CGFloat) -> some View {
@@ -482,7 +482,7 @@ private struct EnvelopesDemo: View {
     @State private var split = false
     var body: some View {
         GeometryReader { geo in
-            HStack(spacing: 2) {
+            HStack(spacing: FolkiSpacing.xxs) {
                 RoundedRectangle(cornerRadius: 4).fill(Color.folkiWarning).frame(width: split ? geo.size.width * 0.35 : 0)
                 RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.5)).frame(width: split ? geo.size.width * 0.12 : 0)
                 RoundedRectangle(cornerRadius: 4).fill(Color.folkiAccent)

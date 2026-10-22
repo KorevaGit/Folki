@@ -50,7 +50,7 @@ struct ExpenseEditorView: View {
             Form {
                 // The amount leads, like on the spend screen.
                 Section {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                         TextField("0", text: $amount).keyboardType(.decimalPad)
                             .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
                             .multilineTextAlignment(.trailing).fixedSize()
@@ -62,7 +62,7 @@ struct ExpenseEditorView: View {
                 Section {
                     TextField("Описание · необязательно", text: $title)
                     Button { choosingCategory = true } label: {
-                        HStack(spacing: 10) {
+                        HStack(spacing: FolkiSpacing.item) {
                             Text("Категория").foregroundStyle(Color.folkiInk)
                             Spacer()
                             let category = session.catalog.category(for: categoryID)
