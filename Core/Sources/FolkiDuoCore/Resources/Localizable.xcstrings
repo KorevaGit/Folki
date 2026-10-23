@@ -1,406 +1,427 @@
 {
-  "sourceLanguage": "ru",
-  "strings": {
-    "iCloud недоступен или изменился Apple ID. Локальные записи сохранены.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud is unavailable or the Apple ID changed. Your entries on this phone are safe."
+  "sourceLanguage" : "ru",
+  "strings" : {
+    "iCloud недоступен или изменился Apple ID. Локальные записи сохранены." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud is unavailable or the Apple ID changed. Your entries on this phone are safe."
           }
         }
       }
     },
-    "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The iCloud account changed. Sign back in with the previous Apple ID and restart Folki."
+    "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The iCloud account changed. Sign back in with the previous Apple ID and restart Folki."
           }
         }
       }
     },
-    "В накопления: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "To savings: %@"
+    "В накопления: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To savings: %@"
           }
         }
       }
     },
-    "В семейный бюджет": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "To family budget"
+    "В семейный бюджет" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To family budget"
           }
         }
       }
     },
-    "Взнос в семейный бюджет": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contribution to family budget"
+    "Взнос в семейный бюджет" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contribution to family budget"
           }
         }
       }
     },
-    "День": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Day"
+    "День" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day"
           }
         }
       }
     },
-    "Дети": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kids"
+    "Дети" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kids"
           }
         }
       }
     },
-    "Другое": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Other"
+    "Другое" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
           }
         }
       }
     },
-    "Жильё и коммуналка": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Housing and utilities"
+    "Жильё и коммуналка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Housing and utilities"
           }
         }
       }
     },
-    "Здоровье": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Health"
+    "Здоровье" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health"
           }
         }
       }
     },
-    "Из накоплений: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "From savings: %@"
+    "Из накоплений: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From savings: %@"
           }
         }
       }
     },
-    "Кафе и рестораны": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cafes and restaurants"
+    "Кафе и рестораны" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cafes and restaurants"
           }
         }
       }
     },
-    "Красота и уход": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beauty and care"
+    "Красота и уход" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beauty and care"
           }
         }
       }
     },
-    "Кредиты и долги": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loans and debts"
+    "Кредиты и долги" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loans and debts"
           }
         }
       }
     },
-    "Личные накопления": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal savings"
+    "Личные накопления" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal savings"
           }
         }
       }
     },
-    "Личный": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal"
+    "Личный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal"
           }
         }
       }
     },
-    "Личный бюджет": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Personal budget"
+    "Личный бюджет" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal budget"
           }
         }
       }
     },
-    "Месяц": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Month"
+    "Месяц" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month"
           }
         }
       }
     },
-    "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't sync with iCloud. Your entries are safe on this iPhone — check your account and connection."
+    "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't sync with iCloud. Your entries are safe on this iPhone — check your account and connection."
           }
         }
       }
     },
-    "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't change sharing. Check iCloud and try again."
+    "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't change sharing. Check iCloud and try again."
           }
         }
       }
     },
-    "Неделя": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Week"
+    "Неделя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
           }
         }
       }
     },
-    "Обмен с iCloud выполнен": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synced with iCloud"
+    "Обмен с iCloud выполнен" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced with iCloud"
           }
         }
       }
     },
-    "Общий бюджет Folki": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folki shared budget"
+    "Общий бюджет Folki" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki shared budget"
           }
         }
       }
     },
-    "Общий доступ отключён. Проверьте статус пространства.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sharing is off. Check the family budget status."
+    "Общий доступ отключён. Проверьте статус пространства." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sharing is off. Check the family budget status."
           }
         }
       }
     },
-    "Одежда": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clothing"
+    "Одежда" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clothing"
           }
         }
       }
     },
-    "Партнёр": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Partner"
+    "Партнёр" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partner"
           }
         }
       }
     },
-    "Подарки": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gifts"
+    "Период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period"
           }
         }
       }
     },
-    "Продукты": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Groceries"
+    "Подарки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gifts"
           }
         }
       }
     },
-    "Путешествия": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Travel"
+    "Продукты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Groceries"
           }
         }
       }
     },
-    "Развлечения": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entertainment"
+    "Путешествия" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Travel"
           }
         }
       }
     },
-    "Связь и подписки": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phone and subscriptions"
+    "Развлечения" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entertainment"
           }
         }
       }
     },
-    "Семейные накопления": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Family savings"
+    "Связь и подписки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone and subscriptions"
           }
         }
       }
     },
-    "Семейный": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Family"
+    "Семейные накопления" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family savings"
           }
         }
       }
     },
-    "Семейный бюджет": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Family budget"
+    "Семейный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family"
           }
         }
       }
     },
-    "Сохранено на iPhone · iCloud не подключён": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saved on iPhone · iCloud not connected"
+    "Семейный бюджет" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Family budget"
           }
         }
       }
     },
-    "Сохранено на iPhone · ожидает отправки": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saved on iPhone · waiting to sync"
+    "Сохранено на iPhone · iCloud не подключён" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved on iPhone · iCloud not connected"
           }
         }
       }
     },
-    "Сохранено на iPhone · ожидание iCloud": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saved on iPhone · waiting for iCloud"
+    "Сохранено на iPhone · ожидает отправки" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved on iPhone · waiting to sync"
           }
         }
       }
     },
-    "Транспорт": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transport"
+    "Сохранено на iPhone · ожидание iCloud" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved on iPhone · waiting for iCloud"
           }
         }
       }
     },
-    "Я": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Me"
+    "Транспорт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transport"
           }
         }
       }
     },
-    "Период": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Period"
+    "Я" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Me"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

@@ -68,6 +68,12 @@ final class FolkiApplication {
             }
         }
     }
+    /// A copied invitation link works like an opened one.
+    func join(_ url: URL) async {
+        guard let repository = session?.repository else { return }
+        do { receive(try await repository.invitation(from: url)) }
+        catch { invitationError = String(localized: "Не получилось открыть приглашение. Проверь ссылку и интернет.") }
+    }
     func declinePendingInvitation() {
         if !pendingInvitations.isEmpty { pendingInvitations.removeFirst() }
         replacementPending = false

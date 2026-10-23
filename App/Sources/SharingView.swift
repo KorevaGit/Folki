@@ -1,13 +1,12 @@
 import SwiftUI
+import CloudKit
 import FolkiDuoCore
 
 struct SharingView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
     @State private var name = ""
-    @State private var email = ""
-    @State private var preparing = false
-    @State private var invitationURL: URL?
+    @State private var existingShare: CKShare?
     @State private var errorMessage: String?
     @State private var editingMember: Member?
     @State private var editedName = ""
@@ -41,29 +40,38 @@ struct SharingView: View {
                             catch { errorMessage = String(localized: "Не получилось создать семью. Попробуй ещё раз.") }
                         }
                     }
-                } else {
-                    Section(session.repository?.cloudIdentifier == nil ? String(localized: "Добавить участника") : String(localized: "Пригласить по Apple ID")) {
-                        TextField("Имя", text: $name)
-                        if session.repository?.cloudIdentifier != nil {
-                            TextField("Email Apple ID", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress).autocorrectionDisabled()
-                            Button(preparing ? String(localized: "Готовим…") : String(localized: "Создать приглашение")) {
-                                guard let repository = session.repository, let budget = session.storedBudget else { return }
-                                preparing = true; invitationURL = nil
-                                Task {
-                                    defer { preparing = false }
-                                    do { invitationURL = try await repository.inviteFamilyMember(email: email, name: name, in: budget, asOf: session.referenceDate); session.refresh() }
-                                    catch { errorMessage = String(localized: "Не получилось. Проверь Apple ID и попробуй ещё раз.") }
-                                }
-                            }.disabled(preparing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty)
-                            if let invitationURL { ShareLink("Отправить приглашение", item: invitationURL) }
-                            Text("Отправь ссылку: человек откроет её и сразу окажется в вашем бюджете").font(.footnote).foregroundStyle(.secondary)
-                        } else {
-                            Button("Добавить для учёта") {
-                                do { try session.addMember(name: name); name = "" }
-                                catch { errorMessage = String(localized: "В семье уже пять человек — это максимум") }
-                            }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
-                            Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
+                } else if let repository = session.repository, let identifier = repository.cloudIdentifier {
+                    if (try? repository.ownsFamily()) == true, let householdID = session.household?.id {
+                        Section {
+                            ShareLink(item: FamilyInvitation(share: existingShare, container: CKContainer(identifier: identifier)) {
+                                try await repository.share(householdID: householdID)
+                            }, preview: SharePreview("Семейный бюджет Folki", image: Image("LaunchHouse"))) {
+                                Label("Отправить приглашение", systemImage: "person.badge.plus")
+                            }.disabled(session.members.filter(\.isActive).count >= 5)
+                        } footer: {
+                            Text("Ссылку можно отправить в любой мессенджер. Кто откроет её на iPhone, попадёт в семью — всего до пяти человек.")
                         }
+                        .task { existingShare = try? repository.existingShare(householdID: householdID) }
+                    }
+                } else {
+                    Section("Добавить участника") {
+                        TextField("Имя", text: $name)
+                        Button("Добавить для учёта") {
+                            do { try session.addMember(name: name); name = "" }
+                            catch { errorMessage = String(localized: "В семье уже пять человек — это максимум") }
+                        }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
+                        Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if let repository = session.repository, repository.cloudIdentifier != nil,
+                   session.household == nil || (try? repository.ownsFamily()) == true {
+                    Section {
+                        PasteButton(payloadType: URL.self) { urls in
+                            guard let url = urls.first else { return }
+                            Task { @MainActor in dismiss(); await FolkiApplication.shared.join(url) }
+                        }
+                    } header: { Text("Меня пригласили") } footer: {
+                        Text("Открой ссылку из сообщения на этом iPhone или скопируй её и вставь сюда. Личный бюджет не изменится.")
                     }
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
@@ -92,6 +100,24 @@ struct SharingView: View {
                 }
                 Button("Отмена", role: .cancel) { editingMember = nil }
             }
+        }
+    }
+}
+
+/// The family invitation for the share sheet: a link anyone can open, with edit rights.
+private struct FamilyInvitation: Transferable {
+    let share: CKShare?
+    let container: CKContainer
+    let prepare: @Sendable () async throws -> CKShare
+
+    static var transferRepresentation: some TransferRepresentation {
+        CKShareTransferRepresentation { invitation in
+            let options = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite,
+                                                  allowedParticipantAccessOptions: .anyoneWithLink)
+            if let share = invitation.share {
+                return .existing(share, container: invitation.container, allowedSharingOptions: options)
+            }
+            return .prepareShare(container: invitation.container, allowedSharingOptions: options, preparationHandler: invitation.prepare)
         }
     }
 }

@@ -1,76 +1,6 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
-    "Не хватает" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shortfall"
-          }
-        }
-      }
-    },
-    "Доход + %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Income + %@"
-          }
-        }
-      }
-    },
-    "Учесть остаток %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use available balance %@"
-          }
-        }
-      }
-    },
-    "Из остатка %@ · только на этот период" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "From balance %@ · this period only"
-          }
-        }
-      }
-    },
-    "в день на этот период" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "per day this period"
-          }
-        }
-      }
-    },
-    "Личные конверты удалятся, деньги вернутся на жизнь. Семейные конверты останутся" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Personal envelopes will be deleted and their money returned to daily spending. Family envelopes will stay."
-          }
-        }
-      }
-    },
-    "Уведомления выключены" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications are off"
-          }
-        }
-      }
-    },
     " (%@)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -187,16 +117,16 @@
     },
     "%@ · −%@ · %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · −%2$@ · %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · −%@ · %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · −%2$@ · %3$@"
           }
         }
       }
@@ -515,6 +445,7 @@
       }
     },
     "%lld%% — общий для семьи" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -525,6 +456,7 @@
       }
     },
     "%lld%% — твой процент" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -645,7 +577,8 @@
             "value" : "Apple ID email"
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Folki отложит их отдельно от дневных денег. При оплате выбери платёж в поле «Источник» — дневное кольцо не изменится." : {
       "extractionState" : "stale",
@@ -2012,7 +1945,8 @@
             "value" : "Preparing…"
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Готово" : {
       "localizations" : {
@@ -2584,6 +2518,16 @@
         }
       }
     },
+    "Доход + %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income + %@"
+          }
+        }
+      }
+    },
     "Доход в личный" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2665,7 +2609,8 @@
             "value" : "If you installed Folki from the link, open the link from the message again — the app will accept it now."
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Если в конверте не хватит, разницу возьму из денег на жизнь." : {
       "localizations" : {
@@ -3282,6 +3227,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Of which, daily spending"
+          }
+        }
+      }
+    },
+    "Из остатка %@ · только на этот период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From balance %@ · this period only"
           }
         }
       }
@@ -4235,11 +4190,22 @@
       }
     },
     "Личные конверты и напоминания удалятся, деньги из них вернутся на жизнь. Семейные конверты останутся" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your personal envelopes and reminders will be deleted and their money goes back to living. Family envelopes stay"
+          }
+        }
+      }
+    },
+    "Личные конверты удалятся, деньги вернутся на жизнь. Семейные конверты останутся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal envelopes will be deleted and their money returned to daily spending. Family envelopes will stay."
           }
         }
       }
@@ -5230,6 +5196,16 @@
         }
       }
     },
+    "Не получилось открыть приглашение. Проверь ссылку и интернет." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't open the invitation. Check the link and your internet connection."
+          }
+        }
+      }
+    },
     "Не получилось открыть хранилище Folki. Данные не удалены. Попробуй ещё раз." : {
       "localizations" : {
         "en" : {
@@ -5557,7 +5533,8 @@
             "value" : "That didn't work. Check the Apple ID and try again."
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Не распределено: %@" : {
       "extractionState" : "stale",
@@ -5566,6 +5543,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not assigned: %@"
+          }
+        }
+      }
+    },
+    "Не хватает" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shortfall"
           }
         }
       }
@@ -6242,6 +6229,26 @@
         }
       }
     },
+    "Открой ссылку из сообщения ещё раз или скопируй её и вставь сюда." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the link from the message again, or copy it and paste it here."
+          }
+        }
+      }
+    },
+    "Открой ссылку из сообщения на этом iPhone или скопируй её и вставь сюда. Личный бюджет не изменится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the link from the message on this iPhone, or copy it and paste it here. Your personal budget stays as it is."
+          }
+        }
+      }
+    },
     "Открой ссылку на этом iPhone" : {
       "localizations" : {
         "en" : {
@@ -6448,7 +6455,8 @@
             "value" : "Send the link: the person opens it and joins your budget right away"
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Отпуск" : {
       "localizations" : {
@@ -6953,6 +6961,7 @@
       }
     },
     "По плану ≈ %@/день" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7328,6 +7337,7 @@
       }
     },
     "Пополнение конверта — не трата" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7410,6 +7420,7 @@
       }
     },
     "После сохранения предложу отложить часть в срочные конверты" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7644,7 +7655,8 @@
             "value" : "Invite by Apple ID"
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Приглашение не принято. Для вступления нужно пустое пространство и доступный iCloud. Локальный бюджет не заменён." : {
       "extractionState" : "stale",
@@ -7865,6 +7877,7 @@
       }
     },
     "Продукты, кафе и остальное — только для статистики, пополнять не нужно" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7979,6 +7992,7 @@
       }
     },
     "Распределить по конвертам" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8587,6 +8601,16 @@
         }
       }
     },
+    "Семейный бюджет Folki" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki family budget"
+          }
+        }
+      }
+    },
     "Семейный бюджет видят все участники." : {
       "localizations" : {
         "en" : {
@@ -9110,7 +9134,8 @@
             "value" : "Create invite"
           }
         }
-      }
+      },
+      "extractionState" : "stale"
     },
     "Создать свой конверт" : {
       "extractionState" : "stale",
@@ -9244,6 +9269,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "I opened the link but nothing happens"
+          }
+        }
+      }
+    },
+    "Ссылку можно отправить в любой мессенджер. Кто откроет её на iPhone, попадёт в семью — всего до пяти человек." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send the link in any messenger. Whoever opens it on an iPhone joins the family — up to five people in total."
           }
         }
       }
@@ -9717,6 +9752,7 @@
       }
     },
     "Траты на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9891,6 +9927,7 @@
       }
     },
     "Уведомления" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9900,7 +9937,18 @@
         }
       }
     },
+    "Уведомления выключены" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications are off"
+          }
+        }
+      }
+    },
     "Уведомления выключены — напоминания не придут. Включить" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10083,6 +10131,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set aside from this amount"
+          }
+        }
+      }
+    },
+    "Учесть остаток %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use available balance %@"
           }
         }
       }
@@ -10585,6 +10643,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "a day to live on"
+          }
+        }
+      }
+    },
+    "в день на этот период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per day this period"
           }
         }
       }

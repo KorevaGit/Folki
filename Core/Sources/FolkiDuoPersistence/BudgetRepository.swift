@@ -854,11 +854,27 @@ public final class BudgetRepository {
         }
     }
 
+    /// The family's share if it exists already; the invite button hands it to the share sheet as is.
+    public func existingShare(householdID: UUID) throws -> CKShare? {
+        let household = try sharingRoot(householdID: householdID)
+        return try container.fetchShares(matching: [household.objectID])[household.objectID]
+    }
+    /// Whether this iPhone created the family, and so may invite people to it.
+    public func ownsFamily() throws -> Bool {
+        try households(in: .family).first?.objectID.persistentStore == privateStore
+    }
+    /// The invitation is a link anyone can open, so it can be sent to any messenger without knowing
+    /// the person's Apple ID. The five-person limit is checked when the link is accepted.
     public func share(householdID: UUID) async throws -> CKShare {
         try writable()
         guard cloudIdentifier != nil, cloudIdentity != nil else { throw LedgerError.cloudNotConfigured }
         let household = try sharingRoot(householdID: householdID)
-        if let share = try container.fetchShares(matching: [household.objectID])[household.objectID] { return share }
+        if let share = try container.fetchShares(matching: [household.objectID])[household.objectID] {
+            guard share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner else { return share }
+            share.publicPermission = .readWrite
+            try await persist(share: share, store: household.objectID.persistentStore!)
+            return share
+        }
         let share: CKShare = try await withCheckedThrowingContinuation { continuation in
             container.share([household], to: nil) { _, share, _, error in
                 if let error { continuation.resume(throwing: error) }
@@ -866,44 +882,39 @@ public final class BudgetRepository {
                 else { continuation.resume(throwing: LedgerError.unavailable) }
             }
         }
-        share.publicPermission = .none
+        share.publicPermission = .readWrite
         share[CKShare.SystemFieldKey.title] = String(localized: "Общий бюджет Folki", bundle: .module) as CKRecordValue
         try await persist(share: share, store: household.objectID.persistentStore!)
         return share
     }
-    /// Only the owner invites named Apple IDs; pending invitations also consume a seat.
-    public func inviteFamilyMember(email: String, name: String, in budget: StoredBudget, asOf now: Date) async throws -> URL {
-        try writable()
-        guard budget.scope == .family, let identifier = cloudIdentifier, cloudIdentity != nil,
-              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw LedgerError.accessDenied }
-        _ = try writableRoot(budget, now: now)
-        let share = try await share(householdID: budget.snapshot.id)
-        guard share.currentUserParticipant?.role == .owner else { throw LedgerError.accessDenied }
-        let participant = try await CKContainer(identifier: identifier).shareParticipant(forEmailAddress: email.trimmingCharacters(in: .whitespacesAndNewlines))
-        guard let identity = participant.userIdentity.userRecordID?.recordName, identity != cloudIdentity else { throw LedgerError.invalidMember }
-        let alreadyInvited = share.participants.contains { $0.userIdentity.userRecordID?.recordName == identity }
-        guard alreadyInvited || share.participants.count < 5 else { throw LedgerError.familyFull }
-        let root = try writableRoot(budget, now: now)
-        let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", root))
-        let existing = members.first { $0.value(forKey: "cloudIdentity") as? String == identity }
-        let empty = members.first { $0.value(forKey: "inactive") as? Bool != true && $0.value(forKey: "cloudIdentity") == nil && $0.value(forKey: "id") as? UUID != localMemberID }
-        guard existing?.value(forKey: "inactive") as? Bool == false || (existing != nil && existing?.value(forKey: "inactive") == nil) || empty != nil || members.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
-        if !alreadyInvited { participant.permission = .readWrite; share.addParticipant(participant) }
-        share.publicPermission = .none
-        try await persist(share: share, store: root.objectID.persistentStore!)
-        // Revalidate after suspension. Bind the slot before the recipient can author ledger entries.
+    /// A copied link works like an opened one.
+    public func invitation(from url: URL) async throws -> CKShare.Metadata {
+        guard let cloudIdentifier else { throw LedgerError.cloudNotConfigured }
+        return try await CKContainer(identifier: cloudIdentifier).shareMetadata(for: url)
+    }
+    /// Someone who joined by link adds themselves once the family's records arrive.
+    /// Only participants of the share can write into it, so the link is the only way in.
+    @discardableResult
+    public func claimFamilyMembership() throws -> Bool {
+        guard let cloudIdentity, !accountLocked, let sharedStore else { return false }
         do {
-            _ = try writableRoot(budget, now: now)
-            let current = try fetch("Member", predicate: NSPredicate(format: "household == %@", root))
-            let bound = current.first { $0.value(forKey: "cloudIdentity") as? String == identity }
-            let free = current.first { $0.value(forKey: "inactive") as? Bool != true && $0.value(forKey: "cloudIdentity") == nil && $0.value(forKey: "id") as? UUID != localMemberID }
-            guard bound?.value(forKey: "inactive") as? Bool == false || (bound != nil && bound?.value(forKey: "inactive") == nil) || free != nil || current.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
-            let member = bound ?? free ?? insert("Member", household: root)
-            member.setValue(false, forKey: "inactive"); member.setValue(identity, forKey: "cloudIdentity"); member.setValue(name.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "name")
-            try commit()
+            var changed = false
+            for household in try households(in: .family) where household.objectID.persistentStore == sharedStore {
+                let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
+                guard !members.contains(where: { $0.value(forKey: "cloudIdentity") as? String == cloudIdentity }) else { continue }
+                guard members.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+                let names = try container.fetchShares(matching: [household.objectID])[household.objectID]?
+                    .currentUserParticipant?.userIdentity.nameComponents
+                let name = names.map { PersonNameComponentsFormatter.localizedString(from: $0, style: .short) } ?? ""
+                let member = insert("Member", id: localMemberID, household: household)
+                member.setValue(name.isEmpty ? String(localized: "Участник", bundle: .module) : name, forKey: "name")
+                member.setValue(cloudIdentity, forKey: "cloudIdentity")
+                member.setValue(false, forKey: "inactive")
+                changed = true
+            }
+            if changed { try commit() }
+            return changed
         } catch { context.rollback(); throw error }
-        guard let url = share.url else { throw LedgerError.unavailable }
-        return url
     }
 
     public func removeFamilyMember(_ member: Member, in budget: StoredBudget, asOf now: Date) async throws {
@@ -925,7 +936,7 @@ public final class BudgetRepository {
         } catch { context.rollback(); throw error }
     }
     public func persist(share: CKShare, store: NSPersistentStore) async throws {
-        guard share.participants.count <= 5, share.publicPermission == .none else { throw LedgerError.familyFull }
+        guard share.participants.count <= 5 else { throw LedgerError.familyFull }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             container.persistUpdatedShare(share, in: store) { _, error in
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
@@ -939,7 +950,7 @@ public final class BudgetRepository {
         try writable()
         guard metadata.containerIdentifier == cloudIdentifier, cloudIdentity != nil,
               let sharedStore else { throw LedgerError.cloudNotConfigured }
-        guard metadata.share.participants.count <= 5, metadata.share.publicPermission == .none else { throw LedgerError.familyFull }
+        guard metadata.share.participants.count <= 5 else { throw LedgerError.familyFull }
         let households = try households(in: .family)
         for household in households {
             let existing = try container.fetchShares(matching: [household.objectID])[household.objectID]

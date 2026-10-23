@@ -75,6 +75,8 @@ final class BudgetSession {
             do {
                 // Two iPhones may have opened the same new family period; fold the copies together first.
                 _ = try? repository.mergeDuplicatePeriods(scope: scope)
+                // Someone who joined by link appears in the family once its records have arrived.
+                if scope == .family { _ = try? repository.claimFamilyMembership() }
                 let stored = try repository.load(asOf: referenceDate, scope: scope)
                 household = stored?.snapshot
                 periods = try repository.periods(scope: scope)

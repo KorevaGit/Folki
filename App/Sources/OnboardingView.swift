@@ -344,8 +344,12 @@ private struct InvitedPage: View {
                     Button("Ссылка уже открыта, а ничего не происходит") { showingHelp.toggle() }
                         .font(.subheadline).foregroundStyle(Color.folkiAccent)
                     if showingHelp {
-                        Text("Если Folki ставился по ссылке, открой ссылку из сообщения ещё раз — теперь приложение её примет.")
+                        Text("Открой ссылку из сообщения ещё раз или скопируй её и вставь сюда.")
                             .font(.subheadline).foregroundStyle(.secondary).transition(.opacity)
+                        PasteButton(payloadType: URL.self) { urls in
+                            guard let url = urls.first else { return }
+                            Task { @MainActor in await FolkiApplication.shared.join(url) }
+                        }.transition(.opacity)
                     }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
