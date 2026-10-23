@@ -125,35 +125,38 @@ struct BudgetRingsCard: View {
     var personalNeedsFunds = false
     var familyNeedsFunds = false
     var addFunds: (BudgetScope) -> Void = { _ in }
+    /// Only the rings and figures, for pages that lay out the lines below themselves.
+    var ringsOnly = false
     let reviewPlan: (BudgetScope) -> Void
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 56
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 12) {
+        if ringsOnly {
             rings
-            outlook
-        }.frame(maxWidth: .infinity)
+        } else {
+            VStack(spacing: 12) {
+                rings
+                outlook
+            }.frame(maxWidth: .infinity)
+        }
     }
 
     @ViewBuilder var rings: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: FolkiSpacing.card) {
-                FinancialRings(personal: personal, family: family, showsMonth: showsMonth, showsFamily: showsFamily, refreshing: refreshing, refreshPull: refreshPull)
-                    .frame(width: 160, height: 160).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                    if personalNeedsFunds && isToday {
-                        Button("Добавить деньги") { addFunds(.personal) }.font(.headline)
-                    } else { accessibleAmount(personal, title: String(localized: "Личный")) }
-                    if showsFamily {
-                        if familyNeedsFunds && isToday {
-                            Button("Добавить в семейный") { addFunds(.family) }.font(.headline)
-                        } else { accessibleAmount(family, title: String(localized: "Семейный")) }
-                    }
-                    if !personalNeedsFunds { Button("День / период", action: togglePeriod).font(.subheadline) }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // With accessibility text the figure is the point: no ring around it, so it is never the smallest thing on screen.
+            VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+                if personalNeedsFunds && isToday {
+                    Button("Добавить деньги") { addFunds(.personal) }.font(.headline)
+                } else { accessibleAmount(personal, title: String(localized: "Личный"), size: amountSize) }
+                if showsFamily {
+                    if familyNeedsFunds && isToday {
+                        Button("Добавить в семейный") { addFunds(.family) }.font(.headline)
+                    } else { accessibleAmount(family, title: String(localized: "Семейный"), size: amountSize * 0.6) }
+                }
+                if !personalNeedsFunds { Button("День / период", action: togglePeriod).font(.subheadline) }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
             GeometryReader { geometry in
                 let diameter = min(geometry.size.width, geometry.size.height)
@@ -178,12 +181,12 @@ struct BudgetRingsCard: View {
         return MoneyText.whole(showsMonth ? result.periodRemaining : result.todayRemaining)
     }
 
-    private func accessibleAmount(_ result: DailyBudgetSnapshot?, title: String) -> some View {
+    private func accessibleAmount(_ result: DailyBudgetSnapshot?, title: String, size: CGFloat) -> some View {
         let money = showsMonth ? result?.periodRemaining : result?.todayRemaining
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             Text("\(title) · \(showsMonth ? String(localized: "период") : String(localized: "день"))").font(.subheadline).foregroundStyle(.secondary)
             Text(money.map(MoneyText.whole) ?? String(localized: "Не настроен"))
-                .font(.system(.largeTitle, design: .rounded, weight: .bold)).monospacedDigit()
+                .font(.system(size: size, weight: .bold, design: .rounded)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.4)
                 .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.folkiOver : Color.folkiInk)
         }

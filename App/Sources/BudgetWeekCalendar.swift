@@ -31,21 +31,36 @@ struct BudgetWeekCalendar: View {
     }
 
     var body: some View {
+        Group {
+            // With accessibility text seven days do not fit a row and push the remaining amount off the screen:
+            // the month opens the full calendar instead.
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack { monthButton; Spacer(); if selection != nil { todayButton } }.foregroundStyle(.secondary)
+            } else {
+                strip
+            }
+        }
+        .sheet(isPresented: $showingMonth) {
+            NavigationStack {
+                DatePicker("Дата бюджета", selection: dateBinding, in: ...today, displayedComponents: .date)
+                    .datePickerStyle(.graphical).padding()
+                    .environment(\.calendar, calendar)
+                    .environment(\.timeZone, calendar.timeZone)
+                    .navigationTitle("Календарь").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button("Готово") { showingMonth = false }
+                    } }
+            }.presentationDetents([.medium, .large])
+        }
+    }
+
+    private var strip: some View {
         VStack(spacing: FolkiSpacing.xs) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 4) {
-                        monthButton
-                        HStack { if selection != nil { todayButton }; Spacer(); weekButtons }
-                    }
-                } else {
-                    HStack(spacing: 4) {
-                        monthButton
-                        Spacer(minLength: 4)
-                        if selection != nil { todayButton.transition(.opacity) }
-                        weekButtons
-                    }
-                }
+            HStack(spacing: 4) {
+                monthButton
+                Spacer(minLength: 4)
+                if selection != nil { todayButton.transition(.opacity) }
+                weekButtons
             }.foregroundStyle(.secondary)
             .animation(reduceMotion ? nil : FolkiMotion.quick, value: selection == nil)
             ZStack {
@@ -66,18 +81,6 @@ struct BudgetWeekCalendar: View {
                 if value.translation.width > 0 { moveWeek(-1) }
                 else if !isCurrentWeek { moveWeek(1) }
             })
-        }
-        .sheet(isPresented: $showingMonth) {
-            NavigationStack {
-                DatePicker("Дата бюджета", selection: dateBinding, in: ...today, displayedComponents: .date)
-                    .datePickerStyle(.graphical).padding()
-                    .environment(\.calendar, calendar)
-                    .environment(\.timeZone, calendar.timeZone)
-                    .navigationTitle("Календарь").navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) {
-                        Button("Готово") { showingMonth = false }
-                    } }
-            }.presentationDetents([.medium, .large])
         }
     }
 

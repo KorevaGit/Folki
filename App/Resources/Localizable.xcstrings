@@ -4620,6 +4620,16 @@
         }
       }
     },
+    "На платежи не хватает %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ short for bills"
+          }
+        }
+      }
+    },
     "На повседневные траты" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5084,6 +5094,16 @@
         }
       }
     },
+    "Не получилось вернуть платёж. Попробуй ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't bring the payment back. Try again."
+          }
+        }
+      }
+    },
     "Не получилось внести деньги. Попробуй ещё раз." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5222,6 +5242,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't cancel the contribution. Refresh history and try again."
+          }
+        }
+      }
+    },
+    "Не получилось отметить платёж. Попробуй ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't mark the payment. Try again."
           }
         }
       }
@@ -8167,6 +8197,16 @@
         }
       }
     },
+    "С платежами ≈ %@/день до %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With bills ≈ %@/day until %@"
+          }
+        }
+      }
+    },
     "С учётом возвратов. Пополнение конвертов — не расход." : {
       "localizations" : {
         "en" : {
@@ -9025,6 +9065,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next period"
+          }
+        }
+      }
+    },
+    "Следующий платёж жду %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next payment due %@"
           }
         }
       }
@@ -10024,6 +10074,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No deleted entries"
+          }
+        }
+      }
+    },
+    "Уже оплачено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already paid"
           }
         }
       }

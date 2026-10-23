@@ -77,7 +77,8 @@ struct FolkiRootView: View {
                     PlanTab(personal: personal, family: family, pendingEnvelope: $pendingEnvelope)
                 }
             }
-            .tabBarMinimizeBehavior(.onScrollDown)
+            // Both tabs stay in sight: a minimized bar hid «План» after any scroll.
+            .tabBarMinimizeBehavior(.never)
             .tint(Color.folkiAccent)
             .transition(.identity)
             .onChange(of: reminderSignature) { reschedule() }

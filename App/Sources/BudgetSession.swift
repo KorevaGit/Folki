@@ -353,6 +353,21 @@ final class BudgetSession {
         return Money(minorUnits: envelopes.filter { $0.isMandatory && !$0.isSavings && $0.nextDue < end }
             .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: envelopeBalance($1)).minorUnits) ?? 0) })
     }
+    /// The daily guide once this period's unpaid mandatory bills are set aside, or what living money lacks for them.
+    enum ObligationsOutlook { case guide(Money), short(Money) }
+    var obligationsOutlook: ObligationsOutlook? {
+        guard let result else { return nil }
+        let end = household?.period.endExclusive ?? referenceDate
+        var fills: [UUID: Money] = [:]
+        for envelope in envelopes where envelope.isMandatory && !envelope.isSavings && envelope.nextDue < end {
+            if let need = try? envelope.shortfall(balance: envelopeBalance(envelope)), need.minorUnits > 0 { fills[envelope.id] = need }
+        }
+        guard !fills.isEmpty else { return nil }
+        let total = fills.values.reduce(Int64(0)) { $0 + $1.minorUnits }
+        let free = result.monthlyRemaining.minorUnits
+        if total > free { return .short(Money(minorUnits: total - max(0, free))) }
+        return previewAvailableDistribution(fills).map { .guide($0.todayGuide) }
+    }
     var payments: [RecurringEnvelope] { envelopes.filter { !$0.isSavings } }
     var jars: [RecurringEnvelope] { envelopes.filter(\.isSavings) }
     func archiveEnvelope(_ envelope: RecurringEnvelope) throws {

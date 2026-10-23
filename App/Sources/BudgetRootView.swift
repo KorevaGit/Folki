@@ -66,7 +66,9 @@ struct BudgetRootView: View {
                                            togglePeriod: toggleRingPeriod,
                                            showsFamily: family.household != nil,
                                            personalNeedsFunds: !personal.hasFunding, familyNeedsFunds: !family.hasFunding,
-                                           addFunds: { scope in selectedScope = scope; sheet = .income }) { scope in
+                                           addFunds: { scope in selectedScope = scope; sheet = .income },
+                                           // In the hierarchy, not as `card.rings`: only then it reads text size and Reduce Motion.
+                                           ringsOnly: true) { scope in
                     // The period is overspent: more money is the way back, not a smaller plan.
                     selectedScope = scope; sheet = .income
                 }
@@ -81,7 +83,7 @@ struct BudgetRootView: View {
                             VStack(spacing: 0) {
                                 VStack(spacing: 12) {
                                     if selectedDay == nil { banner }
-                                    interactiveRings(card.rings).frame(maxHeight: .infinity)
+                                    interactiveRings(card).frame(maxHeight: .infinity)
                                     distributionLine
                                     entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                     Button { scrollToHistory(page) } label: {
@@ -271,11 +273,22 @@ struct BudgetRootView: View {
                         // Past today's guide, the useful number is what tomorrow brings.
                         if result.todayRemaining.minorUnits < 0, let next = result.futureAllocation {
                             Text("Завтра ≈ \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день")
+                        } else if let outlook = personal.obligationsOutlook {
+                            // Unpaid bills of this period come out of the same money, so the forecast counts them.
+                            switch outlook {
+                            case .guide(let guide):
+                                Text("С платежами ≈ \(MoneyText.whole(guide.roundedDownToWholeUnits))/день до \(last)")
+                            case .short(let missing):
+                                Text("На платежи не хватает \(MoneyText.whole(missing.roundedUpToWholeUnits))")
+                                    .foregroundStyle(Color.folkiOver)
+                            }
                         } else {
                             Text("≈ \(MoneyText.whole(result.todayGuide.roundedDownToWholeUnits))/день до \(last)")
                         }
                     }
                     .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    // Large text wraps the line instead of cutting off the date.
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 }.buttonStyle(.plain)
             }
         }
@@ -367,7 +380,8 @@ struct BudgetRootView: View {
             Button { selectedScope = session.scope; sheet = .allocate } label: {
                 Label {
                     // One line: what, how much is missing, by when.
-                    Text("\(envelope.name) · −\(MoneyText.whole(missing)) · \(due)").lineLimit(1).minimumScaleFactor(0.8)
+                    Text("\(envelope.name) · −\(MoneyText.whole(missing)) · \(due)")
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1).minimumScaleFactor(0.8)
                         .multilineTextAlignment(.leading)
                 } icon: {
                     Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")

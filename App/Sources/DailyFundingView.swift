@@ -63,6 +63,8 @@ struct DailyFundingView: View {
     @State private var errorMessage: String?
     @State private var receipt: Receipt?
     @State private var isSaving = false
+    /// Bills marked "Уже оплачено" here, as they were before moving to their next date, so "Вернуть" can undo it.
+    @State private var paidOutside: [RecurringEnvelope] = []
     private struct Line: Identifiable { let id: UUID; let name: String; let amount: Money }
     private struct Receipt {
         let amount: Money
@@ -90,7 +92,8 @@ struct DailyFundingView: View {
     }
     /// The envelopes that can take money now: due this period and still short.
     private var openEnvelopes: [RecurringEnvelope] {
-        session.envelopes.filter { ((try? $0.shortfall(balance: session.envelopeBalance($0)).minorUnits) ?? 0) > 0 }
+        let paid = Set(paidOutside.map(\.id))
+        return session.envelopes.filter { !paid.contains($0.id) && ((try? $0.shortfall(balance: session.envelopeBalance($0)).minorUnits) ?? 0) > 0 }
     }
     private var projected: DailyBudgetSnapshot? {
         guard let money else { return nil }
@@ -236,19 +239,25 @@ struct DailyFundingView: View {
                         }
                     } else {
                         if !distributesExisting && scope == .personal && hasFamily { shareRow }
-                        if openEnvelopes.isEmpty {
+                        if openEnvelopes.isEmpty && paidOutside.isEmpty {
                             Text("Конвертов для пополнения нет — поступление останется на жизнь")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                         ForEach(openEnvelopes) { envelope in envelopeSlider(envelope) }
+                        ForEach(paidOutside) { envelope in paidRow(envelope) }
                         allocationSummary
                     }
                     if isContribution { impact(before: session.result, after: projected) }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.vertical, FolkiSpacing.item)
             }.scrollBounceBehavior(.basedOnSize)
-            Button(distributesExisting ? "Распределить" : isContribution ? "Перевести в семью" : "Внести деньги", action: save)
-                .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(isSaving || projected == nil)
+            if distributesExisting && !split.fills.values.contains(where: { $0.minorUnits > 0 }) {
+                // Nothing to move, for example every bill is already paid: the sheet just closes.
+                Button("Готово") { dismiss() }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+            } else {
+                Button(distributesExisting ? "Распределить" : isContribution ? "Перевести в семью" : "Внести деньги", action: save)
+                    .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(isSaving || projected == nil)
+            }
         }
     }
 
@@ -360,10 +369,62 @@ struct DailyFundingView: View {
                 .tint(urgency == .calm || urgency == .funded ? Color.folkiAccent : urgency.color)
                 .accessibilityLabel(envelope.name)
                 .accessibilityValue(MoneyText.whole(fill))
-            Text(dueLine(envelope)).font(.footnote).foregroundStyle(urgency == .calm ? .secondary : urgency.color)
+            HStack(alignment: .firstTextBaseline) {
+                Text(dueLine(envelope)).font(.footnote).foregroundStyle(urgency == .calm ? .secondary : urgency.color)
+                Spacer(minLength: FolkiSpacing.xs)
+                // Money already set aside elsewhere, or the bill already paid: this time is skipped, not funded.
+                if isDueThisPeriod(envelope) {
+                    Button("Уже оплачено") { markPaid(envelope) }
+                        .font(.footnote.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                        .buttonStyle(.plain).frame(minHeight: 44)
+                }
+            }
         }
         .padding(FolkiSpacing.card)
         .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+    }
+
+    private func isDueThisPeriod(_ envelope: RecurringEnvelope) -> Bool {
+        guard !envelope.isSavings, let end = session.household?.period.endExclusive else { return false }
+        return envelope.nextDue < end
+    }
+
+    private func paidRow(_ original: RecurringEnvelope) -> some View {
+        let next = session.envelopes.first { $0.id == original.id }?.nextDue ?? original.nextDue
+        return HStack(spacing: FolkiSpacing.item) {
+            Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Color.folkiAccent)
+            VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
+                Text(original.name).font(.body.weight(.medium)).lineLimit(1)
+                Text("Следующий платёж жду \(next.formatted(.dateTime.day().month(.abbreviated)))")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: FolkiSpacing.xs)
+            Button("Вернуть") { undoPaid(original) }
+                .font(.footnote.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                .buttonStyle(.plain).frame(minHeight: 44)
+        }
+        .padding(FolkiSpacing.card)
+        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .transition(.opacity)
+    }
+
+    private func markPaid(_ envelope: RecurringEnvelope) {
+        do {
+            try session.skipEnvelope(envelope)
+            FolkiFeedback.selection()
+            errorMessage = nil
+            move { paidOutside.append(envelope) }
+            updateSplit()
+        } catch { errorMessage = String(localized: "Не получилось отметить платёж. Попробуй ещё раз.") }
+    }
+
+    private func undoPaid(_ original: RecurringEnvelope) {
+        do {
+            try session.updateEnvelope(original)
+            errorMessage = nil
+            move { paidOutside.removeAll { $0.id == original.id } }
+            updateSplit()
+        } catch { errorMessage = String(localized: "Не получилось вернуть платёж. Попробуй ещё раз.") }
     }
 
     private func dueLine(_ envelope: RecurringEnvelope) -> String {

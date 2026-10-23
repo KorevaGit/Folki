@@ -71,6 +71,8 @@ struct QuickSpendView: View {
     @State private var recordID = UUID()
     @State private var errorMessage: String?
     @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 44
+    /// The amount grows with the text size, like everything else on the sheet.
+    @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 52
 
     init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal, onSaved: (() -> Void)? = nil) {
         self.personal = personal; self.family = family; self.entryKind = entryKind; self.onSaved = onSaved
@@ -124,7 +126,7 @@ struct QuickSpendView: View {
                     }
                     if let before = session.result {
                         Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
-                            .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                            .font(.system(size: amountSize, weight: .bold, design: .rounded)).monospacedDigit()
                             .foregroundStyle(money == nil ? .tertiary : .primary)
                             .lineLimit(1).minimumScaleFactor(0.3)
                             .frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
@@ -159,15 +161,19 @@ struct QuickSpendView: View {
                 }
             } keypad: {
                 if session.result != nil {
-                    VStack(spacing: 12) {
-                        AmountKeypad(text: $amount)
-                        Button(action: save) {
-                            Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.headline)
-                                .frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
-                                .foregroundStyle(.white)
-                                .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
-                        }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
-                    }.padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
+                    AmountKeypad(text: $amount).padding(.horizontal, FolkiSpacing.page)
+                }
+            }
+            // Outside the scrolling area: with large text the keypad scrolls, the save button stays in reach.
+            .safeAreaInset(edge: .bottom, spacing: 12) {
+                if session.result != nil {
+                    Button(action: save) {
+                        Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.headline)
+                            .frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
+                            .foregroundStyle(.white)
+                            .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
+                    }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
+                    .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
                 }
             }
             .background { FolkiBackground() }
