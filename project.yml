@@ -10,6 +10,7 @@ configs:
   Release: release
   Demo: debug
   Cloud: debug
+  CloudRelease: release
 packages:
   FolkiDuoCore:
     path: Core
@@ -37,6 +38,8 @@ targets:
         CKSharingSupported: true
         UIBackgroundModes: [remote-notification]
         FolkiCloudContainer: "$(FOLKI_CLOUD_CONTAINER)"
+        # Only Apple's system crypto is used, so TestFlight skips the export compliance question.
+        ITSAppUsesNonExemptEncryption: false
         # The same house as the onboarding hero, centred on the system background.
         UILaunchScreen:
           UIImageName: LaunchHouse
@@ -61,6 +64,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Configuration/FolkiLocal.entitlements
       configs:
         Cloud:
+          FOLKI_CLOUD_CONTAINER: iCloud.dev.korevagit.folki.budget
+          CODE_SIGN_ENTITLEMENTS: App/Configuration/Folki.entitlements
+        # Optimised iCloud build for TestFlight and the App Store; it talks to the production CloudKit environment.
+        CloudRelease:
           FOLKI_CLOUD_CONTAINER: iCloud.dev.korevagit.folki.budget
           CODE_SIGN_ENTITLEMENTS: App/Configuration/Folki.entitlements
         Demo:
@@ -115,4 +122,4 @@ schemes:
     run:
       config: Cloud
     archive:
-      config: Cloud
+      config: CloudRelease
