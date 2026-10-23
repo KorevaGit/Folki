@@ -51,7 +51,8 @@ public enum BuiltInCategory: Int, CaseIterable, Sendable {
     public static func named(_ id: UUID) -> BuiltInCategory? { allCases.first { $0.id == id } }
 
     /// What a new budget starts with; the rest of the built-ins are added from a list.
-    public static let defaultEnabled: Set<BuiltInCategory> = [.housing, .groceries, .transport, .connectivity, .other]
+    public static let defaultEnabled: Set<BuiltInCategory> = [.housing, .groceries, .cafes, .transport, .health,
+                                                                  .children, .clothing, .connectivity, .other]
 
     /// The Russian name; it is also the key in the String Catalog.
     public var sourceName: String {

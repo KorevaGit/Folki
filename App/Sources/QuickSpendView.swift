@@ -36,8 +36,9 @@ struct ImpactLines: View {
         } else if let future = result.futureAllocation {
             // Less than a rouble shows as "(±0 ₽)" in red and reads as a warning: no note then.
             let change = after == nil ? nil : (try? result.nextDaysChange(since: before)).flatMap { abs($0.minorUnits) < 100 ? nil : $0 }
+            // A spend within today's money is normal: red only once the day itself goes over.
             let changeText = Text(verbatim: change.map { " (\(signed($0)))" } ?? "")
-                .foregroundStyle(change.map { $0.minorUnits < 0 } == true ? Color.folkiOver : .secondary)
+                .foregroundStyle(result.todayRemaining.minorUnits < 0 && change.map { $0.minorUnits < 0 } == true ? Color.folkiOver : .secondary)
             Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))\(changeText)").font(.footnote)
         } else {
             Text("Последний день периода").font(.footnote).foregroundStyle(.secondary)
@@ -53,6 +54,7 @@ struct ImpactLines: View {
 }
 
 /// Spend in three taps: amount → category (optional) → «Записать».
+/// The same sheet edits a spend already recorded: prefilled, with the change shown against today.
 struct QuickSpendView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
@@ -60,6 +62,13 @@ struct QuickSpendView: View {
     let family: BudgetSession
     let entryKind: TransactionKind
     var onSaved: (() -> Void)? = nil
+    /// A plain spend was saved: the main screen offers to take it back.
+    var onRecorded: ((LedgerRecord, BudgetSession) -> Void)? = nil
+    /// Editing: the record and the budget it belongs to; the budget switch is hidden then.
+    private let editing: LedgerRecord?
+    private let editingSession: BudgetSession?
+    /// Editing: "Удалить трату" was tapped; the main screen deletes it and offers "Вернуть".
+    var onDelete: ((LedgerRecord, BudgetSession) -> Void)? = nil
     @State private var incomeScopeRaw: String
     @AppStorage("FolkiLastSpendScope") private var scopeRaw = BudgetScope.personal.rawValue
     @State private var amount = ""
@@ -70,31 +79,54 @@ struct QuickSpendView: View {
     @State private var settingUp = false
     @State private var recordID = UUID()
     @State private var errorMessage: String?
+    /// Editing: the first digit replaces the recorded amount instead of being added to it.
+    @State private var replacesAmount = false
     @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 44
     /// The amount grows with the text size, like everything else on the sheet.
     @ScaledMetric(relativeTo: .largeTitle) private var amountSize: CGFloat = 52
 
-    init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal, onSaved: (() -> Void)? = nil) {
-        self.personal = personal; self.family = family; self.entryKind = entryKind; self.onSaved = onSaved
+    init(personal: BudgetSession, family: BudgetSession, entryKind: TransactionKind = .expense, initialScope: BudgetScope = .personal,
+         onSaved: (() -> Void)? = nil, onRecorded: ((LedgerRecord, BudgetSession) -> Void)? = nil) {
+        self.personal = personal; self.family = family; self.entryKind = entryKind; self.onSaved = onSaved; self.onRecorded = onRecorded
+        editing = nil; editingSession = nil
         _incomeScopeRaw = State(initialValue: initialScope.rawValue)
         _date = State(initialValue: personal.referenceDate)
+    }
+
+    init(editing record: LedgerRecord, in session: BudgetSession, personal: BudgetSession, family: BudgetSession,
+         onDelete: @escaping (LedgerRecord, BudgetSession) -> Void) {
+        self.personal = personal; self.family = family; entryKind = .expense; self.onDelete = onDelete
+        editing = record; editingSession = session
+        _incomeScopeRaw = State(initialValue: session.scope.rawValue)
+        _date = State(initialValue: record.transaction.date)
+        _amount = State(initialValue: MoneyText.input(record.transaction.amount))
+        _categoryID = State(initialValue: record.categoryID)
+        _replacesAmount = State(initialValue: true)
+    }
+
+    private var keypadText: Binding<String> {
+        Binding(get: { amount }, set: { new in
+            defer { replacesAmount = false }
+            guard replacesAmount, new.count > amount.count, let key = new.last else { amount = new; return }
+            amount = key == "," ? "0," : String(key)
+        })
     }
 
     private var isIncome: Bool { entryKind == .income }
     private var activeScopeRaw: String { family.household == nil ? BudgetScope.personal.rawValue : (isIncome ? incomeScopeRaw : scopeRaw) }
     private var scopeSelection: Binding<String> { isIncome ? $incomeScopeRaw : $scopeRaw }
     private var scope: BudgetScope { BudgetScope(rawValue: activeScopeRaw) ?? .personal }
-    private var session: BudgetSession { scope == .personal ? personal : family }
+    private var session: BudgetSession { editingSession ?? (scope == .personal ? personal : family) }
     private var money: Money? {
         guard let money = try? Money(parsing: amount.hasSuffix(",") ? String(amount.dropLast()) : amount),
               money.minorUnits > 0 else { return nil }
         return money
     }
     private var draft: LedgerRecord? {
-        guard let money, let payer = session.authorID else { return nil }
-        return try? session.draft(amount: money, title: "", payerID: payer, date: date, kind: entryKind,
+        guard let money, let payer = editing?.transaction.payerID ?? session.authorID else { return nil }
+        return try? session.draft(amount: money, title: editing?.title ?? "", payerID: payer, date: date, kind: entryKind,
             categoryID: envelope?.categoryID ?? categoryID ?? BuiltInCategory.other.id,
-            funding: .flexible, newRecordID: recordID)
+            funding: .flexible, editing: editing, newRecordID: recordID)
     }
     /// A category tracks statistics; only an explicitly selected envelope supplies money.
     private var envelope: RecurringEnvelope? {
@@ -112,14 +144,14 @@ struct QuickSpendView: View {
             else { return nil }
             return try? session.preview(rest)
         }
-        return try? session.preview(draft)
+        return try? session.preview(draft, editing: editing)
     }
 
     var body: some View {
         NavigationStack {
             FolkiEntryLayout { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
-                    if family.household != nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
+                    if family.household != nil && editing == nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
                         options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, minimumHeight: 48)
                         .padding(.horizontal, FolkiSpacing.page)
                     .onChange(of: activeScopeRaw) { categoryID = nil; envelopeID = nil; preselectCategory(); recordID = UUID() }
@@ -138,7 +170,8 @@ struct QuickSpendView: View {
                             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
                             .padding(.horizontal, FolkiSpacing.page)
                         if !isIncome {
-                            spendSource
+                            // Choosing an envelope makes sense only when there is one, and not for a spend already recorded.
+                            if editing == nil && !session.envelopes.isEmpty { spendSource }
                             if envelope == nil { categoryChips.frame(height: chipHeight + 12) }
                         }
                         if let envelope { envelopeLine(envelope) }
@@ -161,22 +194,28 @@ struct QuickSpendView: View {
                 }
             } keypad: {
                 if session.result != nil {
-                    AmountKeypad(text: $amount).padding(.horizontal, FolkiSpacing.page)
+                    AmountKeypad(text: keypadText).padding(.horizontal, FolkiSpacing.page)
                 }
             }
             // Outside the scrolling area: with large text the keypad scrolls, the save button stays in reach.
             .safeAreaInset(edge: .bottom, spacing: 12) {
-                if session.result != nil {
+                if session.result != nil { VStack(spacing: 0) {
                     Button(action: save) {
-                        Text(isIncome ? String(localized: "Внести деньги") : String(localized: "Записать")).font(.headline)
+                        Text(isIncome ? String(localized: "Внести деньги") : editing != nil ? String(localized: "Сохранить") : String(localized: "Записать")).font(.headline)
                             .frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
                             .foregroundStyle(.white)
                             .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
                     }.buttonStyle(FolkiPressStyle()).disabled(after == nil)
-                    .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.card)
-                }
+                    .padding(.horizontal, FolkiSpacing.page).padding(.bottom, editing == nil ? FolkiSpacing.card : 0)
+                    if let editing, let editingSession {
+                        Button("Удалить трату", role: .destructive) { dismiss(); onDelete?(editing, editingSession) }
+                            .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiOver)
+                            .frame(minHeight: 44).padding(.bottom, FolkiSpacing.xs)
+                    }
+                } }
             }
             .background { FolkiBackground() }
+            .navigationTitle(editing.map { String(localized: "Трата · \($0.transaction.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))") } ?? "")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } }
@@ -219,7 +258,9 @@ struct QuickSpendView: View {
         let selected = categoryID.map { session.catalog.category(for: $0) }
         // A category picked under "Ещё" takes the third chip's place for this spend.
         let chips = selected.map { frequent.contains($0) ? frequent : Array(frequent.prefix(2)) + [$0] } ?? frequent
-        return ScrollView(.horizontal, showsIndicators: false) {
+        // "Ещё" stays at the edge, so the full list is in sight however long the chip names are.
+        return HStack(spacing: 8) {
+        ScrollView(.horizontal, showsIndicators: false) {
             GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 ForEach(chips) { category in
@@ -235,11 +276,13 @@ struct QuickSpendView: View {
                     }
                     .buttonStyle(FolkiPressStyle()).accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
-                Button("Ещё") { showingAllCategories = true }
-                    .font(.subheadline.weight(.medium)).padding(.horizontal, FolkiSpacing.page).frame(minHeight: chipHeight)
-                    .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk).buttonStyle(FolkiPressStyle())
-            }.padding(.horizontal, FolkiSpacing.page)
+            }.padding(.leading, FolkiSpacing.page)
             }
+        }
+        Button("Ещё") { showingAllCategories = true }
+            .font(.subheadline.weight(.medium)).padding(.horizontal, FolkiSpacing.card).frame(minHeight: chipHeight)
+            .glassEffect(.regular.interactive(), in: Capsule()).foregroundStyle(Color.folkiInk).buttonStyle(FolkiPressStyle())
+            .padding(.trailing, FolkiSpacing.page)
         }
     }
 
@@ -275,10 +318,13 @@ struct QuickSpendView: View {
                 dismiss(); onSaved?()
                 return
             }
-            try session.save(draft)
+            try session.save(draft, editing: editing)
             FolkiFeedback.saved(crossedIntoMinus: crossed)
             dismiss()
             onSaved?()
+            if editing == nil, let saved = session.records.first(where: { $0.id == draft.id }) { onRecorded?(saved, session) }
+        } catch LedgerError.conflict {
+            errorMessage = String(localized: "Трату уже изменили на другом устройстве. Закрой и открой её заново.")
         } catch {
             errorMessage = String(localized: "Не получилось записать. Сумма осталась здесь, попробуй ещё раз.")
         }
@@ -289,7 +335,8 @@ struct QuickSpendView: View {
         categoryID = session.likelyCategory(among: session.frequentCategories(), at: .now)?.id
     }
     private func prepareBudget() {
-        do { try session.ensureDailyPeriod(); date = session.referenceDate }
+        // An edited spend keeps its own date.
+        do { try session.ensureDailyPeriod(); if editing == nil { date = session.referenceDate } }
         catch { errorMessage = String(localized: "Не получилось открыть бюджет. Попробуй ещё раз.") }
     }
 }
@@ -426,9 +473,12 @@ struct CategoryGridSheet: View {
                         }
                         Divider()
                     }
-                    Text("На жизнь").font(.headline)
-                    Text("Категория нужна только для статистики.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    // Without envelopes there is no source to choose: only categories, no explanations.
+                    if !session.envelopes.isEmpty {
+                        Text("На жизнь").font(.headline)
+                        Text("Категория нужна только для статистики.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 LazyVGrid(columns: columns, spacing: FolkiSpacing.page) {
                     ForEach(session.catalog.selectable) { category in
                         Button {
@@ -453,7 +503,7 @@ struct CategoryGridSheet: View {
                 }
                 }.padding(FolkiSpacing.page)
             }
-            .navigationTitle("Откуда потратить").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(session.envelopes.isEmpty ? String(localized: "Категория") : String(localized: "Откуда потратить")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { FolkiCloseButton { dismiss() } } }
         }
     }

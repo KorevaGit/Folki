@@ -339,6 +339,16 @@
         }
       }
     },
+    "%@: сегодня не хватает %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@ short today"
+          }
+        }
+      }
+    },
     "%lld" : {
       "localizations" : {
         "en" : {
@@ -2841,6 +2851,16 @@
         }
       }
     },
+    "Записано %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded %@"
+          }
+        }
+      }
+    },
     "Записать" : {
       "localizations" : {
         "en" : {
@@ -5246,6 +5266,16 @@
         }
       }
     },
+    "Не получилось отменить трату. Удали её в истории." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't undo the spend. Delete it in the history."
+          }
+        }
+      }
+    },
     "Не получилось отметить платёж. Попробуй ещё раз." : {
       "localizations" : {
         "en" : {
@@ -6432,6 +6462,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Отменить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
           }
         }
       }
@@ -9697,6 +9737,16 @@
         }
       }
     },
+    "Трата · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spend · %@"
+          }
+        }
+      }
+    },
     "Тратишь быстрее плана на %@" : {
       "localizations" : {
         "en" : {
@@ -9713,6 +9763,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You're spending %@ faster than planned. Try to stay around %@ a day from here"
+          }
+        }
+      }
+    },
+    "Трату уже изменили на другом устройстве. Закрой и открой её заново." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This spend was changed on another device. Close it and open it again."
           }
         }
       }
@@ -10044,6 +10104,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Delete envelope?"
+          }
+        }
+      }
+    },
+    "Удалить трату" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete spend"
           }
         }
       }

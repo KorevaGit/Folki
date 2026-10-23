@@ -13,6 +13,8 @@ struct BudgetRootView: View {
     @State private var scroll = ScrollPosition(edge: .top)
     @State private var editingEntry: PeriodEntry?
     @State private var undoEntry: PeriodEntry?
+    /// The toast offers to take back a spend just recorded, not to restore a deleted one.
+    @State private var undoIsNewSpend = false
     @State private var historyError: String?
     @State private var isRefreshing = false
     @State private var refreshPull: CGFloat = 0
@@ -176,13 +178,32 @@ struct BudgetRootView: View {
             .onDisappear { refreshTask?.cancel(); refreshPull = 0; peakPull = 0 }
         }
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
-        .sheet(item: $editingEntry) { ExpenseEditorView(session: $0.session, editing: $0.record) }
+        .sheet(item: $editingEntry) { entry in
+            // An own everyday spend opens in the spend sheet; incomes, refunds and envelope spends keep the full form.
+            if entry.record.transaction.kind == .expense, entry.record.transaction.funding == .flexible,
+               entry.session.isEditable(entry.record) {
+                QuickSpendView(editing: entry.record, in: entry.session, personal: personal, family: family) { record, session in
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        deleteEntry(PeriodEntry(record: record, session: session))
+                    }
+                }
+            } else {
+                ExpenseEditorView(session: entry.session, editing: entry.record)
+            }
+        }
         .alert("Запись не изменена", isPresented: Binding(get: { historyError != nil }, set: { if !$0 { historyError = nil } })) {
             Button("Готово") { historyError = nil }
         } message: { Text(historyError ?? "") }
         .sheet(item: $sheet) { destination in
             switch destination {
-            case .spend: QuickSpendView(personal: personal, family: family)
+            case .spend: QuickSpendView(personal: personal, family: family, onRecorded: { record, session in
+                // After the sheet has gone, so the toast does not slide in under it.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    withAnimation(FolkiMotion.standard) { undoIsNewSpend = true; undoEntry = PeriodEntry(record: record, session: session) }
+                }
+            })
             case .income: DailyFundingView(personal: personal, family: family, initialScope: selectedScope)
             case .settings: BudgetSettingsView(personal: personal, family: family)
             case .sharing: SharingView(session: family)
@@ -225,16 +246,20 @@ struct BudgetRootView: View {
     @ViewBuilder private var undoToast: some View {
         if let undoEntry {
             HStack(spacing: FolkiSpacing.item) {
-                Text("Запись удалена").font(.subheadline)
+                Text(undoIsNewSpend ? String(localized: "Записано \(MoneyText.whole(undoEntry.record.transaction.amount))")
+                     : String(localized: "Запись удалена")).font(.subheadline).monospacedDigit()
                 Spacer(minLength: 0)
-                Button("Вернуть") { restore(undoEntry) }.font(.subheadline.weight(.semibold))
+                Button(undoIsNewSpend ? String(localized: "Отменить") : String(localized: "Вернуть")) {
+                    undoIsNewSpend ? takeBack(undoEntry) : restore(undoEntry)
+                }.font(.subheadline.weight(.semibold))
             }
             .padding(.horizontal, FolkiSpacing.page).frame(minHeight: 52)
             .glassEffect(.regular, in: Capsule())
             .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .task(id: undoEntry.id) {
-                try? await Task.sleep(for: .seconds(4))
+                // A new spend gets longer: first the figure is read, then the mistake is noticed.
+                try? await Task.sleep(for: .seconds(undoIsNewSpend ? 6 : 4))
                 withAnimation(FolkiMotion.standard) { self.undoEntry = nil }
             }
         }
@@ -244,8 +269,16 @@ struct BudgetRootView: View {
         do {
             try entry.session.setDeleted(true, record: entry.record)
             FolkiFeedback.saved()
-            withAnimation(FolkiMotion.standard) { undoEntry = entry }
+            withAnimation(FolkiMotion.standard) { undoIsNewSpend = false; undoEntry = entry }
         } catch { historyError = String(localized: "Не получилось изменить запись. Обнови историю и повтори.") }
+    }
+    /// A spend recorded by mistake: deleted at once, with no second toast.
+    private func takeBack(_ entry: PeriodEntry) {
+        do {
+            try entry.session.setDeleted(true, record: entry.record)
+            FolkiFeedback.saved()
+            withAnimation(FolkiMotion.standard) { undoEntry = nil }
+        } catch { historyError = String(localized: "Не получилось отменить трату. Удали её в истории.") }
     }
     private func restore(_ entry: PeriodEntry) {
         // The deleted record has a new revision; restore the stored one.
@@ -379,9 +412,11 @@ struct BudgetRootView: View {
         return HStack(spacing: FolkiSpacing.item) {
             Button { selectedScope = session.scope; sheet = .allocate } label: {
                 Label {
-                    // One line: what, how much is missing, by when.
-                    Text("\(envelope.name) · −\(MoneyText.whole(missing)) · \(due)")
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1).minimumScaleFactor(0.8)
+                    // What, how much is missing, by when — a shortfall, not a charge.
+                    Text(session.daysUntil(envelope) <= 0
+                         ? String(localized: "\(envelope.name): сегодня не хватает \(MoneyText.whole(missing))")
+                         : String(localized: "\(envelope.name): не хватает \(MoneyText.whole(missing)) к \(due)"))
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2).minimumScaleFactor(0.9)
                         .multilineTextAlignment(.leading)
                 } icon: {
                     Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
