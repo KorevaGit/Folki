@@ -88,7 +88,7 @@ struct BudgetRootView: View {
                                         // A grabber, like a sheet's; the words only in the first days.
                                         Group {
                                             if showsHistoryLabel {
-                                                Label("Траты за период", systemImage: "chevron.up").font(.footnote.weight(.semibold))
+                                                Label("Траты за период", systemImage: "chevron.down.2").font(.footnote.weight(.semibold))
                                             } else {
                                                 Capsule().fill(Color.secondary.opacity(0.4)).frame(width: 36, height: 5)
                                             }

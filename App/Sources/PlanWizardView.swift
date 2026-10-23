@@ -23,6 +23,7 @@ struct PlanWizardView: View {
     @State private var items: [Item] = []
     @State private var percent = 30.0
     @State private var forEveryone = false
+    @State private var usesBalance = false
     @State private var shake = 0
     @State private var errorMessage: String?
     @State private var loaded = false
@@ -111,7 +112,11 @@ struct PlanWizardView: View {
         return items + [draft]
     }
     private var reserved: Int64 { planned.reduce(0) { $0 + $1.minor } }
-    private var living: Int64 { income - reserved }
+    private var capacity: PlanCapacity {
+        PlanCapacity(income: income, reserved: reserved, days: cycleDays,
+                     availableBalance: personal.availableForDailySpending.minorUnits, usesBalance: usesBalance)
+    }
+    private var living: Int64 { capacity.living }
     /// One salary cycle: from a payday to the same day next month.
     private var cycleDays: Int {
         let today = calendar.startOfDay(for: personal.referenceDate)
@@ -124,7 +129,7 @@ struct PlanWizardView: View {
     }
     private var daily: Int64 { max(0, living) / Int64(cycleDays) }
     /// At least one day's money stays for living, like the starter allocation.
-    private var over: Bool { income > 0 && living < income / Int64(cycleDays) }
+    private var over: Bool { income > 0 && capacity.shortfall > 0 }
 
     var body: some View {
         ZStack {
@@ -143,7 +148,8 @@ struct PlanWizardView: View {
         .sheet(isPresented: Binding(get: { draft != nil }, set: { if !$0 { draft = nil } })) {
             if draft != nil {
                 DraftSheet(item: Binding(get: { draft ?? Item(name: "", symbol: "tag.fill", color: .gray, categoryID: BuiltInCategory.other.id, mandatory: true, day: 1) }, set: { if draft != nil { draft = $0 } }), isNew: draftIsNew, free: free,
-                           daily: daily, over: over, commit: commitDraft, cancel: closeDraft,
+                           daily: daily, over: over, recoveryVisible: over || capacity.balanceUsed > 0,
+                           recovery: { recovery }, commit: commitDraft, cancel: closeDraft,
                            remove: { if let id = draft?.id { remove(id) } })
             }
         }
@@ -210,6 +216,9 @@ struct PlanWizardView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Примерно \(MoneyText.whole(Money(minorUnits: daily))) в день")
             }
+            if (over || capacity.balanceUsed > 0) && [.payments, .savings, .done].contains(step) {
+                recovery
+            }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             if step == .income {
                 AmountKeypad(text: $incomeText)
@@ -239,8 +248,19 @@ struct PlanWizardView: View {
         return switch step {
         case .income: income > 0
         case .payday: settings.income != .monthly([])
-        case .payments, .savings: !over
+        case .payments, .savings, .done: !over
         default: true
+        }
+    }
+
+    /// The same actions are reachable while typing a draft and after returning to the plan.
+    private var recovery: PlanRecoveryView {
+        PlanRecoveryView(capacity: capacity, available: personal.availableForDailySpending.minorUnits,
+                         usesBalance: $usesBalance) { recommended in
+            withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) {
+                incomeText = MoneyText.input(Money(minorUnits: recommended))
+            }
+            FolkiFeedback.selection()
         }
     }
 
@@ -395,7 +415,8 @@ struct PlanWizardView: View {
             VStack(spacing: 4) {
                 Text("≈ \(MoneyText.whole(Money(minorUnits: daily)))")
                     .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
-                Text("в день на жизнь").font(.headline).foregroundStyle(.secondary)
+                    .contentTransition(.numericText()).animation(FolkiMotion.quick, value: daily)
+                Text(usesBalance && capacity.balanceUsed > 0 ? String(localized: "в день на этот период") : String(localized: "в день на жизнь")).font(.headline).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 20)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
@@ -403,8 +424,6 @@ struct PlanWizardView: View {
             VStack(alignment: .leading, spacing: 8) {
                 LabeledContent("Сейчас на жизнь", value: MoneyText.whole(personal.availableForDailySpending))
                     .font(.headline)
-                Text("После сохранения предложу отложить часть в срочные конверты")
-                    .font(.footnote).foregroundStyle(.secondary)
             }.budgetCard()
             reviewSection(String(localized: "Доход"), .income) {
                 reviewRow("banknote.fill", .folkiAccent, String(localized: "В месяц"), MoneyText.whole(Money(minorUnits: income)))
@@ -519,6 +538,7 @@ struct PlanWizardView: View {
     }
 
     private func primary() {
+        guard canContinue else { return }
         errorMessage = nil
         switch step {
         case .done:
@@ -536,13 +556,14 @@ struct PlanWizardView: View {
 
     private func exit() {
         if let cancel { cancel(); return }
-        loaded = false; draft = nil; incomeText = ""; settings = PlanSettings.load()
+        loaded = false; draft = nil; incomeText = ""; usesBalance = false; settings = PlanSettings.load()
         load()
         forward = false
         withAnimation(FolkiMotion.quick) { step = steps[0] }
     }
 
     private func save() {
+        guard !over else { return }
         do {
             // Envelopes removed from the list leave the plan.
             for envelope in personal.envelopes where !items.contains(where: { $0.id == envelope.id && $0.minor > 0 }) {
@@ -582,7 +603,7 @@ struct PlanWizardView: View {
             UserDefaults.standard.set(income, forKey: Self.incomeKey)
             FolkiFeedback.saved()
             if personal.availableForDailySpending.minorUnits > 0 {
-                finish(!personal.payments.isEmpty)
+                finish(!personal.envelopes.isEmpty)
             } else { finish(false) }
         } catch {
             errorMessage = String(localized: "Не получилось сохранить план. Уже сохранённые конверты останутся; можно повторить")
@@ -612,6 +633,42 @@ struct PlanWizardView: View {
             }
             return item
         }
+    }
+}
+
+/// Recovery changes the proposed plan, never creates an income transaction or moves existing cash.
+private struct PlanRecoveryView: View {
+    let capacity: PlanCapacity
+    let available: Int64
+    @Binding var usesBalance: Bool
+    let increaseIncome: (Int64) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+            if capacity.shortfall > 0 {
+                LabeledContent("Не хватает", value: MoneyText.whole(Money(minorUnits: capacity.shortfall).roundedUpToWholeUnits))
+                    .font(.headline).foregroundStyle(Color.folkiWarning)
+                    .contentTransition(.numericText())
+                if let recommended = capacity.recommendedIncome, recommended > capacity.income {
+                    Button { increaseIncome(recommended) } label: {
+                        Label("Доход + \(MoneyText.whole(Money(minorUnits: recommended - capacity.income)))", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }.buttonStyle(FolkiSoftButtonStyle())
+                }
+            }
+            if available > 0 {
+                Toggle(isOn: $usesBalance) {
+                    Text("Учесть остаток \(MoneyText.whole(Money(minorUnits: available)))")
+                        .font(.subheadline.weight(.medium)).monospacedDigit()
+                }.tint(Color.folkiAccent)
+            }
+            if capacity.balanceUsed > 0 {
+                Text("Из остатка \(MoneyText.whole(Money(minorUnits: capacity.balanceUsed).roundedUpToWholeUnits)) · только на этот период")
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+        }
+        .padding(FolkiSpacing.card)
+        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
     }
 }
 
@@ -684,6 +741,8 @@ private struct DraftSheet: View {
     let free: Int64
     let daily: Int64
     let over: Bool
+    let recoveryVisible: Bool
+    let recovery: () -> PlanRecoveryView
     let commit: () -> Void
     let cancel: () -> Void
     let remove: () -> Void
@@ -695,7 +754,7 @@ private struct DraftSheet: View {
     /// Which amount the keypad types into: the goal or the monthly sum.
     @State private var typingMonthly = false
     private var valid: Bool {
-        item.typed > 0 && item.minor > 0 && !over && !item.name.trimmingCharacters(in: .whitespaces).isEmpty
+        item.typed > 0 && item.minor > 0 && !item.name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     var body: some View {
@@ -777,6 +836,7 @@ private struct DraftSheet: View {
                         .onChange(of: item.byMonthly) { _, monthly in typingMonthly = monthly && item.typed > 0 }
                     }
                     result
+                    if recoveryVisible { recovery() }
                     if item.mandatory {
                         wheel(String(localized: "День оплаты"), selection: $item.day, values: Array(1...31)) { "\($0)-го" }
                     } else if !item.byMonthly {

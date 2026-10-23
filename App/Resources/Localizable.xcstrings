@@ -1,6 +1,76 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "Не хватает" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shortfall"
+          }
+        }
+      }
+    },
+    "Доход + %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income + %@"
+          }
+        }
+      }
+    },
+    "Учесть остаток %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use available balance %@"
+          }
+        }
+      }
+    },
+    "Из остатка %@ · только на этот период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From balance %@ · this period only"
+          }
+        }
+      }
+    },
+    "в день на этот период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per day this period"
+          }
+        }
+      }
+    },
+    "Личные конверты удалятся, деньги вернутся на жизнь. Семейные конверты останутся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personal envelopes will be deleted and their money returned to daily spending. Family envelopes will stay."
+          }
+        }
+      }
+    },
+    "Уведомления выключены" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications are off"
+          }
+        }
+      }
+    },
     " (%@)" : {
       "extractionState" : "stale",
       "localizations" : {

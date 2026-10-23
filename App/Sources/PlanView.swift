@@ -3,7 +3,7 @@ import UIKit
 import UserNotifications
 import FolkiDuoCore
 
-/// "План": regular payments, reminders and the family share. Until it is set up the tab is a short
+/// "План": regular payments and the family share. Until it is set up the tab is a short
 /// onboarding-style walk-through; afterwards each part is edited on its own.
 struct PlanTab: View {
     let personal: BudgetSession
@@ -368,6 +368,46 @@ struct PlanFamilyEditor: View {
     }
 }
 
+/// The plan reads through amounts: the daily guide above, available cash below.
+private struct PlanBalanceCard: View {
+    let session: BudgetSession
+    let distribute: () -> Void
+    @State private var revealed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FolkiSpacing.card) {
+            if let guide = session.plannedDailySpending {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
+                    Text("≈ \(MoneyText.whole(revealed ? guide.roundedDownToWholeUnits : Money(minorUnits: 0)))")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+                        .contentTransition(.numericText())
+                        .animation(reduceMotion ? nil : FolkiMotion.hero, value: revealed)
+                        .animation(reduceMotion ? nil : FolkiMotion.quick, value: guide)
+                    Text("в день на жизнь").font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            Button(action: distribute) {
+                HStack(spacing: FolkiSpacing.item) {
+                    VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
+                        Text("На жизнь").font(.subheadline).foregroundStyle(.secondary)
+                        Text(MoneyText.whole(session.availableForDailySpending))
+                            .font(.system(.title3, design: .rounded, weight: .semibold))
+                            .monospacedDigit().contentTransition(.numericText())
+                            .animation(reduceMotion ? nil : FolkiMotion.quick, value: session.availableForDailySpending)
+                    }
+                    Spacer()
+                    Label("Распределить", systemImage: "tray.and.arrow.down")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                }.contentShape(Rectangle())
+            }.buttonStyle(FolkiPressStyle())
+        }
+        .budgetCard()
+        .onAppear { revealed = true }
+    }
+}
+
 // MARK: - Overview
 
 private struct PlanOverview: View {
@@ -382,13 +422,10 @@ private struct PlanOverview: View {
     @State private var scope: BudgetScope = .personal
     @State private var creating = false
     @State private var basics = false
-    @State private var editing: Part?
-    @State private var settings = PlanSettings.load()
-    @State private var notificationsOff = false
+    @State private var editing: PlanEditorPart?
     @State private var confirmingReset = false
     @State private var resetError: String?
     @Namespace private var zoom
-    enum Part: String, Identifiable { case income, payments, family; var id: String { rawValue } }
     private var session: BudgetSession { scope == .family && family.household != nil ? family : personal }
 
     @State private var distributing = false
@@ -397,32 +434,10 @@ private struct PlanOverview: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: FolkiSpacing.section) {
-                    if notificationsOff && settings.usesNotifications {
-                        Button {
-                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                        } label: {
-                            Label("Уведомления выключены — напоминания не придут. Включить", systemImage: "bell.slash")
-                                .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(FolkiSpacing.card)
-                                .background(Color.folkiWarningGround, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
-                                .foregroundStyle(Color.folkiWarning)
-                        }.buttonStyle(.plain)
-                    }
-                    Button { distributing = true } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            LabeledContent("На жизнь", value: MoneyText.whole(session.availableForDailySpending))
-                                .font(.headline)
-                            // Moved here from the main screen: the forecast belongs with the plan.
-                            if let guide = session.plannedDailySpending {
-                                Text("По плану ≈ \(MoneyText.whole(guide.roundedDownToWholeUnits))/день")
-                                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                            }
-                            Text("Распределить по конвертам").font(.subheadline).foregroundStyle(Color.folkiAccent)
-                        }.budgetCard()
-                    }.buttonStyle(.plain)
+                    PlanBalanceCard(session: session) { distributing = true }
                     VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                         HStack {
-                            Text("Конверты с деньгами").font(.title2.bold())
+                            Text("Конверты").font(.title2.bold())
                             Spacer()
                             Menu {
                                 Button("Перенастроить", systemImage: "slider.horizontal.3") { basics = true }
@@ -439,30 +454,19 @@ private struct PlanOverview: View {
                                 options: [(String(localized: "Личные"), .personal), (String(localized: "Семейные"), .family)], minimumHeight: 36)
                         }
                         EnvelopesSection(session: session, creating: $creating)
-                        Text("Пополнение конверта — не трата")
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                        Text("Траты на жизнь").font(.title2.bold())
-                        Text("Продукты, кафе и остальное — только для статистики, пополнять не нужно")
-                            .font(.subheadline).foregroundStyle(.secondary)
                         NavigationLink { CategoriesView(session: session) } label: {
                             Label("Категории трат", systemImage: "tag")
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }.buttonStyle(FolkiSoftButtonStyle())
-                    }
-                    VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                        Text("Напоминания").font(.title2.bold())
-                        row("bell.badge", String(localized: "Внести деньги"), PlanText.incomeShort(settings), .income)
-                        row("calendar.badge.exclamationmark", String(localized: "Платежи"), PlanText.payments(settings), .payments)
                     }
                     if family.household != nil {
                         let percents = family.contributionPercents
                         VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                             Text("Семья").font(.title2.bold())
                             row("heart", String(localized: "Вклад в семью"),
-                                percents.mine.map { String(localized: "\($0)% — твой процент") }
-                                    ?? String(localized: "\(percents.family)% — общий для семьи"), .family)
+                                "\(percents.mine ?? percents.family)%", .family)
                         }
                     }
                 }.folkiPagePadding(top: FolkiSpacing.xs)
@@ -493,17 +497,16 @@ private struct PlanOverview: View {
                 }
                 .navigationTransition(.zoom(sourceID: "plan", in: zoom))
             }
-            .sheet(item: $editing, onDismiss: { settings = PlanSettings.load() }) { part in
+            .sheet(item: $editing) { part in
                 PlanPartEditor(part: part, personal: personal, family: family)
             }
-            .task { await checkNotifications() }
             .alert("Не получилось сбросить план", isPresented: Binding(get: { resetError != nil }, set: { if !$0 { resetError = nil } })) {
                 Button("Готово") { resetError = nil }
             } message: { Text(resetError ?? "") }
             .confirmationDialog("Сбросить план?", isPresented: $confirmingReset, titleVisibility: .visible) {
                 Button("Сбросить", role: .destructive, action: resetPlan)
             } message: {
-                Text("Личные конверты и напоминания удалятся, деньги из них вернутся на жизнь. Семейные конверты останутся")
+                Text("Личные конверты удалятся, деньги вернутся на жизнь. Семейные конверты останутся")
             }
         }
     }
@@ -515,13 +518,12 @@ private struct PlanOverview: View {
             resetError = String(localized: "Не все конверты закрылись. Деньги из закрытых уже вернулись на жизнь. Попробуй ещё раз.")
             return
         }
-        UserDefaults.standard.removeObject(forKey: "FolkiPlanSettings")
         UserDefaults.standard.removeObject(forKey: "FolkiPlanIncome")
-        Task { await PlanReminders.reschedule(PlanSettings(), sessions: [personal, family]) }
+        Task { await PlanReminders.reschedule(PlanSettings.load(), sessions: [personal, family]) }
         FolkiFeedback.saved()
     }
 
-    private func row(_ symbol: String, _ title: String, _ value: String, _ part: Part) -> some View {
+    private func row(_ symbol: String, _ title: String, _ value: String, _ part: PlanEditorPart) -> some View {
         Button { editing = part } label: {
             HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
@@ -538,15 +540,16 @@ private struct PlanOverview: View {
         }.buttonStyle(FolkiPressStyle(scale: 0.98))
     }
 
-    private func checkNotifications() async {
-        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
-        notificationsOff = status == .denied
-    }
 }
 
 /// One part of the plan in its own sheet.
-private struct PlanPartEditor: View {
-    let part: PlanOverview.Part
+enum PlanEditorPart: String, Identifiable {
+    case income, payments, family
+    var id: String { rawValue }
+}
+
+struct PlanPartEditor: View {
+    let part: PlanEditorPart
     let personal: BudgetSession
     let family: BudgetSession
     @Environment(\.dismiss) private var dismiss

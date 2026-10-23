@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 import FolkiDuoCore
 
 /// Settings: the budget's period and categories, the family, notifications and the app. No money moves here.
@@ -10,6 +11,10 @@ struct BudgetSettingsView: View {
     @State private var scope: BudgetScope = .personal
     @State private var showingFamily = false
     @State private var showingDistribution = false
+    @State private var reminderEditor: PlanEditorPart?
+    @State private var reminders = PlanSettings.load()
+    @State private var notificationsOff = false
+    @Environment(\.scenePhase) private var scenePhase
     private var session: BudgetSession { scope == .personal ? personal : family }
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
@@ -44,7 +49,17 @@ struct BudgetSettingsView: View {
                         showingFamily = true
                     }
                 }
-                Section("Уведомления") {
+                Section("Напоминания") {
+                    Button { reminderEditor = .income } label: {
+                        LabeledContent("Внести деньги", value: PlanText.incomeShort(reminders))
+                    }.foregroundStyle(Color.folkiInk)
+                    Button { reminderEditor = .payments } label: {
+                        LabeledContent("Платежи", value: PlanText.payments(reminders))
+                    }.foregroundStyle(Color.folkiInk)
+                    if notificationsOff && reminders.usesNotifications {
+                        Label("Уведомления выключены", systemImage: "bell.slash")
+                            .foregroundStyle(Color.folkiWarning)
+                    }
                     Button("Настройки уведомлений", systemImage: "bell") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
@@ -60,7 +75,17 @@ struct BudgetSettingsView: View {
             .sheet(isPresented: $showingDistribution) {
                 DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
             }
+            .sheet(item: $reminderEditor, onDismiss: { reminders = PlanSettings.load() }) { part in
+                PlanPartEditor(part: part, personal: personal, family: family)
+            }
+            .task { await checkNotifications() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await checkNotifications() } }
+            }
             .sheet(isPresented: $showingFamily) { SharingView(session: family) }
         }
+    }
+    private func checkNotifications() async {
+        notificationsOff = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .denied
     }
 }

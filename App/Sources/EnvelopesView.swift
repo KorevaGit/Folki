@@ -61,6 +61,7 @@ struct EnvelopesSection: View {
             HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                 Text("Отложено").font(.body).foregroundStyle(.secondary)
                 Text(MoneyText.whole(Money(minorUnits: saved))).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .contentTransition(.numericText()).animation(FolkiMotion.quick, value: saved)
                 Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(.body).foregroundStyle(.secondary).monospacedDigit()
             }
             ProgressBar(fraction: total > 0 ? Double(saved) / Double(total) : 0, color: worst == .funded ? .folkiAccent : worst.color, height: 8)
@@ -85,13 +86,18 @@ struct ProgressBar: View {
     let fraction: Double
     let color: Color
     var height: CGFloat = 4
+    @State private var revealed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.folkiSoft)
-                Capsule().fill(color).frame(width: geo.size.width * max(0, min(1, fraction)))
+                Capsule().fill(color).frame(width: geo.size.width * (revealed ? max(0, min(1, fraction)) : 0))
             }
         }.frame(height: height).accessibilityHidden(true)
+            .animation(reduceMotion ? nil : FolkiMotion.ring, value: revealed)
+            .animation(reduceMotion ? nil : FolkiMotion.ring, value: fraction)
+            .onAppear { revealed = true }
     }
 }
 
@@ -181,6 +187,7 @@ private struct EnvelopeCard: View {
                     HStack(spacing: 4) {
                         if urgency == .funded { Image(systemName: "checkmark").font(.footnote.bold()).foregroundStyle(Color.folkiAccent) }
                         Text(MoneyText.whole(balance)).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
+                            .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
                             .foregroundStyle(Color.folkiInk)
                     }
                     Text("из \(MoneyText.whole(envelope.capacity))").font(.footnote).foregroundStyle(.secondary).monospacedDigit()
