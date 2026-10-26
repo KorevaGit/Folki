@@ -158,7 +158,7 @@ private struct LaunchHouseView: View {
         ZStack {
             Color(uiColor: .systemBackground).ignoresSafeArea()
             Image("LaunchHouse").accessibilityHidden(true)
-            Text("Открываем Folki…").font(.subheadline).foregroundStyle(.secondary)
+            Text("Открываем Folki…").folkiText(.caption)
                 .offset(y: 72).opacity(slow ? 1 : 0)
         }
         .task {

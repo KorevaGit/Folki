@@ -84,7 +84,7 @@ struct BudgetAnalyticsSection: View {
                 } else {
                     Text("\(result.interval.start.formatted(.dateTime.day().month(.abbreviated))) — \(result.interval.end.addingTimeInterval(-0.001).formatted(.dateTime.day().month(.abbreviated).year()))")
                 }
-            }.font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).multilineTextAlignment(.center)
+            }.font(FolkiFont.label).frame(maxWidth: .infinity).multilineTextAlignment(.center)
             Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
                 .buttonStyle(FolkiSoftButtonStyle()).buttonBorderShape(.circle).disabled(!canGoForward)
                 .accessibilityLabel("Следующий период")
@@ -107,8 +107,8 @@ struct BudgetAnalyticsSection: View {
         let net = (try? result.netSpending) ?? result.expenses
         return VStack(alignment: .leading, spacing: 16) {
             Text(net.minorUnits < 0 ? String(localized: "Вернули больше, чем потрачено") : String(localized: "Потрачено"))
-                .font(.headline).foregroundStyle(.secondary)
-            Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                .font(FolkiFont.headline).foregroundStyle(Color.folkiSecondary)
+            Text(MoneyText.whole(net)).font(FolkiFont.moneyLarge)
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.4)
             extraRows(result)
         }.budgetCard()
@@ -116,13 +116,13 @@ struct BudgetAnalyticsSection: View {
 
     private func spendingSources(_ result: BudgetAnalyticsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Из чего состоят расходы").font(.headline)
+            Text("Из чего состоят расходы").font(FolkiFont.headline)
             amountRow(String(localized: "Из конвертов"), result.envelopeNetSpending)
             amountRow(String(localized: "На жизнь"), result.flexibleNetSpending)
             Divider()
             amountRow(String(localized: "Всего потрачено"), (try? result.netSpending) ?? result.expenses)
             Text("С учётом возвратов. Пополнение конвертов — не расход.")
-                .font(.footnote).foregroundStyle(.secondary)
+                .folkiText(.footnote)
         }.budgetCard()
     }
 
@@ -147,23 +147,23 @@ struct BudgetAnalyticsSection: View {
         let ahead = net.minorUnits - expected
         let finished = passed >= days
         return VStack(alignment: .leading, spacing: FolkiSpacing.card) {
-            Text("Как идёт период").font(.headline).foregroundStyle(.secondary)
+            Text("Как идёт период").font(FolkiFont.headline).foregroundStyle(Color.folkiSecondary)
             HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
-                Text(MoneyText.whole(net)).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Text(MoneyText.whole(net)).font(FolkiFont.moneyLarge)
                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                     .contentTransition(.numericText(value: Double(net.minorUnits))).animation(FolkiMotion.quick, value: net.minorUnits)
                 if plan > 0 {
-                    Text("из \(MoneyText.whole(snapshot.periodPlan))").font(.title3.weight(.semibold))
-                        .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
+                    Text("из \(MoneyText.whole(snapshot.periodPlan))").font(FolkiFont.headline)
+                        .foregroundStyle(Color.folkiSecondary).lineLimit(1).minimumScaleFactor(0.6)
                 }
             }
             if plan > 0 {
                 PaceBar(spent: spentFraction, expected: finished ? nil : expectedFraction,
                         over: net.minorUnits > plan)
                 Text(finished ? String(localized: "Период завершён") : String(localized: "Прошло \(passed) из \(days) дней"))
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .folkiText(.footnote)
                 Text(verdict(ahead: ahead, overPlan: net.minorUnits - plan, finished: finished, passed: passed, snapshot: snapshot))
-                    .font(.subheadline.weight(.semibold))
+                    .font(FolkiFont.label)
                     .foregroundStyle(net.minorUnits > plan ? Color.folkiOver : Color.folkiInk)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -190,11 +190,11 @@ struct BudgetAnalyticsSection: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: FolkiSpacing.xs))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
         return layout {
-            Text(title).foregroundStyle(.secondary)
+            Text(title).foregroundStyle(Color.folkiSecondary)
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
             Text(MoneyText.whole(amount)).fontWeight(.semibold).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
-        }.font(.subheadline)
+        }.font(FolkiFont.caption)
     }
 
     private struct PlotPoint: Identifiable {
@@ -220,11 +220,11 @@ struct BudgetAnalyticsSection: View {
         let planned = Double(plan.periodPlan.minorUnits) / 100
         let end = result.interval.end
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Траты за период").font(.headline)
+            Text("Траты за период").font(FolkiFont.headline)
             HStack(spacing: FolkiSpacing.card) {
                 Label("факт", systemImage: "circle.fill").foregroundStyle(Color.folkiAccent)
-                Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(.secondary)
-            }.font(.caption).labelStyle(.titleAndIcon).imageScale(.small)
+                Label("ровно по плану", systemImage: "line.diagonal").foregroundStyle(Color.folkiSecondary)
+            }.font(FolkiFont.footnote).labelStyle(.titleAndIcon).imageScale(.small)
             Chart {
                 LineMark(x: .value(String(localized: "Дата"), result.interval.start), y: .value(String(localized: "План"), 0), series: .value(String(localized: "Ряд"), String(localized: "план")))
                     .foregroundStyle(Color.secondary).lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
@@ -254,7 +254,7 @@ struct BudgetAnalyticsSection: View {
             PlotPoint(date: $0.start, value: Double($0.expenses.minorUnits - $0.refunds.minorUnits) / 100)
         }
         return VStack(alignment: .leading, spacing: 12) {
-            Text(period == .day ? String(localized: "Траты по часам") : String(localized: "Траты по дням")).font(.headline)
+            Text(period == .day ? String(localized: "Траты по часам") : String(localized: "Траты по дням")).font(FolkiFont.headline)
             Chart(points) { point in
                 BarMark(x: .value(String(localized: "Дата"), point.date, unit: period == .day ? .hour : .day), y: .value(String(localized: "Рубли"), point.value))
                     .foregroundStyle(Color.folkiAccent).cornerRadius(4)
@@ -281,12 +281,12 @@ struct BudgetAnalyticsSection: View {
         let items = showsAllCategories ? sorted : Array(sorted.prefix(5))
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("На что ушли деньги").font(.headline)
+                Text("На что ушли деньги").font(FolkiFont.headline)
                 FolkiSegmentedPicker(title: String(localized: "Источник расходов"), selection: $showsEnvelopeSpending,
                     options: [(String(localized: "На жизнь"), false), (String(localized: "Конверты"), true)])
             }
             if items.isEmpty {
-                Text("В этой группе пока нет расходов").font(.subheadline).foregroundStyle(.secondary)
+                Text("В этой группе пока нет расходов").folkiText(.caption)
             }
             ForEach(items) { item in
                 let category = session.catalog.category(for: item.categoryID)
@@ -302,13 +302,13 @@ struct BudgetAnalyticsSection: View {
                             Text(MoneyText.whole(amount)).fontWeight(.semibold).monospacedDigit()
                                 .foregroundStyle(Color.folkiInk)
                         }.lineLimit(1).minimumScaleFactor(0.6).layoutPriority(1)
-                    }.font(.subheadline).frame(minHeight: 44)
+                    }.font(FolkiFont.caption).frame(minHeight: 44)
                     if positiveTotal > 0 {
                         ProgressView(value: Double(max(0, amount.minorUnits)) / Double(positiveTotal))
                             .tint(category.color.color)
                     }
                     if amount.minorUnits < 0 {
-                        Text("Вернули больше, чем потратили").font(.caption).foregroundStyle(.secondary)
+                        Text("Вернули больше, чем потратили").folkiText(.footnote)
                     }
                 }
             }
@@ -326,7 +326,7 @@ struct BudgetAnalyticsSection: View {
         if needs + wants > 0 {
             let share = Double(needs) / Double(needs + wants)
             VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                Text("Обязательные и желания").font(.headline)
+                Text("Обязательные и желания").font(FolkiFont.headline)
                 GeometryReader { geo in
                     HStack(spacing: FolkiSpacing.xxs) {
                         Capsule().fill(Color.folkiAccent).frame(width: max(0, (geo.size.width - 2) * share))
@@ -334,14 +334,14 @@ struct BudgetAnalyticsSection: View {
                     }
                 }.frame(height: 8).accessibilityHidden(true)
                 Text("Обязательные \(Int((share * 100).rounded()))% · желания \(100 - Int((share * 100).rounded()))%")
-                    .font(.subheadline).monospacedDigit()
+                    .font(FolkiFont.caption).monospacedDigit()
             }.budgetCard()
         }
     }
 
     private func transfers(_ result: BudgetAnalyticsSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Взносы и накопления").font(.headline)
+            Text("Взносы и накопления").font(FolkiFont.headline)
             if result.contributions.minorUnits > 0 {
                 amountRow(session.scope == .personal ? String(localized: "Переведено в семейный") : String(localized: "Взносы в семейный"), result.contributions)
             }
@@ -351,12 +351,12 @@ struct BudgetAnalyticsSection: View {
             }
             if !result.contributionsByMember.isEmpty {
                 Divider()
-                Text("Кто сколько внёс").font(.subheadline.weight(.semibold))
+                Text("Кто сколько внёс").font(FolkiFont.label)
                 ForEach(result.contributionsByMember) { item in
                     amountRow(session.memberName(item.memberID), item.amount)
                 }
             }
-            Text("Это не траты: деньги остаются в семье").font(.footnote).foregroundStyle(.secondary)
+            Text("Это не траты: деньги остаются в семье").folkiText(.footnote)
         }.budgetCard()
     }
 }
@@ -401,7 +401,7 @@ struct ScopedScreen<Content: View>: View {
             VStack(alignment: .leading, spacing: FolkiSpacing.card) {
                 if family.household != nil {
                     FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: Binding(get: { current }, set: { scope = $0 }),
-                        options: BudgetScope.allCases.map { ($0.title, $0) })
+                        options: BudgetScope.allCases.map { ($0.title, $0) }, dots: [Color.folkiPersonal, Color.folkiFamily])
                 }
                 content(current == .personal ? personal : family).id(current)
             }.folkiPagePadding()

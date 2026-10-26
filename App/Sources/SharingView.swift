@@ -24,14 +24,14 @@ struct SharingView: View {
                     ForEach(session.members.filter(\.isActive)) { member in
                         Button {
                             editingMember = member; editedName = session.memberName(member.id)
-                        } label: { HStack(spacing: 12) { MemberAvatar(name: member.name); Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(.secondary) } }
+                        } label: { HStack(spacing: 12) { MemberAvatar(name: member.name); Text(session.memberName(member.id)); Spacer(); Image(systemName: "pencil").foregroundStyle(Color.folkiSecondary) } }
                         if member.id != session.authorID {
                             Button("Убрать \(session.memberName(member.id)) из семьи", role: .destructive) {
                                 removingMember = member
-                            }.font(.caption)
+                            }.font(FolkiFont.footnote)
                         }
                     }
-                    Text("Можно позвать до четырёх близких. Личный бюджет у каждого свой.").font(.footnote).foregroundStyle(.secondary)
+                    Text("Можно позвать до четырёх близких. Личный бюджет у каждого свой.").folkiText(.footnote)
                 }
                 if session.household == nil {
                     Section {
@@ -60,7 +60,7 @@ struct SharingView: View {
                             do { try session.addMember(name: name); name = "" }
                             catch { errorMessage = String(localized: "В семье уже пять человек — это максимум") }
                         }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.members.filter(\.isActive).count >= 5 || session.result == nil)
-                        Text("Этот участник пока только на этом телефоне.").font(.footnote).foregroundStyle(.secondary)
+                        Text("Этот участник пока только на этом телефоне.").folkiText(.footnote)
                     }
                 }
                 if let repository = session.repository, repository.cloudIdentifier != nil,

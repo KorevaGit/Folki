@@ -44,7 +44,7 @@ struct CategoryIcon: View {
 
     var body: some View {
         Image(systemName: UIImage(systemName: symbol) == nil ? "tag.fill" : symbol)
-            .font(.system(size: size * 0.48, weight: .semibold))
+            .font(FolkiFont.symbol(size * 0.48, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(color, in: Circle())
@@ -154,7 +154,7 @@ struct CategoriesView: View {
             Text(category.name)
             Spacer()
             if showsKind {
-                Text(category.isEssential ? String(localized: "обязательное") : String(localized: "желание")).font(.caption).foregroundStyle(.secondary)
+                Text(category.isEssential ? String(localized: "обязательное") : String(localized: "желание")).folkiText(.footnote)
             }
         }.frame(minHeight: 40).contentShape(Rectangle())
     }
@@ -198,9 +198,9 @@ struct CategoryEditorView: View {
                         CategoryIcon(symbol: symbol, color: color.color, size: 76)
                             .animation(FolkiMotion.quick, value: symbol)
                         TextField("Название", text: $name)
-                            .font(.system(.title2, design: .rounded, weight: .bold)).multilineTextAlignment(.center)
+                            .font(FolkiFont.moneyCard).multilineTextAlignment(.center)
                             .padding(.vertical, FolkiSpacing.item).padding(.horizontal, FolkiSpacing.card)
-                            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius, style: .continuous))
+                            .background(Color.folkiTile, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius, style: .continuous))
                     }.frame(maxWidth: .infinity).padding(.vertical, 8)
                 }
                 Section {
@@ -213,7 +213,7 @@ struct CategoryEditorView: View {
                         ForEach(CategoryColor.allCases) { item in
                             Button { color = item; FolkiFeedback.selection() } label: {
                                 Circle().fill(item.color).frame(width: 44, height: 44)
-                                    .overlay { if item == color { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) } }
+                                    .overlay { if item == color { Image(systemName: "checkmark").font(FolkiFont.tag).foregroundStyle(.white) } }
                             }.buttonStyle(.plain)
                                 .accessibilityLabel(item.title).accessibilityAddTraits(item == color ? .isSelected : [])
                         }
@@ -224,10 +224,10 @@ struct CategoryEditorView: View {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
                             ForEach(group.1, id: \.self) { item in
                                 Button { symbol = item; FolkiFeedback.selection() } label: {
-                                    Image(systemName: item).font(.title3)
+                                    Image(systemName: item).font(FolkiFont.icon)
                                         .foregroundStyle(item == symbol ? .white : .primary)
                                         .frame(width: 44, height: 44)
-                                        .background(item == symbol ? color.color : Color(uiColor: .tertiarySystemFill), in: Circle())
+                                        .background(item == symbol ? color.color : Color.folkiTile, in: Circle())
                                 }.buttonStyle(.plain)
                                     .accessibilityLabel(CategorySymbols.title(for: item))
                                     .accessibilityAddTraits(item == symbol ? .isSelected : [])

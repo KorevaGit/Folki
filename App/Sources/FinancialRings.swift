@@ -148,14 +148,14 @@ struct BudgetRingsCard: View {
             // With accessibility text the figure is the point: no ring around it, so it is never the smallest thing on screen.
             VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                 if personalNeedsFunds && isToday {
-                    Button("Добавить деньги") { addFunds(.personal) }.font(.headline)
+                    Button("Добавить деньги") { addFunds(.personal) }.font(FolkiFont.headline)
                 } else { accessibleAmount(personal, title: String(localized: "Личный"), size: amountSize) }
                 if showsFamily {
                     if familyNeedsFunds && isToday {
-                        Button("Добавить в семейный") { addFunds(.family) }.font(.headline)
+                        Button("Добавить в семейный") { addFunds(.family) }.font(FolkiFont.headline)
                     } else { accessibleAmount(family, title: String(localized: "Семейный"), size: amountSize * 0.6) }
                 }
-                if !personalNeedsFunds { Button("День / период", action: togglePeriod).font(.subheadline) }
+                if !personalNeedsFunds { Button("День / период", action: togglePeriod).font(FolkiFont.caption) }
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
             GeometryReader { geometry in
@@ -184,9 +184,9 @@ struct BudgetRingsCard: View {
     private func accessibleAmount(_ result: DailyBudgetSnapshot?, title: String, size: CGFloat) -> some View {
         let money = showsMonth ? result?.periodRemaining : result?.todayRemaining
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-            Text("\(title) · \(showsMonth ? String(localized: "период") : String(localized: "день"))").font(.subheadline).foregroundStyle(.secondary)
+            Text("\(title) · \(showsMonth ? String(localized: "период") : String(localized: "день"))").folkiText(.caption)
             Text(money.map(MoneyText.whole) ?? String(localized: "Не настроен"))
-                .font(.system(size: size, weight: .bold, design: .rounded)).monospacedDigit()
+                .font(FolkiFont.money(size)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.4)
                 .foregroundStyle(money.map { $0.minorUnits < 0 } == true ? Color.folkiOver : Color.folkiInk)
         }
@@ -207,12 +207,12 @@ struct BudgetRingsCard: View {
             // The ring and the big figure speak for themselves; a caption only when the meaning changes.
             if over || showsFamily || showsMonth {
                 Text(over ? String(localized: "Сверх дня") : showsFamily ? String(localized: "Личный") : String(localized: "На период"))
-                    .font(.caption.weight(.semibold)).foregroundStyle(over ? Color.folkiOver : Color.budget(.personal))
+                    .font(FolkiFont.tag).foregroundStyle(over ? Color.folkiOver : Color.budget(.personal))
                     .contentTransition(.opacity).animation(FolkiMotion.quick, value: over)
             }
             if personalNeedsFunds && isToday {
                 Button("Добавить деньги") { addFunds(.personal) }
-                    .font(.system(.headline, design: .rounded)).foregroundStyle(Color.folkiAccent)
+                    .font(FolkiFont.moneyRow).foregroundStyle(Color.folkiAccent)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             } else {
                 Button(action: togglePeriod) {
@@ -224,9 +224,9 @@ struct BudgetRingsCard: View {
                 .accessibilityHint(showsMonth ? String(localized: "Показать остатки дня") : String(localized: "Показать остатки периода"))
             }
             if showsFamily {
-                Text("Семейный").font(.caption2.weight(.semibold)).foregroundStyle(Color.budget(.family)).padding(.top, 4)
+                Text("Семейный").font(FolkiFont.tag).foregroundStyle(Color.budget(.family)).padding(.top, 4)
                 if familyNeedsFunds && isToday {
-                    Button("Добавить деньги") { addFunds(.family) }.font(.subheadline).foregroundStyle(Color.folkiAccent)
+                    Button("Добавить деньги") { addFunds(.family) }.font(FolkiFont.caption).foregroundStyle(Color.folkiAccent)
                 } else {
                     Button(action: togglePeriod) {
                         amount(showsMonth ? family?.periodRemaining : family?.todayRemaining,
@@ -249,7 +249,7 @@ struct BudgetRingsCard: View {
         ]).width
         let fitted = size * min(1, width * 0.95 / max(1, measured))
         return Text(text)
-            .font(.system(size: fitted, weight: .bold, design: .rounded)).monospacedDigit()
+            .font(FolkiFont.money(fitted)).monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.1)
             .frame(width: width, height: size * 1.25)
             .foregroundStyle(whole.map { $0.minorUnits < 0 } == true ? Color.folkiOver : .primary)
@@ -272,41 +272,41 @@ struct BudgetRingsCard: View {
         if result.periodRemaining.minorUnits < 0 {
             let over = Money(minorUnits: -result.periodRemaining.minorUnits).roundedUpToWholeUnits
             return (scope, AnyView(HStack(alignment: .firstTextBaseline) {
-                Text("\(name): период превышен на \(MoneyText.whole(over))").font(.subheadline)
+                Text("\(name): период превышен на \(MoneyText.whole(over))").font(FolkiFont.caption)
                 Spacer(minLength: 8)
-                Button("Внести деньги") { reviewPlan(scope) }.font(.subheadline.weight(.semibold))
+                Button("Внести деньги") { reviewPlan(scope) }.font(FolkiFont.label)
             }))
         }
         guard isToday, result.todayRemaining.minorUnits < 0, let next = result.futureAllocation else { return nil }
         return (scope, AnyView(Text("\(name): завтра ≈ \(MoneyText.whole(next.firstDayAmount.roundedDownToWholeUnits)) в день")
-            .font(.subheadline).foregroundStyle(.secondary)))
+            .folkiText(.caption)))
     }
 
     private var monthLine: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: FolkiSpacing.xs) {
-                Text("Период").foregroundStyle(.secondary)
+                Text("Период").foregroundStyle(Color.folkiSecondary)
                 monthValue(personal, scope: .personal)
                 if showsFamily {
-                    Text("·").foregroundStyle(.tertiary)
+                    Text("·").foregroundStyle(Color.folkiTertiary)
                     monthValue(family, scope: .family)
                 }
             }.fixedSize(horizontal: true, vertical: false)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Личный · период").foregroundStyle(.secondary)
+                    Text("Личный · период").foregroundStyle(Color.folkiSecondary)
                     Spacer(minLength: 8)
                     monthValue(personal, scope: .personal)
                 }
                 if showsFamily {
                     HStack {
-                        Text("Семейный · период").foregroundStyle(.secondary)
+                        Text("Семейный · период").foregroundStyle(Color.folkiSecondary)
                         Spacer(minLength: 8)
                         monthValue(family, scope: .family)
                     }
                 }
             }
-        }.font(.subheadline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+        }.font(FolkiFont.caption).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
     }
 
     private func monthValue(_ result: DailyBudgetSnapshot?, scope: BudgetScope) -> some View {

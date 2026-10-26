@@ -52,9 +52,9 @@ struct ExpenseEditorView: View {
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                         TextField("0", text: $amount).keyboardType(.decimalPad)
-                            .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                            .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
                             .multilineTextAlignment(.trailing).fixedSize()
-                        Text(MoneyText.symbol).font(.system(size: 52, weight: .bold, design: .rounded))
+                        Text(MoneyText.symbol).font(FolkiFont.money(FolkiFont.inputSize))
                             .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                     }.frame(maxWidth: .infinity)
 
@@ -67,8 +67,8 @@ struct ExpenseEditorView: View {
                             Spacer()
                             let category = session.catalog.category(for: categoryID)
                             CategoryIcon(category: category, size: 24)
-                            Text(category.name).foregroundStyle(Color(uiColor: .secondaryLabel))
-                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+                            Text(category.name).foregroundStyle(Color.folkiSecondary)
+                            Image(systemName: "chevron.right").font(FolkiFont.tag).foregroundStyle(Color.folkiTertiary)
                         }
                     }
                     LabeledContent("Бюджет", value: session.scope.title)
@@ -82,7 +82,7 @@ struct ExpenseEditorView: View {
                     if kind == "income" {
                         Toggle("Добавить в свободный план", isOn: $assignIncome)
                         Text(assignIncome ? String(localized: "Поступление увеличит доступные деньги.") : String(localized: "Поступление будет записано отдельно и не увеличит свободный бюджет."))
-                            .font(.caption).foregroundStyle(.secondary)
+                            .folkiText(.footnote)
                     } else if !expenseReserves.isEmpty {
                         Picker("Источник", selection: $reserveID) {
                             Text("Свободные деньги").tag(nil as UUID?)
@@ -95,7 +95,7 @@ struct ExpenseEditorView: View {
                         ImpactLines(before: before, after: impact).frame(maxWidth: .infinity)
                     }
                 } else if !amount.isEmpty && impact == nil {
-                    Text("Что-то не сходится: проверь сумму и дату").foregroundStyle(.secondary)
+                    Text("Что-то не сходится: проверь сумму и дату").foregroundStyle(Color.folkiSecondary)
                 }
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 if let editing, session.isEditable(editing), !editing.transaction.isDeleted {

@@ -35,7 +35,7 @@ struct BudgetWeekCalendar: View {
             // With accessibility text seven days do not fit a row and push the remaining amount off the screen:
             // the month opens the full calendar instead.
             if dynamicTypeSize.isAccessibilitySize {
-                HStack { monthButton; Spacer(); if selection != nil { todayButton } }.foregroundStyle(.secondary)
+                HStack { monthButton; Spacer(); if selection != nil { todayButton } }.foregroundStyle(Color.folkiSecondary)
             } else {
                 strip
             }
@@ -61,7 +61,7 @@ struct BudgetWeekCalendar: View {
                 Spacer(minLength: 4)
                 if selection != nil { todayButton.transition(.opacity) }
                 weekButtons
-            }.foregroundStyle(.secondary)
+            }.foregroundStyle(Color.folkiSecondary)
             .animation(reduceMotion ? nil : FolkiMotion.quick, value: selection == nil)
             ZStack {
                 HStack(spacing: FolkiSpacing.xxs) {
@@ -87,7 +87,7 @@ struct BudgetWeekCalendar: View {
     private var monthButton: some View {
         Button { showingMonth = true } label: {
             HStack(spacing: FolkiSpacing.xs) {
-                Image(systemName: "calendar").font(.subheadline.weight(.semibold))
+                Image(systemName: "calendar").font(FolkiFont.label)
                 Group {
                     if isCurrentWeek {
                         Text(selected, format: .dateTime.month(.wide))
@@ -95,7 +95,7 @@ struct BudgetWeekCalendar: View {
                         // An earlier week names its days: "13–19 окт."
                         Text(weekRange)
                     }
-                }.font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                }.font(FolkiFont.label).lineLimit(1).minimumScaleFactor(0.7)
             }.frame(minWidth: 44, minHeight: 44, alignment: .leading)
         }.buttonStyle(.plain).accessibilityLabel("Выбрать дату в календаре")
     }
@@ -110,7 +110,7 @@ struct BudgetWeekCalendar: View {
         Button("Сегодня") {
             select(today)
         }
-            .font(.caption.weight(.semibold)).frame(minWidth: 60, minHeight: 44)
+            .font(FolkiFont.tag).frame(minWidth: 60, minHeight: 44)
     }
     private var weekButtons: some View {
         HStack(spacing: 4) {
@@ -132,12 +132,12 @@ struct BudgetWeekCalendar: View {
         let over = !isFuture && overspent(date)
         return Button { select(date) } label: {
             VStack(spacing: 4) {
-                Text(weekday).font(.system(.caption2, design: .rounded, weight: .semibold))
+                Text(weekday).font(FolkiFont.calendarWeekday)
                 MiniRings(personal: fractions.0, family: fractions.1, onAccent: isSelected, showsFamily: showsFamily).frame(width: 30, height: 30)
                     .accessibilityHidden(true)
                     .padding(FolkiSpacing.xxs)
                 Text("\(calendar.component(.day, from: date))")
-                    .font(.system(.footnote, design: .rounded, weight: .heavy)).monospacedDigit()
+                    .font(FolkiFont.calendarDay).monospacedDigit()
                 Circle().fill(over ? Color.folkiOver : isToday ? (isSelected ? Color.white : Color.folkiAccent) : .clear)
                     .frame(width: 5, height: 5)
             }

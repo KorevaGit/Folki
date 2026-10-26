@@ -21,6 +21,15 @@ missing = [(path, key) for path in sys.argv[1:] for key, value in json.load(open
 for path, key in missing: print(f"{path}: no English for {key!r}", file=sys.stderr)
 sys.exit(1 if missing else 0)
 PY
+# Screens use DesignTokens.swift: no raw text styles, point sizes or RGB colours outside the token files.
+# Illustrations mark a deliberate exception with "token-exempt" on the line.
+FOLKI_RAW_STYLES=$(grep -nE '\.font\(\.|Font\.system|\.system\(size:|Color\(red:|RingPalette\.(personal|family)\.start' App/Sources/*.swift \
+  | grep -vE '^App/Sources/(Theme|DesignTokens|CategoryViews|FamilyBubbles)\.swift:' | grep -v 'token-exempt' || true)
+if [ -n "$FOLKI_RAW_STYLES" ]; then
+  echo "$FOLKI_RAW_STYLES" >&2
+  echo "Use FolkiFont, FolkiTextRole and the colour tokens from DesignTokens.swift." >&2
+  exit 1
+fi
 xcodegen generate
 for FOLKI_CONFIG in Debug Release Demo Cloud; do
   FOLKI_SCHEME=Folki

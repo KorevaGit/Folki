@@ -280,6 +280,26 @@
         }
       }
     },
+    "%@, %lld-го, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, on the %2$lld, %3$@"
+          }
+        }
+      }
+    },
+    "%@/день" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@/day"
+          }
+        }
+      }
+    },
     "%@: завтра ≈ %@ в день" : {
       "localizations" : {
         "en" : {
@@ -370,6 +390,16 @@
         }
       }
     },
+    "%lld включено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld on"
+          }
+        }
+      }
+    },
     "%lld года" : {
       "localizations" : {
         "en" : {
@@ -402,6 +432,16 @@
         }
       }
     },
+    "%lld из %lld дн." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld days"
+          }
+        }
+      }
+    },
     "%lld лет" : {
       "localizations" : {
         "en" : {
@@ -429,6 +469,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld mo"
+          }
+        }
+      }
+    },
+    "%lld чел." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld people"
           }
         }
       }
@@ -516,6 +566,46 @@
         }
       }
     },
+    "+ конверты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ envelopes"
+          }
+        }
+      }
+    },
+    "+%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@"
+          }
+        }
+      }
+    },
+    "+%@ с дохода" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ from income"
+          }
+        }
+      }
+    },
+    "+%@ сверх" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ over"
+          }
+        }
+      }
+    },
     ", чаще «%@»" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -559,12 +649,32 @@
         }
       }
     },
+    "/день" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "/day"
+          }
+        }
+      }
+    },
     "0" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "0"
+          }
+        }
+      }
+    },
+    "1 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 1"
           }
         }
       }
@@ -579,6 +689,16 @@
         }
       }
     },
+    "3 месяца расходов · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 months of spending · %@"
+          }
+        }
+      }
+    },
     "Email Apple ID" : {
       "localizations" : {
         "en" : {
@@ -589,6 +709,16 @@
         }
       },
       "extractionState" : "stale"
+    },
+    "Folki %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki %@"
+          }
+        }
+      }
     },
     "Folki отложит их отдельно от дневных денег. При оплате выбери платёж в поле «Источник» — дневное кольцо не изменится." : {
       "extractionState" : "stale",
@@ -1329,6 +1459,16 @@
         }
       }
     },
+    "Ведёшь бюджет с кем-то? Позови" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeping a budget with someone? Invite them"
+          }
+        }
+      }
+    },
     "Ведёшь бюджет с кем-то? Позови — общее будет видно обоим" : {
       "localizations" : {
         "en" : {
@@ -1533,12 +1673,32 @@
         }
       }
     },
+    "Видят все" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everyone sees"
+          }
+        }
+      }
+    },
     "Вклад в семью" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Family share"
+          }
+        }
+      }
+    },
+    "Вклад от участника" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contribution from member"
           }
         }
       }
@@ -1723,6 +1883,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All money, ₽"
+          }
+        }
+      }
+    },
+    "Все категории" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All categories"
           }
         }
       }
@@ -1913,6 +2083,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pick a date"
+          }
+        }
+      }
+    },
+    "Выгрузить в CSV" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export to CSV"
           }
         }
       }
@@ -2549,6 +2729,16 @@
         }
       }
     },
+    "Доход в месяц" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monthly income"
+          }
+        }
+      }
+    },
     "Доход в семейный" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2556,6 +2746,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Income to family"
+          }
+        }
+      }
+    },
+    "Доход делится на аренду, связь, подписки и деньги на жизнь" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income splits into rent, phone, subscriptions and money to live on"
           }
         }
       }
@@ -2871,6 +3071,16 @@
         }
       }
     },
+    "Записать %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record %@"
+          }
+        }
+      }
+    },
     "Записать трату" : {
       "localizations" : {
         "en" : {
@@ -3044,6 +3254,16 @@
         }
       }
     },
+    "Зарплата или пенсия" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salary or pension"
+          }
+        }
+      }
+    },
     "Зарплата — новый личный период" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3185,6 +3405,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "From living money"
+          }
+        }
+      }
+    },
+    "Из конверта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From envelope"
           }
         }
       }
@@ -3425,6 +3655,16 @@
         }
       }
     },
+    "Исправить сумму" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix the amount"
+          }
+        }
+      }
+    },
     "История" : {
       "localizations" : {
         "en" : {
@@ -3621,6 +3861,26 @@
         }
       }
     },
+    "Каждый следующий день стал больше на %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every next day got %@ more"
+          }
+        }
+      }
+    },
+    "Каждый следующий день стал меньше на %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every next day got %@ less"
+          }
+        }
+      }
+    },
     "Каждый — свой конверт. Буду откладывать на него из поступлений" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3700,6 +3960,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Categories"
+          }
+        }
+      }
+    },
+    "Категории и конверты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Categories and envelopes"
           }
         }
       }
@@ -4072,6 +4342,16 @@
         }
       }
     },
+    "Кто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who"
+          }
+        }
+      }
+    },
     "Кто платил" : {
       "localizations" : {
         "en" : {
@@ -4088,6 +4368,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Who put in what"
+          }
+        }
+      }
+    },
+    "Куда внести" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where it goes"
           }
         }
       }
@@ -6025,6 +6315,16 @@
         }
       }
     },
+    "Описание" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        }
+      }
+    },
     "Описание · необязательно" : {
       "localizations" : {
         "en" : {
@@ -7178,6 +7478,16 @@
         }
       }
     },
+    "Позвать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invite"
+          }
+        }
+      }
+    },
     "Позвать в семью" : {
       "localizations" : {
         "en" : {
@@ -7287,6 +7597,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show"
+          }
+        }
+      }
+    },
+    "Показать все траты дня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show all spends of the day"
           }
         }
       }
@@ -7822,6 +8142,16 @@
         }
       }
     },
+    "Пришли деньги? Введи сумму и дату следующих. История сохранится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Money came in? Enter the amount and the date of the next. History stays."
+          }
+        }
+      }
+    },
     "Пришли деньги? Жми «Внести» 💸" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8307,6 +8637,16 @@
         }
       }
     },
+    "Свернуть день" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapse the day"
+          }
+        }
+      }
+    },
     "Сверх дня" : {
       "localizations" : {
         "en" : {
@@ -8520,6 +8860,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Today %@"
+          }
+        }
+      }
+    },
+    "Сегодня %@, после %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %1$@, after %2$@"
           }
         }
       }
@@ -9657,12 +10007,42 @@
         }
       }
     },
+    "Тип" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        }
+      }
+    },
+    "Только на iPhone" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone only"
+          }
+        }
+      }
+    },
     "Только сейчас" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Just this time"
+          }
+        }
+      }
+    },
+    "Только ты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only you"
           }
         }
       }
@@ -9703,6 +10083,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transport"
+          }
+        }
+      }
+    },
+    "Трат не было" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No spending"
           }
         }
       }
@@ -9783,6 +10173,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spending %@"
+          }
+        }
+      }
+    },
+    "Траты Folki" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folki spending"
           }
         }
       }
@@ -10053,6 +10453,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notifications are off"
+          }
+        }
+      }
+    },
+    "Уведомления выключены — включить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications off — turn on"
           }
         }
       }
@@ -10619,6 +11029,16 @@
         }
       }
     },
+    "Это больше всех денег периода" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's more than all the money for the period"
+          }
+        }
+      }
+    },
     "Это вклад: в личном станет меньше" : {
       "localizations" : {
         "en" : {
@@ -10798,6 +11218,26 @@
         }
       }
     },
+    "всё на жизнь" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "all to living money"
+          }
+        }
+      }
+    },
+    "дальше" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "next days"
+          }
+        }
+      }
+    },
     "день" : {
       "localizations" : {
         "en" : {
@@ -10927,12 +11367,32 @@
         }
       }
     },
+    "можно %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ to spend"
+          }
+        }
+      }
+    },
     "не настроен" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "not set up"
+          }
+        }
+      }
+    },
+    "не хватает %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ short"
           }
         }
       }
@@ -10957,12 +11417,42 @@
         }
       }
     },
+    "оплачено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "paid"
+          }
+        }
+      }
+    },
+    "осталось %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left"
+          }
+        }
+      }
+    },
     "осталось %lld процентов дневного ориентира" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld percent of the daily guide left"
+          }
+        }
+      }
+    },
+    "останется %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left"
           }
         }
       }
@@ -11009,12 +11499,52 @@
         }
       }
     },
+    "просрочен" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "overdue"
+          }
+        }
+      }
+    },
     "ровно по плану" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "even pace"
+          }
+        }
+      }
+    },
+    "с жизни" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "from living money"
+          }
+        }
+      }
+    },
+    "сверх" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "over"
+          }
+        }
+      }
+    },
+    "сверх %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ over"
           }
         }
       }
@@ -11068,6 +11598,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "create your first goal"
+          }
+        }
+      }
+    },
+    "сэкономлено %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ saved"
           }
         }
       }

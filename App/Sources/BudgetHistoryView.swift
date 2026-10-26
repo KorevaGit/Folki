@@ -62,7 +62,7 @@ struct BudgetHistoryView: View {
                 }
                 }
               } header: {
-                Text(dayTitle(day)).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).textCase(nil)
+                Text(dayTitle(day)).font(FolkiFont.label).foregroundStyle(Color.folkiSecondary).textCase(nil)
               }
             }
         }

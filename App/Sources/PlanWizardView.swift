@@ -112,6 +112,14 @@ struct PlanWizardView: View {
         return items + [draft]
     }
     private var reserved: Int64 { planned.reduce(0) { $0 + $1.minor } }
+    /// For the cushion: three months of what is spent — the income less what the other jars put aside —
+    /// rounded up to a thousand.
+    private var cushionTarget: Int64 {
+        guard let draft, !draft.mandatory, draft.name == String(localized: "Подушка"), income > 0 else { return 0 }
+        let saved = items.filter { !$0.mandatory && $0.id != draft.id }.reduce(0) { $0 + $1.minor }
+        let target = max(0, income - saved) * 3
+        return (target + 99_999) / 100_000 * 100_000
+    }
     private var capacity: PlanCapacity {
         PlanCapacity(income: income, reserved: reserved, days: cycleDays,
                      availableBalance: personal.availableForDailySpending.minorUnits, usesBalance: usesBalance)
@@ -147,7 +155,7 @@ struct PlanWizardView: View {
         .sensoryFeedback(.warning, trigger: over) { _, new in new }
         .sheet(isPresented: Binding(get: { draft != nil }, set: { if !$0 { draft = nil } })) {
             if draft != nil {
-                DraftSheet(item: Binding(get: { draft ?? Item(name: "", symbol: "tag.fill", color: .gray, categoryID: BuiltInCategory.other.id, mandatory: true, day: 1) }, set: { if draft != nil { draft = $0 } }), isNew: draftIsNew, free: free,
+                DraftSheet(item: Binding(get: { draft ?? Item(name: "", symbol: "tag.fill", color: .gray, categoryID: BuiltInCategory.other.id, mandatory: true, day: 1) }, set: { if draft != nil { draft = $0 } }), isNew: draftIsNew, free: free, cushionTarget: cushionTarget,
                            daily: daily, over: over, recoveryVisible: over || capacity.balanceUsed > 0,
                            recovery: { recovery }, commit: commitDraft, cancel: closeDraft,
                            remove: { if let id = draft?.id { remove(id) } })
@@ -162,16 +170,16 @@ struct PlanWizardView: View {
         HStack(spacing: FolkiSpacing.item) {
             if step != steps.first {
                 Button { go(back: true) } label: {
-                    Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44)
+                    Image(systemName: "chevron.left").font(FolkiFont.headline).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Назад")
             }
             if scrolled, let small = stepTitle {
-                Text(small).font(.headline).lineLimit(1).frame(maxWidth: .infinity)
+                Text(small).font(FolkiFont.headline).lineLimit(1).frame(maxWidth: .infinity)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if let index = progressSteps.firstIndex(of: step) {
                 HStack(spacing: FolkiSpacing.xs) {
                     ForEach(progressSteps.indices, id: \.self) { item in
-                        Capsule().fill(item <= index ? Color.folkiAccent : Color.folkiSoft).frame(height: 4)
+                        Capsule().fill(item <= index ? Color.folkiAccent : Color.folkiTile).frame(height: 4)
                     }
                 }
                 .animation(FolkiMotion.quick, value: step)
@@ -180,7 +188,7 @@ struct PlanWizardView: View {
             Spacer(minLength: 0)
             if step != .hello {
                 Button { confirmingExit = true } label: {
-                    Image(systemName: "xmark").font(.headline).frame(width: 44, height: 44)
+                    Image(systemName: "xmark").font(FolkiFont.headline).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Закрыть")
             }
         }
@@ -204,10 +212,10 @@ struct PlanWizardView: View {
                         .modifier(Shake(phase: CGFloat(shake)))
                     HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xxs) {
                         Text("≈ \(MoneyText.whole(Money(minorUnits: daily)))")
-                            .font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
+                            .font(FolkiFont.moneyCard).monospacedDigit()
                             .foregroundStyle(over ? Color.folkiOver : Color.folkiInk)
                             .contentTransition(.numericText(value: Double(daily)))
-                        Text("/ день").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        Text("/ день").font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
                     }.fixedSize()
                 }
                 .padding(.horizontal, 16).frame(height: 48)
@@ -303,7 +311,7 @@ struct PlanWizardView: View {
     }
 
     private func title(_ text: String) -> some View {
-        Text(text).font(.largeTitle.bold()).frame(maxWidth: .infinity, alignment: .leading)
+        Text(text).font(FolkiFont.title).frame(maxWidth: .infinity, alignment: .leading)
             .opacity(scrolled ? 0 : 1).animation(FolkiMotion.quick, value: scrolled)
             .rise(0)
     }
@@ -324,9 +332,9 @@ struct PlanWizardView: View {
         VStack(spacing: FolkiSpacing.large) {
             PlanHeroArt().frame(maxWidth: 340).rise(0)
             VStack(spacing: FolkiSpacing.item) {
-                Text("Финансовый план").font(.largeTitle.bold()).rise(1)
+                Text("Финансовый план").font(FolkiFont.title).rise(1)
                 Text("Учту аренду, связь и подписки — и они не съедят деньги на жизнь")
-                    .font(.body).foregroundStyle(.secondary).rise(2)
+                    .font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).rise(2)
             }.multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, FolkiSpacing.huge)
@@ -337,10 +345,10 @@ struct PlanWizardView: View {
             title(String(localized: "Сколько приходит за месяц?"))
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 TypedAmount(text: incomeText)
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                    .font(FolkiFont.money(FolkiFont.heroSize))
                     .foregroundStyle(incomeText.isEmpty ? Color.secondary : Color.folkiInk)
                     .frame(maxWidth: .infinity)
-                Text("₽").font(.system(size: 34, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                Text("₽").font(FolkiFont.moneyLarge).foregroundStyle(Color.folkiSecondary)
             }
             .padding(20)
             .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
@@ -350,7 +358,7 @@ struct PlanWizardView: View {
                     Button(MoneyText.whole(Money(minorUnits: Int64(value) * 100))) {
                         incomeText = String(value); FolkiFeedback.selection()
                     }
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiInk)
+                    .font(FolkiFont.label).foregroundStyle(Color.folkiInk)
                     .padding(.horizontal, FolkiSpacing.card).frame(height: 40)
                     .glassEffect(.regular.interactive(), in: Capsule())
                 }
@@ -381,9 +389,9 @@ struct PlanWizardView: View {
                         Button { add(template, mandatory: mandatory) } label: {
                             HStack(spacing: FolkiSpacing.item) {
                                 CategoryIcon(symbol: template.symbol, color: template.color.color, size: 32)
-                                Text(template.name).font(.body).foregroundStyle(.secondary)
+                                Text(template.name).font(FolkiFont.body).foregroundStyle(Color.folkiSecondary)
                                 Spacer()
-                                Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Color.folkiAccent)
+                                Image(systemName: "plus.circle.fill").font(FolkiFont.icon).foregroundStyle(Color.folkiAccent)
                             }
                             .frame(minHeight: 52).contentShape(Rectangle())
                         }
@@ -393,7 +401,7 @@ struct PlanWizardView: View {
                     Button { addCustom(mandatory: mandatory) } label: {
                         HStack(spacing: FolkiSpacing.item) {
                             CategoryIcon(symbol: "plus", color: .gray, size: 32)
-                            Text("Свой конверт").font(.body.weight(.medium)).foregroundStyle(Color.folkiAccent)
+                            Text("Свой конверт").font(FolkiFont.headline).foregroundStyle(Color.folkiAccent)
                             Spacer()
                         }
                         .frame(minHeight: 52).contentShape(Rectangle())
@@ -402,7 +410,7 @@ struct PlanWizardView: View {
                 }
             }
             .padding(.horizontal, FolkiSpacing.card).padding(.vertical, 4)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiGlassBackground()
             .rise(1)
         }
         .onChange(of: over) { _, new in if new { withAnimation(.linear(duration: 0.4)) { shake += 1 } } }
@@ -414,16 +422,16 @@ struct PlanWizardView: View {
             title(String(localized: "Проверь план"))
             VStack(spacing: 4) {
                 Text("≈ \(MoneyText.whole(Money(minorUnits: daily)))")
-                    .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                    .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
                     .contentTransition(.numericText()).animation(FolkiMotion.quick, value: daily)
-                Text(usesBalance && capacity.balanceUsed > 0 ? String(localized: "в день на этот период") : String(localized: "в день на жизнь")).font(.headline).foregroundStyle(.secondary)
+                Text(usesBalance && capacity.balanceUsed > 0 ? String(localized: "в день на этот период") : String(localized: "в день на жизнь")).font(FolkiFont.headline).foregroundStyle(Color.folkiSecondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 20)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiGlassBackground()
             .rise(1)
             VStack(alignment: .leading, spacing: 8) {
                 LabeledContent("Сейчас на жизнь", value: MoneyText.whole(personal.availableForDailySpending))
-                    .font(.headline)
+                    .font(FolkiFont.headline)
             }.budgetCard()
             reviewSection(String(localized: "Доход"), .income) {
                 reviewRow("banknote.fill", .folkiAccent, String(localized: "В месяц"), MoneyText.whole(Money(minorUnits: income)))
@@ -447,14 +455,14 @@ struct PlanWizardView: View {
                 scrolled = false; withAnimation(FolkiMotion.quick) { step = target }
             } label: {
                 HStack {
-                    Text(heading).font(.title2.bold()).foregroundStyle(Color.folkiInk)
+                    Text(heading).font(FolkiFont.section).foregroundStyle(Color.folkiInk)
                     Spacer()
-                    Text("Изменить").font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                    Text("Изменить").font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
                 }
             }.buttonStyle(.plain)
             VStack(spacing: 0) { content() }
                 .padding(.horizontal, FolkiSpacing.card).padding(.vertical, 4)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                .folkiGlassBackground()
         }
     }
 
@@ -462,11 +470,11 @@ struct PlanWizardView: View {
         HStack(spacing: FolkiSpacing.item) {
             CategoryIcon(symbol: symbol, color: color, size: 32)
             VStack(alignment: .leading, spacing: 0) {
-                Text(name).font(.body.weight(.medium)).lineLimit(2)
-                if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                Text(name).font(FolkiFont.headline).lineLimit(2)
+                if let detail { Text(detail).folkiText(.footnote) }
             }
             Spacer()
-            Text(value).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit().foregroundStyle(color)
+            Text(value).font(FolkiFont.moneyRow).monospacedDigit().foregroundStyle(color)
         }
         .frame(minHeight: 52)
     }
@@ -475,7 +483,7 @@ struct PlanWizardView: View {
         let chosen = items.filter { $0.mandatory == mandatory && $0.minor > 0 }
         if chosen.isEmpty {
             Text(mandatory ? "Нет обязательных платежей" : "Пока ничего не копишь")
-                .font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .folkiText(.caption).frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         }
         ForEach(chosen) { item in
             reviewRow(item.symbol, item.color.color, item.name, MoneyText.whole(Money(minorUnits: item.minor)),
@@ -647,7 +655,7 @@ private struct PlanRecoveryView: View {
         VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
             if capacity.shortfall > 0 {
                 LabeledContent("Не хватает", value: MoneyText.whole(Money(minorUnits: capacity.shortfall).roundedUpToWholeUnits))
-                    .font(.headline).foregroundStyle(Color.folkiWarning)
+                    .font(FolkiFont.headline).foregroundStyle(Color.folkiWarning)
                     .contentTransition(.numericText())
                 if let recommended = capacity.recommendedIncome, recommended > capacity.income {
                     Button { increaseIncome(recommended) } label: {
@@ -659,16 +667,16 @@ private struct PlanRecoveryView: View {
             if available > 0 {
                 Toggle(isOn: $usesBalance) {
                     Text("Учесть остаток \(MoneyText.whole(Money(minorUnits: available)))")
-                        .font(.subheadline.weight(.medium)).monospacedDigit()
+                        .font(FolkiFont.label).monospacedDigit()
                 }.tint(Color.folkiAccent)
             }
             if capacity.balanceUsed > 0 {
                 Text("Из остатка \(MoneyText.whole(Money(minorUnits: capacity.balanceUsed).roundedUpToWholeUnits)) · только на этот период")
-                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    .folkiText(.footnote).monospacedDigit()
             }
         }
         .padding(FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
     }
 }
 
@@ -717,14 +725,14 @@ private struct ItemRow: View {
             HStack(spacing: FolkiSpacing.item) {
                 CategoryIcon(symbol: item.symbol, color: item.color.color, size: 32)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(item.name).font(.body.weight(.medium)).foregroundStyle(Color.folkiInk).lineLimit(1)
+                    Text(item.name).font(FolkiFont.headline).foregroundStyle(Color.folkiInk).lineLimit(1)
                     Text(item.mandatory ? String(localized: "\(item.day)-го")
                          : String(localized: "\(MoneyText.whole(Money(minorUnits: item.minor))) в месяц · \(PlanTerm.text(item.reachMonths))"))
-                        .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                        .folkiText(.footnote).monospacedDigit().lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 Text(MoneyText.whole(Money(minorUnits: item.typed)))
-                    .font(.system(.title3, design: .rounded, weight: .semibold)).monospacedDigit()
+                    .font(FolkiFont.moneyCard).monospacedDigit()
                     .foregroundStyle(item.color.color)
             }
             .frame(minHeight: 52).contentShape(Rectangle())
@@ -739,6 +747,8 @@ private struct DraftSheet: View {
     @Binding var item: PlanWizardView.Item
     let isNew: Bool
     let free: Int64
+    /// A suggested goal for the cushion, zero for every other envelope.
+    let cushionTarget: Int64
     let daily: Int64
     let over: Bool
     let recoveryVisible: Bool
@@ -783,20 +793,20 @@ private struct DraftSheet: View {
     /// Step one for an envelope of one's own: icon and name.
     private var nameStep: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.page) {
-            Text(item.mandatory ? "Что за платёж?" : "На что копим?").font(.largeTitle.bold())
+            Text(item.mandatory ? "Что за платёж?" : "На что копим?").font(FolkiFont.title)
             HStack(spacing: FolkiSpacing.item) {
                 Button { pickingIcon = true } label: {
                     CategoryIcon(symbol: item.symbol, color: item.color.color, size: 56)
                         .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "pencil.circle.fill").font(.system(size: 18)).foregroundStyle(.white, Color.folkiAccent)
+                            Image(systemName: "pencil.circle.fill").font(FolkiFont.symbol(18)).foregroundStyle(.white, Color.folkiAccent)
                         }
                 }.buttonStyle(.plain).accessibilityLabel("Значок и цвет")
                 TextField(item.mandatory ? "Например, аренда" : "Например, отпуск", text: $item.name)
-                    .font(.title3.weight(.semibold)).focused($naming).submitLabel(.next)
+                    .font(FolkiFont.headline).focused($naming).submitLabel(.next)
                     .onSubmit(finishNaming)
             }
             .padding(FolkiSpacing.item)
-            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiTileBackground()
             Spacer(minLength: 0)
             Button("Дальше", action: finishNaming).buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
                 .disabled(trimmedName.isEmpty)
@@ -818,7 +828,7 @@ private struct DraftSheet: View {
                     if item.mandatory {
                         amount(item.amount, label: String(localized: "Ожидаемый платёж"), active: true) {}
                         Text("Сумма для планирования. При оплате можно указать фактическую — больше или меньше.")
-                            .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .folkiText(.footnote).multilineTextAlignment(.center)
                     } else if item.byMonthly {
                         HStack(spacing: FolkiSpacing.item) {
                             amount(item.amount, label: String(localized: "Цель"), active: !typingMonthly, small: true) { typingMonthly = false }
@@ -827,12 +837,21 @@ private struct DraftSheet: View {
                     } else {
                         amount(item.amount, label: String(localized: "Цель"), active: true) {}
                     }
+                    if cushionTarget > 0 && item.typed != cushionTarget {
+                        // A number to start from instead of a guess: the usual cushion is three months of spending.
+                        Button {
+                            FolkiFeedback.selection(); typingMonthly = false
+                            item.amount = MoneyText.input(Money(minorUnits: cushionTarget))
+                        } label: {
+                            Text("3 месяца расходов · \(MoneyText.whole(Money(minorUnits: cushionTarget)))")
+                                .font(FolkiFont.label).monospacedDigit()
+                                .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 40)
+                                .glassEffect(.regular.interactive(), in: Capsule())
+                        }.buttonStyle(FolkiPressStyle()).foregroundStyle(item.color.color)
+                    }
                     if !item.mandatory {
-                        Picker("Как копить", selection: $item.byMonthly) {
-                            Text("К сроку").tag(false)
-                            Text("Своей суммой").tag(true)
-                        }
-                        .pickerStyle(.segmented)
+                        FolkiSegmentedPicker(title: String(localized: "Как копить"), selection: $item.byMonthly,
+                            options: [(String(localized: "К сроку"), false), (String(localized: "Своей суммой"), true)])
                         .onChange(of: item.byMonthly) { _, monthly in typingMonthly = monthly && item.typed > 0 }
                     }
                     result
@@ -844,7 +863,7 @@ private struct DraftSheet: View {
                     }
                     if !isNew {
                         Button("Убрать из плана", systemImage: "trash", role: .destructive) { remove() }
-                            .font(.subheadline.weight(.semibold))
+                            .font(FolkiFont.label)
                     }
                 }
                 .padding(.horizontal, FolkiSpacing.page)
@@ -864,17 +883,17 @@ private struct DraftSheet: View {
             Button { naming = false; pickingIcon = true } label: {
                 CategoryIcon(symbol: item.symbol, color: item.color.color, size: 30)
                     .overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "pencil.circle.fill").font(.system(size: 12)).foregroundStyle(.white, Color.folkiAccent)
+                        Image(systemName: "pencil.circle.fill").font(FolkiFont.symbol(12)).foregroundStyle(.white, Color.folkiAccent)
                             .offset(x: 3, y: 3)
                     }
             }
             .buttonStyle(.plain).accessibilityLabel("Значок и цвет")
             if item.custom {
                 // The name was typed on the first step; a tap goes back to it.
-                Button { namingStep = true } label: { Text(item.name).font(.headline).lineLimit(1) }
+                Button { namingStep = true } label: { Text(item.name).font(FolkiFont.headline).lineLimit(1) }
                     .buttonStyle(.plain).accessibilityHint("Изменить название")
             } else {
-                Text(item.name).font(.headline).lineLimit(1)
+                Text(item.name).font(FolkiFont.headline).lineLimit(1)
             }
         }
     }
@@ -882,18 +901,18 @@ private struct DraftSheet: View {
     private func amount(_ text: String, label: String?, active: Bool, small: Bool = false, select: @escaping () -> Void) -> some View {
         Button { naming = false; select() } label: {
             VStack(spacing: FolkiSpacing.xxs) {
-                if let label { Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
+                if let label { Text(label).folkiText(.tag) }
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     TypedAmount(text: text)
-                    Text("₽").foregroundStyle(.secondary)
+                    Text("₽").foregroundStyle(Color.folkiSecondary)
                 }
-                .font(.system(size: small ? 32 : 52, weight: .bold, design: .rounded))
+                .font(FolkiFont.money(small ? 32 : FolkiFont.inputSize))
                 .foregroundStyle(text.isEmpty ? Color.secondary : item.color.color)
             }
             .frame(maxWidth: .infinity).padding(.vertical, small ? 10 : 0)
             .background {
                 if small {
-                    RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius).fill(Color.folkiSoft)
+                    RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius).fill(Color.folkiTile)
                         .overlay { RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius).strokeBorder(item.color.color, lineWidth: active ? 2 : 0) }
                 }
             }
@@ -907,24 +926,24 @@ private struct DraftSheet: View {
             if !item.mandatory && item.minor > 0 && item.typed > 0 {
                 Text(item.byMonthly ? String(localized: "Накопишь за \(PlanTerm.text(item.reachMonths))")
                      : String(localized: "Откладывать \(MoneyText.whole(Money(minorUnits: item.minor))) в месяц"))
-                    .font(.headline).monospacedDigit().foregroundStyle(item.color.color)
+                    .font(FolkiFont.headline).monospacedDigit().foregroundStyle(item.color.color)
                     .contentTransition(.numericText())
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("Останется ≈ \(MoneyText.whole(Money(minorUnits: daily)))")
-                    .font(.subheadline.weight(.semibold)).monospacedDigit()
+                    .font(FolkiFont.label).monospacedDigit()
                     .contentTransition(.numericText(value: Double(daily)))
-                Text("в день").font(.subheadline).foregroundStyle(.secondary)
+                Text("в день").folkiText(.caption)
             }
             .foregroundStyle(over ? Color.folkiOver : Color.folkiInk)
         }
         .padding(.vertical, 12).frame(maxWidth: .infinity)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiGlassBackground()
     }
 
     private func wheel(_ label: String, selection: Binding<Int>, values: [Int], text: @escaping (Int) -> String) -> some View {
         HStack {
-            Text(label).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+            Text(label).font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
             Picker(label, selection: selection) {
                 ForEach(values, id: \.self) { Text(text($0)).tag($0) }
             }

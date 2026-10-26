@@ -62,9 +62,9 @@ private struct PlanIntro: View {
             VStack(spacing: FolkiSpacing.large) {
                 PlanHeroArt().frame(maxWidth: 340).rise(0)
                 VStack(spacing: FolkiSpacing.item) {
-                    Text("Финансовый план").font(.largeTitle.bold()).rise(1)
+                    Text("Финансовый план").font(FolkiFont.title).rise(1)
                     Text("Учту аренду, связь и подписки — и они не съедят деньги на жизнь")
-                        .font(.body).foregroundStyle(.secondary).rise(2)
+                        .font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).rise(2)
                 }.multilineTextAlignment(.center)
             }.padding(.bottom, FolkiSpacing.huge)
         } actions: {
@@ -88,9 +88,9 @@ struct PlanHeroArt: View {
     @State private var split = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let parts: [(LocalizedStringKey, Int64, Color)] = [
-        ("Аренда", 25_000, Color(red: 0.62, green: 0.42, blue: 0.24)),
-        ("Связь", 800, Color(red: 0.30, green: 0.56, blue: 0.86)),
-        ("Подписки", 1_200, Color(red: 0.55, green: 0.40, blue: 0.85)),
+        ("Аренда", 25_000, CategoryColor.brown.color),
+        ("Связь", 800, CategoryColor.blue.color),
+        ("Подписки", 1_200, CategoryColor.purple.color),
         ("На жизнь", 53_000, Color.folkiAccent)
     ]
     private var total: Int64 { parts.reduce(0) { $0 + $1.1 } }
@@ -98,9 +98,9 @@ struct PlanHeroArt: View {
     var body: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.item) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Зарплата").font(.subheadline).foregroundStyle(.secondary)
+                Text("Доход в месяц").folkiText(.caption)
                 Spacer()
-                Text(MoneyText.whole(Money(minorUnits: total * 100))).font(.system(.title3, design: .rounded, weight: .bold)).monospacedDigit()
+                Text(MoneyText.whole(Money(minorUnits: total * 100))).font(FolkiFont.moneyCard).monospacedDigit()
             }
             GeometryReader { geo in
                 let gaps = CGFloat(parts.count - 1) * 3
@@ -121,9 +121,9 @@ struct PlanHeroArt: View {
                     let part = parts[index]
                     HStack(spacing: FolkiSpacing.xs) {
                         Circle().fill(part.2).frame(width: 10, height: 10)
-                        Text(part.0).font(.subheadline)
+                        Text(part.0).font(FolkiFont.caption)
                         Spacer()
-                        Text(MoneyText.whole(Money(minorUnits: part.1 * 100))).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        Text(MoneyText.whole(Money(minorUnits: part.1 * 100))).font(FolkiFont.label).monospacedDigit()
                     }
                     .opacity(split ? 1 : 0).offset(y: split ? 0 : 6)
                     .animation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion)
@@ -132,9 +132,9 @@ struct PlanHeroArt: View {
             }
         }
         .padding(FolkiSpacing.page)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiGlassBackground()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Зарплата делится на аренду, связь, подписки и деньги на жизнь")
+        .accessibilityLabel("Доход делится на аренду, связь, подписки и деньги на жизнь")
         .onAppear {
             guard !reduceMotion else { split = true; return }
             withAnimation(FolkiMotion.hero.delay(0.4)) { split = true }
@@ -188,7 +188,7 @@ private struct PlanChip: View {
     let action: () -> Void
     var body: some View {
         Button { FolkiFeedback.selection(); action() } label: {
-            Text(title).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            Text(title).font(FolkiFont.label).lineLimit(1).minimumScaleFactor(0.8)
                 .padding(.horizontal, FolkiSpacing.card).frame(maxWidth: wide ? .infinity : nil, minHeight: 44)
                 .foregroundStyle(selected ? Color.white : Color.folkiInk)
                 .glassEffect(.regular.tint(selected ? Color.folkiAccent : .clear).interactive(), in: Capsule())
@@ -234,16 +234,16 @@ struct PlanIncomeEditor: View {
                 weekdays
             case .off:
                 Text("Внести можно в любой момент")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .folkiText(.caption)
             }
             if mode != .off {
                 HStack(spacing: FolkiSpacing.item) {
-                    Image(systemName: "bell.badge.fill").font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                    Image(systemName: "bell.badge.fill").font(FolkiFont.headline).foregroundStyle(Color.folkiAccent)
                         .symbolRenderingMode(.hierarchical)
                     DatePicker("Напомнить", selection: time, displayedComponents: .hourAndMinute)
                 }
                     .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 52)
-                    .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                    .folkiTileBackground()
             }
         }
         .animation(FolkiMotion.quick, value: settings)
@@ -261,10 +261,10 @@ struct PlanIncomeEditor: View {
             if mode == .twice && next.count > 2 { next.remove(at: next.count - 2) }
             settings.income = .monthly(next.sorted())
         } label: {
-            Text("\(day)").font(.body.weight(selected ? .bold : .regular)).monospacedDigit()
+            Text("\(day)").font(selected ? FolkiFont.headline : FolkiFont.body).monospacedDigit()
                 .frame(maxWidth: .infinity, minHeight: 36)
                 .foregroundStyle(selected ? Color.white : Color.folkiInk)
-                .background(selected ? Color.folkiAccent : Color.folkiSoft, in: Circle())
+                .background(selected ? Color.folkiAccent : Color.folkiTile, in: Circle())
         }.buttonStyle(FolkiPressStyle()).accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -278,10 +278,10 @@ struct PlanIncomeEditor: View {
             ForEach(order, id: \.self) { weekday in
                 let selected = current == weekday
                 Button { FolkiFeedback.selection(); settings.income = .weekly(weekday) } label: {
-                    Text(symbols[weekday - 1]).font(.subheadline.weight(selected ? .bold : .regular))
+                    Text(symbols[weekday - 1]).font(selected ? FolkiFont.label : FolkiFont.caption)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .foregroundStyle(selected ? Color.white : Color.folkiInk)
-                        .background(selected ? Color.folkiAccent : Color.folkiSoft, in: Capsule())
+                        .background(selected ? Color.folkiAccent : Color.folkiTile, in: Capsule())
                 }.buttonStyle(FolkiPressStyle())
             }
         }
@@ -303,11 +303,11 @@ struct PlanPaymentsEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.page) {
             Toggle("Напоминать о платежах", isOn: $settings.paymentReminders)
-                .font(.body.weight(.medium))
+                .font(FolkiFont.headline)
                 .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 52)
-                .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                .folkiTileBackground()
             if settings.paymentReminders {
-                Text("Заранее").font(.subheadline).foregroundStyle(.secondary)
+                Text("Заранее").folkiText(.caption)
                 HStack(spacing: FolkiSpacing.xs) {
                     PlanChip(title: String(localized: "За день"), selected: settings.daysBefore == 1) { settings.daysBefore = 1 }
                     PlanChip(title: String(localized: "За 2 дня"), selected: settings.daysBefore == 2) { settings.daysBefore = 2 }
@@ -315,18 +315,18 @@ struct PlanPaymentsEditor: View {
                 }
                 Toggle("И в день оплаты", isOn: $settings.onDueDay)
                     .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 52)
-                    .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                    .folkiTileBackground()
                 // What a reminder will look like.
                 HStack(alignment: .top, spacing: FolkiSpacing.item) {
-                    Image(systemName: "app.badge.fill").font(.title2).foregroundStyle(Color.folkiAccent)
+                    Image(systemName: "app.badge.fill").font(FolkiFont.icon).foregroundStyle(Color.folkiAccent)
                     VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                        Text("Аренда — 25 000 ₽ через \(max(1, settings.daysBefore)) дн.").font(.subheadline.weight(.semibold))
-                        Text("Не хватает 4 000 ₽ — переложи из денег на жизнь").font(.footnote).foregroundStyle(.secondary)
+                        Text("Аренда — 25 000 ₽ через \(max(1, settings.daysBefore)) дн.").font(FolkiFont.label)
+                        Text("Не хватает 4 000 ₽ — переложи из денег на жизнь").folkiText(.footnote)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(FolkiSpacing.card).frame(maxWidth: .infinity, alignment: .leading)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                .folkiGlassBackground()
                 .accessibilityLabel("Пример напоминания")
             }
         }
@@ -344,26 +344,26 @@ struct PlanFamilyEditor: View {
         VStack(alignment: .leading, spacing: FolkiSpacing.page) {
             VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("\(Int(percent))%").font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                    Text("\(Int(percent))%").font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
                         .contentTransition(.numericText()).animation(FolkiMotion.quick, value: percent)
                     Spacer()
-                    Image(systemName: "heart.fill").font(.title).foregroundStyle(RingPalette.family.start)
+                    Image(systemName: "heart.fill").font(FolkiFont.icon).foregroundStyle(Color.folkiFamily)
                 }
-                Slider(value: $percent, in: 0...50, step: 5).tint(RingPalette.family.start)
+                Slider(value: $percent, in: 0...50, step: 5).tint(Color.folkiFamily)
                     .accessibilityLabel("Доля для семьи").accessibilityValue("\(Int(percent))%")
                 Text("С 50 000 ₽ в семью уйдёт \(MoneyText.whole(Money(minorUnits: Int64(percent) * 50_000)))")
-                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    .folkiText(.caption).monospacedDigit()
             }
             .padding(FolkiSpacing.page)
-            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiTileBackground()
             Toggle(isOn: $forEveryone) {
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text("Для всей семьи")
                 }
             }
             .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 60)
-            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-            .tint(RingPalette.family.start)
+            .folkiTileBackground()
+            .tint(Color.folkiFamily)
         }
     }
 }
@@ -380,26 +380,26 @@ private struct PlanBalanceCard: View {
             if let guide = session.plannedDailySpending {
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text("≈ \(MoneyText.whole(revealed ? guide.roundedDownToWholeUnits : Money(minorUnits: 0)))")
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(FolkiFont.money(FolkiFont.inputSize))
                         .monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
                         .contentTransition(.numericText())
                         .animation(reduceMotion ? nil : FolkiMotion.hero, value: revealed)
                         .animation(reduceMotion ? nil : FolkiMotion.quick, value: guide)
-                    Text("в день на жизнь").font(.subheadline).foregroundStyle(.secondary)
+                    Text("в день на жизнь").folkiText(.caption)
                 }
             }
             Button(action: distribute) {
                 HStack(spacing: FolkiSpacing.item) {
                     VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                        Text("На жизнь").font(.subheadline).foregroundStyle(.secondary)
+                        Text("На жизнь").folkiText(.caption)
                         Text(MoneyText.whole(session.availableForDailySpending))
-                            .font(.system(.title3, design: .rounded, weight: .semibold))
+                            .font(FolkiFont.moneyCard)
                             .monospacedDigit().contentTransition(.numericText())
                             .animation(reduceMotion ? nil : FolkiMotion.quick, value: session.availableForDailySpending)
                     }
                     Spacer()
                     Label("Распределить", systemImage: "tray.and.arrow.down")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                        .font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
                 }.contentShape(Rectangle())
             }.buttonStyle(FolkiPressStyle())
         }
@@ -437,13 +437,13 @@ private struct PlanOverview: View {
                     PlanBalanceCard(session: session) { distributing = true }
                     VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                         HStack {
-                            Text("Конверты").font(.title2.bold())
+                            Text("Конверты").font(FolkiFont.section)
                             Spacer()
                             Menu {
                                 Button("Перенастроить", systemImage: "slider.horizontal.3") { basics = true }
                                 Button("Сбросить план", systemImage: "arrow.counterclockwise", role: .destructive) { confirmingReset = true }
                             } label: {
-                                Image(systemName: "ellipsis").font(.headline).frame(width: 40, height: 40)
+                                Image(systemName: "ellipsis").font(FolkiFont.headline).frame(width: 40, height: 40)
                                     .glassEffect(.regular.interactive(), in: Circle())
                             }
                             .matchedTransitionSource(id: "plan", in: zoom)
@@ -451,7 +451,7 @@ private struct PlanOverview: View {
                         }
                         if family.household != nil {
                             FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
-                                options: [(String(localized: "Личные"), .personal), (String(localized: "Семейные"), .family)], minimumHeight: 36)
+                                options: [(String(localized: "Личные"), .personal), (String(localized: "Семейные"), .family)], dots: [Color.folkiPersonal, Color.folkiFamily])
                         }
                         EnvelopesSection(session: session, creating: $creating)
                     }
@@ -464,7 +464,7 @@ private struct PlanOverview: View {
                     if family.household != nil {
                         let percents = family.contributionPercents
                         VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-                            Text("Семья").font(.title2.bold())
+                            Text("Семья").font(FolkiFont.section)
                             row("heart", String(localized: "Вклад в семью"),
                                 "\(percents.mine ?? percents.family)%", .family)
                         }
@@ -526,17 +526,17 @@ private struct PlanOverview: View {
     private func row(_ symbol: String, _ title: String, _ value: String, _ part: PlanEditorPart) -> some View {
         Button { editing = part } label: {
             HStack(spacing: FolkiSpacing.item) {
-                Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                Image(systemName: symbol).font(FolkiFont.headline).foregroundStyle(Color.folkiAccent)
                     .frame(width: 40, height: 40).background(Color.folkiAccent.opacity(0.12), in: Circle())
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                    Text(title).font(.body.weight(.medium)).foregroundStyle(Color.folkiInk)
-                    Text(value).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                    Text(title).font(FolkiFont.headline).foregroundStyle(Color.folkiInk)
+                    Text(value).folkiText(.caption).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(FolkiFont.label).foregroundStyle(Color.folkiTertiary)
             }
             .padding(FolkiSpacing.card)
-            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiTileBackground()
         }.buttonStyle(FolkiPressStyle(scale: 0.98))
     }
 

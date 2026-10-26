@@ -62,6 +62,8 @@ struct FolkiRootView: View {
                     finishedOnboarding = true
                 }
             }
+            // Links and the date picker in the accent, like the rest of Folki, not system blue.
+            .tint(Color.folkiAccent)
             .transition(.opacity)
         } else {
             TabView(selection: Binding(get: { tab }, set: { value in
@@ -115,7 +117,7 @@ struct MemberAvatar: View {
         return letters.isEmpty ? "?" : String(letters).uppercased()
     }
     var body: some View {
-        Text(initials).font(.system(.body, design: .rounded, weight: .semibold))
+        Text(initials).font(FolkiFont.moneyRow)
             .foregroundStyle(.white)
             .frame(width: 40, height: 40)
             .background(LinearGradient(colors: [Color.gray.opacity(0.65), Color.gray], startPoint: .top, endPoint: .bottom), in: Circle())
@@ -128,7 +130,7 @@ struct FolkiDateHeader: View {
     let date: Date
     var body: some View {
         Text(date, format: .dateTime.weekday(.wide).day().month(.wide))
-            .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            .font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
             .lineLimit(1).minimumScaleFactor(0.7)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -100,52 +100,54 @@ struct RingPalette {
     static func palette(for scope: BudgetScope) -> RingPalette { scope == .personal ? personal : family }
 }
 
-/// A native segmented control with comfortable height, shared across budget screens.
+/// The one switch of Folki: a compact capsule, the chosen option on a glass pill that slides to it.
+/// Budget options carry their colour dot, so the switch says which money it is without more words.
 struct FolkiSegmentedPicker<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
     let options: [(String, Value)]
-    var minimumHeight: CGFloat = 52
-    @ScaledMetric(relativeTo: .body) private var height: CGFloat = 52
+    /// Kept for call sites written for the old full-width control; the capsule sizes itself.
+    var minimumHeight: CGFloat = 36
+    /// A colour dot before each option, nil for none.
+    var dots: [Color?] = []
+    @Namespace private var pill
+    @ScaledMetric(relativeTo: .subheadline) private var height: CGFloat = 34
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        FolkiNativeSegments(title: title, selection: $selection, options: options)
-            .frame(maxWidth: .infinity).frame(height: max(minimumHeight, height))
-    }
-}
-
-private struct FolkiNativeSegments<Value: Hashable>: UIViewRepresentable {
-    let title: String
-    @Binding var selection: Value
-    let options: [(String, Value)]
-
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
-    func makeUIView(context: Context) -> UISegmentedControl {
-        let control = UISegmentedControl(items: options.map(\.0))
-        control.addAction(UIAction { [weak control, weak coordinator = context.coordinator] _ in
-            guard let control, let coordinator,
-                  coordinator.parent.options.indices.contains(control.selectedSegmentIndex) else { return }
-            FolkiFeedback.selection()
-            coordinator.parent.selection = coordinator.parent.options[control.selectedSegmentIndex].1
-        }, for: .valueChanged)
-        return control
-    }
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UISegmentedControl, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? uiView.intrinsicContentSize.width, height: proposal.height ?? 52)
-    }
-    func updateUIView(_ control: UISegmentedControl, context: Context) {
-        context.coordinator.parent = self
-        if control.numberOfSegments != options.count || options.indices.contains(where: { control.titleForSegment(at: $0) != options[$0].0 }) {
-            control.removeAllSegments()
-            for (index, item) in options.enumerated() { control.insertSegment(withTitle: item.0, at: index, animated: false) }
+        HStack(spacing: 2) {
+            ForEach(options.indices, id: \.self) { index in
+                let option = options[index]
+                let selected = option.1 == selection
+                Button {
+                    guard !selected else { return }
+                    FolkiFeedback.selection()
+                    withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { selection = option.1 }
+                } label: {
+                    HStack(spacing: 6) {
+                        if index < dots.count, let dot = dots[index] { Circle().fill(dot).frame(width: 7, height: 7) }
+                        Text(option.0).lineLimit(1)
+                    }
+                    .font(FolkiFont.label)
+                    .foregroundStyle(selected ? Color.folkiInk : Color.folkiSecondary)
+                    .padding(.horizontal, FolkiSpacing.card).frame(minHeight: height)
+                    .background {
+                        if selected {
+                            Color.clear.glassEffect(.regular, in: Capsule())
+                                .matchedGeometryEffect(id: "pill", in: pill)
+                        }
+                    }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
         }
-        control.selectedSegmentIndex = options.firstIndex(where: { $0.1 == selection }) ?? UISegmentedControl.noSegment
-        control.setTitleTextAttributes([.font: UIFont.preferredFont(forTextStyle: .body)], for: .normal)
-        control.accessibilityLabel = title
-    }
-    final class Coordinator {
-        var parent: FolkiNativeSegments
-        init(parent: FolkiNativeSegments) { self.parent = parent }
+        .padding(3)
+        .background(Color.folkiTile, in: Capsule())
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
     }
 }
 
@@ -285,7 +287,7 @@ struct FolkiSoftButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+            .font(FolkiFont.headline).foregroundStyle(Color.folkiAccent)
             .padding(.horizontal, 16).padding(.vertical, FolkiSpacing.item).frame(minHeight: 44)
             .glassEffect(.regular.interactive(), in: Capsule())
             .opacity(isEnabled ? 1 : 0.4)
@@ -302,7 +304,7 @@ struct FolkiPrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.title3, design: .rounded, weight: .bold)).foregroundStyle(.white)
+            .font(FolkiFont.primaryButton).foregroundStyle(.white)
             .padding(.horizontal, 20).frame(maxWidth: fullWidth ? .infinity : nil, minHeight: minHeight)
             .glassEffect(.regular.tint(Color.folkiAccent.opacity(isEnabled ? 1 : 0.35)).interactive(), in: Capsule())
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
@@ -326,7 +328,7 @@ struct FolkiErrorMessage: View {
     var body: some View {
         Label(message, systemImage: "exclamationmark.circle")
             .transition(.move(edge: .bottom).combined(with: .opacity))
-            .font(.footnote).foregroundStyle(.primary)
+            .font(FolkiFont.footnote).foregroundStyle(Color.folkiInk)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
     }

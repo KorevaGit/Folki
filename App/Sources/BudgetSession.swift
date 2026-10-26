@@ -106,7 +106,7 @@ final class BudgetSession {
             result = try DailyBudgetCalculator.calculate(household, asOf: referenceDate)
             errorMessage = nil
         } catch BudgetError.dateOutsidePeriod {
-            result = nil; errorMessage = String(localized: "Пришла зарплата? Введи сумму и дату следующей. История сохранится.")
+            result = nil; errorMessage = String(localized: "Пришли деньги? Введи сумму и дату следующих. История сохранится.")
         } catch {
             result = nil; errorMessage = String(localized: "Не получилось рассчитать бюджет. Проверь суммы и резервы.")
         }

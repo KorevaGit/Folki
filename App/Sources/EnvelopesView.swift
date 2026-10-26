@@ -30,7 +30,7 @@ struct EnvelopesSection: View {
                         .buttonStyle(FolkiPressStyle(scale: 0.98))
                 }
                 if !session.jars.isEmpty {
-                    Text("Копилки").font(.headline).padding(.top, FolkiSpacing.xs)
+                    Text("Копилки").font(FolkiFont.headline).padding(.top, FolkiSpacing.xs)
                     ForEach(session.jars) { jar in
                         NavigationLink(value: jar) { EnvelopeCard(session: session, envelope: jar) }
                             .buttonStyle(FolkiPressStyle(scale: 0.98))
@@ -51,34 +51,132 @@ struct EnvelopesSection: View {
         }
     }
 
+    /// How ready the bills are as one figure and one bar, then the month as a line: each bill a circle on its day,
+    /// as big as its amount and coloured by how ready it is, with today marked, so it is clear what is still ahead.
     private var summary: some View {
         let saved = session.payments.reduce(Int64(0)) { $0 + min(session.envelopeBalance($1).minorUnits, $1.size.minorUnits) }
         let total = session.payments.reduce(Int64(0)) { $0 + $1.size.minorUnits }
         let missing = session.payments.filter(\.isMandatory)
             .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: session.envelopeBalance($1)).minorUnits) ?? 0) }
         let worst = session.payments.map(session.envelopeUrgency).max() ?? .funded
-        return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
-                Text("Отложено").font(.body).foregroundStyle(.secondary)
-                Text(MoneyText.whole(Money(minorUnits: saved))).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .contentTransition(.numericText()).animation(FolkiMotion.quick, value: saved)
-                Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(.body).foregroundStyle(.secondary).monospacedDigit()
+        return VStack(alignment: .leading, spacing: FolkiSpacing.page) {
+            VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
+                    Text(MoneyText.whole(Money(minorUnits: saved))).font(FolkiFont.moneyCard).monospacedDigit()
+                        .contentTransition(.numericText()).animation(FolkiMotion.quick, value: saved)
+                    Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(FolkiFont.caption).foregroundStyle(Color.folkiSecondary).monospacedDigit()
+                    Spacer(minLength: FolkiSpacing.xs)
+                    if missing > 0 {
+                        Text("−\(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
+                            .font(FolkiFont.moneySmall).monospacedDigit()
+                            .foregroundStyle(worst == .calm ? Color.folkiSecondary : worst.color)
+                            .accessibilityLabel("Не хватает \(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
+                    }
+                }
+                ProgressBar(fraction: total > 0 ? Double(saved) / Double(total) : 0, color: worst == .funded ? .folkiAccent : worst.color, height: 6)
             }
-            ProgressBar(fraction: total > 0 ? Double(saved) / Double(total) : 0, color: worst == .funded ? .folkiAccent : worst.color, height: 8)
-            if missing > 0 {
-                Text("Не хватает \(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
-                    .font(.subheadline.weight(.medium)).foregroundStyle(worst == .calm ? .secondary : worst.color)
-            }
+            MonthLine(session: session)
         }
+        .padding(FolkiSpacing.card)
+        .folkiTileBackground()
     }
 
     private var empty: some View {
         VStack(spacing: FolkiSpacing.card) {
-            Image(systemName: "tray.full").font(.system(size: 40)).foregroundStyle(.secondary)
+            Image(systemName: "tray.full").font(FolkiFont.symbol(40)).foregroundStyle(Color.folkiSecondary)
             Text("Аренда, интернет, подписки — отложу на них заранее, и они не съедят дневной бюджет")
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .folkiText(.caption).multilineTextAlignment(.center)
             Button("Добавить конверт") { creating = true }.buttonStyle(FolkiSoftButtonStyle())
         }.frame(maxWidth: .infinity).padding(.vertical, FolkiSpacing.large)
+    }
+}
+
+/// The month as a line: a circle on each payment day, its size the amount, ringed while it still needs money and
+/// filled with a check once it is ready or paid. A tag above the line marks today; the days before it are shaded.
+private struct MonthLine: View {
+    let session: BudgetSession
+    private let largest: CGFloat = 34
+    private let smallest: CGFloat = 18
+    private let track: CGFloat = 8
+    private let tag: CGFloat = 22
+
+    var body: some View {
+        let calendar = session.calendar
+        let days = calendar.range(of: .day, in: .month, for: session.referenceDate)?.count ?? 31
+        let today = calendar.component(.day, from: session.referenceDate)
+        let biggest = Double(session.payments.map(\.size.minorUnits).max() ?? 1)
+        let month = session.referenceDate.formatted(.dateTime.month(.abbreviated))
+        VStack(spacing: FolkiSpacing.xs) {
+            GeometryReader { geometry in
+                let inset = largest / 2
+                let width = geometry.size.width - largest
+                let x = { (day: Int) in inset + width * CGFloat(min(max(day, 1), days) - 1) / CGFloat(max(1, days - 1)) }
+                let lineY = tag + 6 + largest / 2
+                ZStack(alignment: .topLeading) {
+                    Capsule().fill(Color.folkiSecondary.opacity(0.12)).frame(width: width, height: track)
+                        .position(x: inset + width / 2, y: lineY)
+                    // The days already gone, shaded: how far into the month we are.
+                    Capsule().fill(Color.folkiSecondary.opacity(0.28)).frame(width: max(track, x(today) - inset), height: track)
+                        .position(x: inset + max(track, x(today) - inset) / 2, y: lineY)
+                    ForEach(session.payments) { payment in
+                        let urgency = session.envelopeUrgency(payment)
+                        // Its next date is in a later month: this month's bill is behind us, paid.
+                        let paid = payment.nextDue > session.referenceDate
+                            && !calendar.isDate(payment.nextDue, equalTo: session.referenceDate, toGranularity: .month)
+                        let side = smallest + (largest - smallest) * CGFloat((Double(payment.size.minorUnits) / biggest).squareRoot())
+                        dot(day: min(payment.dueDay, days), side: side, ready: paid || urgency == .funded, color: tone(urgency))
+                            .position(x: x(payment.dueDay), y: lineY)
+                            .accessibilityLabel("\(payment.name), \(min(payment.dueDay, days))-го, \(MoneyText.whole(payment.size))")
+                    }
+                    todayTag.position(x: min(max(x(today), 34), geometry.size.width - 34), y: tag / 2)
+                    Triangle().fill(Color.folkiInk).frame(width: 8, height: 5).position(x: x(today), y: tag + 2)
+                }
+            }
+            .frame(height: tag + 6 + largest)
+            HStack {
+                Text("1 \(month)"); Spacer(); Text("\(days) \(month)")
+            }
+            .font(FolkiFont.footnote).monospacedDigit().foregroundStyle(Color.folkiTertiary)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func dot(day: Int, side: CGFloat, ready: Bool, color: Color) -> some View {
+        ZStack {
+            Circle().fill(ready ? Color.folkiAccent : Color(uiColor: .systemBackground))
+            if !ready { Circle().strokeBorder(color, lineWidth: 2.5) }
+            if ready {
+                Image(systemName: "checkmark").font(FolkiFont.tag).foregroundStyle(.white)
+            } else if side >= 24 {
+                Text("\(day)").font(FolkiFont.dot).monospacedDigit().foregroundStyle(color)
+            }
+        }
+        .frame(width: side, height: side)
+        // A ring of the ground around each circle keeps it apart from the line under it.
+        .background(Circle().fill(Color(uiColor: .systemBackground)).padding(-2))
+    }
+
+    private var todayTag: some View {
+        Text("сегодня").font(FolkiFont.tag).foregroundStyle(Color(uiColor: .systemBackground))
+            .padding(.horizontal, FolkiSpacing.xs).frame(height: tag)
+            .background(Color.folkiInk, in: Capsule())
+            .fixedSize()
+    }
+
+    private func tone(_ urgency: EnvelopeUrgency) -> Color {
+        urgency == .calm || urgency == .funded ? Color.folkiSecondary : urgency.color
+    }
+}
+
+/// The small pointer under the "сегодня" tag.
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.closeSubpath()
+        }
     }
 }
 
@@ -91,7 +189,7 @@ struct ProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.folkiSoft)
+                Capsule().fill(Color.folkiTile)
                 Capsule().fill(color).frame(width: geo.size.width * (revealed ? max(0, min(1, fraction)) : 0))
             }
         }.frame(height: height).accessibilityHidden(true)
@@ -130,14 +228,14 @@ struct IconPicker: View {
             }
             ForEach(CategorySymbols.groups, id: \.0) { group in
                 VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-                    Text(group.0).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(group.0).font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: FolkiSpacing.item)], spacing: FolkiSpacing.item) {
                         ForEach(group.1, id: \.self) { item in
                             Button { FolkiFeedback.selection(); withAnimation(FolkiMotion.quick) { symbol = item } } label: {
-                                Image(systemName: item).font(.title3)
+                                Image(systemName: item).font(FolkiFont.icon)
                                     .foregroundStyle(item == symbol ? .white : Color.folkiInk)
                                     .frame(width: 44, height: 44)
-                                    .background(item == symbol ? color.color : Color(uiColor: .tertiarySystemFill), in: Circle())
+                                    .background(item == symbol ? color.color : Color.folkiTile, in: Circle())
                             }.buttonStyle(FolkiPressStyle())
                                 .accessibilityLabel(CategorySymbols.title(for: item))
                                 .accessibilityAddTraits(item == symbol ? .isSelected : [])
@@ -178,26 +276,26 @@ private struct EnvelopeCard: View {
             HStack(spacing: FolkiSpacing.item) {
                 EnvelopeIcon(session: session, envelope: envelope)
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                    Text(envelope.name).font(.headline).foregroundStyle(Color.folkiInk).lineLimit(1)
-                    Text(dueText(envelope, session: session)).font(.footnote)
+                    Text(envelope.name).font(FolkiFont.headline).foregroundStyle(Color.folkiInk).lineLimit(1)
+                    Text(dueText(envelope, session: session)).font(FolkiFont.footnote)
                         .foregroundStyle(urgency == .funded || urgency == .calm ? .secondary : urgency.color)
                 }
                 Spacer(minLength: FolkiSpacing.xs)
                 VStack(alignment: .trailing, spacing: FolkiSpacing.xxs) {
                     HStack(spacing: 4) {
-                        if urgency == .funded { Image(systemName: "checkmark").font(.footnote.bold()).foregroundStyle(Color.folkiAccent) }
-                        Text(MoneyText.whole(balance)).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
+                        if urgency == .funded { Image(systemName: "checkmark").font(FolkiFont.label).foregroundStyle(Color.folkiAccent) }
+                        Text(MoneyText.whole(balance)).font(FolkiFont.moneyRow).monospacedDigit()
                             .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
                             .foregroundStyle(Color.folkiInk)
                     }
-                    Text("из \(MoneyText.whole(envelope.capacity))").font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+                    Text("из \(MoneyText.whole(envelope.capacity))").folkiText(.footnote).monospacedDigit()
                 }
             }
             ProgressBar(fraction: Double(balance.minorUnits) / Double(envelope.capacity.minorUnits),
                         color: envelope.isSavings && urgency != .funded ? Color.folkiAccent : urgency.color)
         }
         .padding(FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
         .accessibilityElement(children: .combine)
     }
 }
@@ -235,29 +333,29 @@ struct EnvelopeDetailView: View {
                 let urgency = session.envelopeUrgency(envelope)
                 VStack(spacing: FolkiSpacing.section) {
                     ZStack {
-                        Circle().stroke(Color.folkiSoft, lineWidth: 16)
+                        Circle().stroke(Color.folkiTile, lineWidth: 16)
                         Circle().trim(from: 0, to: Double(balance.minorUnits) / Double(envelope.capacity.minorUnits))
                             .stroke(urgency.color, style: StrokeStyle(lineWidth: 16, lineCap: .round)).rotationEffect(.degrees(-90))
                             .animation(FolkiMotion.ring, value: balance)
                         VStack(spacing: FolkiSpacing.xxs) {
-                            Text(MoneyText.whole(balance)).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                            Text(MoneyText.whole(balance)).font(FolkiFont.moneyLarge).monospacedDigit()
                                 .lineLimit(1).minimumScaleFactor(0.5)
                                 .contentTransition(.numericText()).animation(FolkiMotion.quick, value: balance)
-                            Text("из \(MoneyText.whole(envelope.capacity))").font(.subheadline).foregroundStyle(.secondary)
+                            Text("из \(MoneyText.whole(envelope.capacity))").folkiText(.caption)
                                 .lineLimit(1).minimumScaleFactor(0.7)
                         }.padding(.horizontal, FolkiSpacing.large)
                         if paidCheck {
-                            Image(systemName: "checkmark").font(.system(size: 64, weight: .bold)).foregroundStyle(Color.folkiAccent)
+                            Image(systemName: "checkmark").font(FolkiFont.symbol(64, weight: .bold)).foregroundStyle(Color.folkiAccent)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }.frame(width: 200, height: 200).padding(.top, FolkiSpacing.page)
                     VStack(spacing: FolkiSpacing.xxs) {
                         EnvelopeIcon(session: session, envelope: envelope, size: 44).padding(.bottom, FolkiSpacing.xs)
-                        Text(envelope.name).font(.title2.weight(.semibold))
+                        Text(envelope.name).font(FolkiFont.section)
                         Text(envelope.isSavings ? dueText(envelope, session: session)
                              : String(localized: "Каждый месяц, \(envelope.dueDay)-го · \(dueText(envelope, session: session))"))
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        if !envelope.isMandatory && !envelope.isSavings { Text("Необязательный").font(.footnote).foregroundStyle(.tertiary) }
+                            .folkiText(.caption)
+                        if !envelope.isMandatory && !envelope.isSavings { Text("Необязательный").font(FolkiFont.footnote).foregroundStyle(Color.folkiTertiary) }
                     }.multilineTextAlignment(.center)
                     actions
                     if !envelope.isSavings && session.daysUntil(envelope) < 0 {
@@ -332,7 +430,7 @@ struct EnvelopeDetailView: View {
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
             }
-            .font(.system(.title3, design: .rounded, weight: .bold))
+            .font(FolkiFont.moneyCard)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .minimumScaleFactor(0.8)
         }
@@ -342,17 +440,17 @@ struct EnvelopeDetailView: View {
         let records = session.envelopeHistory(envelope)
         return VStack(alignment: .leading, spacing: 0) {
             if !records.isEmpty {
-                Text("История").font(.headline).padding(.bottom, FolkiSpacing.xs)
+                Text("История").font(FolkiFont.headline).padding(.bottom, FolkiSpacing.xs)
                 ForEach(records) { record in
                     let paid = record.transaction.kind == .expense
                     let released = record.transaction.kind == .reserveRelease
                     HStack {
-                        Text(paid ? (envelope.isSavings ? "Потрачено" : "Оплачено") : released ? "Вернулось на жизнь" : "Пополнение").font(.body)
+                        Text(paid ? (envelope.isSavings ? "Потрачено" : "Оплачено") : released ? "Вернулось на жизнь" : "Пополнение").font(FolkiFont.body)
                         Spacer()
                         Text("\(paid || released ? "−" : "+")\(MoneyText.whole(record.transaction.amount))")
-                            .font(.system(.body, design: .rounded)).monospacedDigit()
+                            .font(FolkiFont.moneyRow).monospacedDigit()
                         Text(record.transaction.date, format: .dateTime.day().month(.abbreviated))
-                            .font(.footnote).foregroundStyle(.secondary).frame(width: 64, alignment: .trailing)
+                            .folkiText(.footnote).frame(width: 64, alignment: .trailing)
                     }.frame(minHeight: 44)
                     Divider()
                 }
@@ -399,12 +497,12 @@ private struct EnvelopeAmountSheet: View {
             VStack(spacing: FolkiSpacing.page) {
                 Text(mode == .pay ? "Сколько ушло на «\(envelope.name)»?" : mode == .spend ? "Сколько взять из «\(envelope.name)»?"
                      : "Сколько положить в «\(envelope.name)»?")
-                    .font(.headline).multilineTextAlignment(.center)
+                    .font(FolkiFont.headline).multilineTextAlignment(.center)
                 Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
-                    .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                    .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
                     .foregroundStyle(money == nil ? .tertiary : .primary).lineLimit(1).minimumScaleFactor(0.4)
                     .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
-                Text(hint).font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text(hint).folkiText(.footnote).multilineTextAlignment(.center)
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 Spacer(minLength: 0)
                 AmountKeypad(text: $amount)
@@ -549,7 +647,7 @@ struct EnvelopeEditorView: View {
     private var progress: some View {
         HStack(spacing: FolkiSpacing.xs) {
             ForEach(0..<3) { index in
-                Capsule().fill(index <= step.rawValue ? Color.folkiAccent : Color.folkiSoft).frame(height: 4)
+                Capsule().fill(index <= step.rawValue ? Color.folkiAccent : Color.folkiTile).frame(height: 4)
             }
         }.animation(FolkiMotion.quick, value: step).accessibilityHidden(true)
     }
@@ -563,7 +661,7 @@ struct EnvelopeEditorView: View {
     }
 
     private func title(_ text: LocalizedStringKey) -> some View {
-        Text(text).font(.largeTitle.bold()).frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
+        Text(text).font(FolkiFont.title).frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
     }
 
     private var whatPage: some View {
@@ -575,11 +673,11 @@ struct EnvelopeEditorView: View {
                         HStack(spacing: FolkiSpacing.item) {
                             CategoryIcon(symbol: symbol, color: color.color, size: 56)
                             TextField("Например, аренда", text: $name)
-                                .font(.title3.weight(.semibold)).focused($nameFocused).submitLabel(.next)
+                                .font(FolkiFont.headline).focused($nameFocused).submitLabel(.next)
                                 .onSubmit(nextFromWhat)
                         }
                         .padding(FolkiSpacing.item)
-                        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                        .folkiTileBackground()
                         IconPicker(symbol: $symbol, color: $color)
                     }.padding(.bottom, FolkiSpacing.page)
                 }
@@ -599,7 +697,7 @@ struct EnvelopeEditorView: View {
                             } label: {
                                 VStack(spacing: FolkiSpacing.xs) {
                                     CategoryIcon(category: category, size: 52)
-                                    Text(category.name).font(.footnote).foregroundStyle(Color.folkiInk)
+                                    Text(category.name).font(FolkiFont.footnote).foregroundStyle(Color.folkiInk)
                                         .lineLimit(2).multilineTextAlignment(.center)
                                 }.frame(maxWidth: .infinity)
                             }.buttonStyle(FolkiPressStyle())
@@ -609,9 +707,9 @@ struct EnvelopeEditorView: View {
                             withAnimation(FolkiMotion.quick) { custom = true }
                         } label: {
                             VStack(spacing: FolkiSpacing.xs) {
-                                Image(systemName: "plus").font(.title2.weight(.semibold)).foregroundStyle(Color.folkiAccent)
-                                    .frame(width: 52, height: 52).background(Color.folkiSoft, in: Circle())
-                                Text("Свой").font(.footnote).foregroundStyle(Color.folkiInk)
+                                Image(systemName: "plus").font(FolkiFont.section).foregroundStyle(Color.folkiAccent)
+                                    .frame(width: 52, height: 52).background(Color.folkiTile, in: Circle())
+                                Text("Свой").font(FolkiFont.footnote).foregroundStyle(Color.folkiInk)
                             }.frame(maxWidth: .infinity)
                         }.buttonStyle(FolkiPressStyle())
                     }.padding(.vertical, FolkiSpacing.xs)
@@ -626,8 +724,8 @@ struct EnvelopeEditorView: View {
             Button { pickingIcon = true } label: {
                 HStack(spacing: FolkiSpacing.xs) {
                     CategoryIcon(symbol: symbol, color: color.color, size: 36)
-                    Text(trimmedName).font(.headline).foregroundStyle(Color.folkiInk)
-                    Image(systemName: "pencil").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(trimmedName).font(FolkiFont.headline).foregroundStyle(Color.folkiInk)
+                    Image(systemName: "pencil").font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
                 }
             }
             .buttonStyle(FolkiPressStyle()).frame(maxWidth: .infinity, alignment: .leading)
@@ -635,9 +733,9 @@ struct EnvelopeEditorView: View {
             .sheet(isPresented: $pickingIcon) { IconPickerSheet(symbol: $symbol, color: $color).presentationDetents([.large]) }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 TypedAmount(text: amount)
-                Text("₽").foregroundStyle(.secondary)
+                Text("₽").foregroundStyle(Color.folkiSecondary)
             }
-            .font(.system(size: 52, weight: .bold, design: .rounded))
+            .font(FolkiFont.money(FolkiFont.inputSize))
             .foregroundStyle(money == nil ? Color.secondary : color.color)
             .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
@@ -654,14 +752,14 @@ struct EnvelopeEditorView: View {
             title("Сколько хочешь накопить?")
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 TypedAmount(text: goal)
-                Text("₽").foregroundStyle(.secondary)
+                Text("₽").foregroundStyle(Color.folkiSecondary)
             }
-            .font(.system(size: 52, weight: .bold, design: .rounded))
+            .font(FolkiFont.money(FolkiFont.inputSize))
             .foregroundStyle(goalMoney == nil ? Color.secondary : color.color)
             .frame(maxWidth: .infinity)
             if let money, let goalMoney {
                 Text("Пополнений до цели: \(max(1, Int((goalMoney.minorUnits + money.minorUnits - 1) / money.minorUnits)))")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .folkiText(.caption)
             }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
             Spacer(minLength: 0)
@@ -689,26 +787,26 @@ struct EnvelopeEditorView: View {
                     Text("Каждый месяц")
                 }
             }
-            .font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            .folkiText(.caption).frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: $mandatory) {
                 Text("Обязательный")
             }
             .padding(FolkiSpacing.card)
-            .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+            .folkiTileBackground()
             if editing == nil, day > 0 {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Рекомендую сейчас: \(MoneyText.whole(recommended))").font(.headline)
+                    Text("Рекомендую сейчас: \(MoneyText.whole(recommended))").font(FolkiFont.headline)
                     if recommended.minorUnits > 0 {
                         Toggle("Пополнить при создании", isOn: $fundNow)
                         let free = session.result?.monthlyRemaining.minorUnits ?? 0
                         Text("На жизнь останется \(MoneyText.whole(Money(minorUnits: max(0, free - (fundNow ? recommended.minorUnits : 0)))))")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .folkiText(.footnote)
                     } else {
                         Text("Пополню со следующего поступления")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .folkiText(.footnote)
                     }
                 }
-                .padding(FolkiSpacing.card).glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                .padding(FolkiSpacing.card).folkiGlassBackground()
             }
             if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.bottom, FolkiSpacing.item)

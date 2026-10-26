@@ -56,7 +56,7 @@ struct OnboardingView: View {
         HStack {
             if !history.isEmpty {
                 Button(action: back) {
-                    Image(systemName: "chevron.left").font(.headline).frame(width: 44, height: 44)
+                    Image(systemName: "chevron.left").font(FolkiFont.headline).frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle()).accessibilityLabel("Назад")
                 .transition(.opacity)
@@ -129,9 +129,9 @@ private struct HelloPage: View {
                 AnimatedHouse().frame(width: 220, height: 220)
                 VStack(spacing: FolkiSpacing.item) {
                     Text("Привет! Я Folki")
-                        .font(.largeTitle.bold()).rise(8)
+                        .font(FolkiFont.title).rise(8)
                     Text("Ты тратишь, я считаю. Каждый день покажу, сколько ещё можно")
-                        .font(.body).foregroundStyle(.secondary).rise(9)
+                        .font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).rise(9)
                 }.multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             }.padding(.bottom, FolkiSpacing.huge)
         } actions: {
@@ -150,8 +150,8 @@ private struct StartPage: View {
             VStack(spacing: FolkiSpacing.large) {
                 FamilyBubbles(family: family).frame(height: 290).accessibilityHidden(true)
                 VStack(spacing: FolkiSpacing.item) {
-                    Text("Вместе с близкими").font(.largeTitle.bold())
-                    Text("Общие траты — вместе. Личные — только твои").font(.body).foregroundStyle(.secondary)
+                    Text("Вместе с близкими").font(FolkiFont.title)
+                    Text("Общие траты — вместе. Личные — только твои").font(FolkiFont.body).foregroundStyle(Color.folkiSecondary)
                 }.multilineTextAlignment(.center).rise(3)
             }.padding(.bottom, FolkiSpacing.large)
         } actions: {
@@ -160,13 +160,13 @@ private struct StartPage: View {
             Button { FolkiFeedback.selection(); choose(.invited) } label: {
                 Label { Text("Меня пригласили") } icon: {
                     Image(systemName: "envelope").overlay {
-                        Image(systemName: "heart.fill").font(.system(size: 7)).foregroundStyle(RingPalette.family.start)
+                        Image(systemName: "heart.fill").font(.system(size: 7)).foregroundStyle(Color.folkiFamily) // token-exempt: tiny illustration
                             .padding(FolkiSpacing.xxs).background(Color(uiColor: .systemBackground), in: Circle())
                     }
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(FolkiSoftButtonStyle()).rise(5)
             Button("Восстановить из iCloud") { choose(.restore) }
-                .font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 44).rise(6)
+                .folkiText(.caption).frame(minHeight: 44).rise(6)
         }
     }
 }
@@ -208,26 +208,26 @@ private struct BudgetStartPage: View {
     var body: some View {
         OnboardingPage {
             VStack(alignment: .leading, spacing: 0) {
-                Text(invited ? "Твой личный бюджет" : "Сколько денег на жизнь?").font(.largeTitle.bold())
+                Text(invited ? "Твой личный бюджет" : "Сколько денег на жизнь?").font(FolkiFont.title)
                 if invited {
-                    Text("Его видишь только ты").font(.body).foregroundStyle(.secondary).padding(.top, FolkiSpacing.xs)
+                    Text("Его видишь только ты").font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).padding(.top, FolkiSpacing.xs)
                 }
                 HStack(spacing: FolkiSpacing.xs) {
                     chip(.payday, "До зарплаты"); chip(.month, "Месяц"); chip(.week, "Неделя")
                 }.padding(.top, FolkiSpacing.page)
                 if length == .payday {
-                    DatePicker("Зарплата", selection: $payday,
+                    DatePicker("Зарплата или пенсия", selection: $payday,
                                in: calendar.date(byAdding: .day, value: 1, to: today)!...calendar.date(byAdding: .day, value: 62, to: today)!,
                                displayedComponents: .date)
-                        .font(.body).padding(.top, FolkiSpacing.item)
+                        .font(FolkiFont.body).padding(.top, FolkiSpacing.item)
                 }
                 VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
                     Text(amount.isEmpty ? "0" : MoneyText.grouped(amount))
-                        .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                        .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
                         .foregroundStyle(amount.isEmpty ? .tertiary : .primary)
                         .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
-                    Text(MoneyText.symbol).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.tertiary)
+                    Text(MoneyText.symbol).font(FolkiFont.moneyLarge).foregroundStyle(Color.folkiTertiary)
                 }
                 .lineLimit(1).minimumScaleFactor(0.4).fixedSize(horizontal: false, vertical: true)
                 .keyframeAnimator(initialValue: 0.0, trigger: shakes) { view, offset in view.offset(x: offset) } keyframes: { _ in
@@ -239,19 +239,20 @@ private struct BudgetStartPage: View {
                         Text("≈ \(MoneyText.whole(perDay)) в день · \(days) дн.")
                             .contentTransition(.numericText()).animation(FolkiMotion.quick, value: perDay)
                     } else {
-                        Text("Я разделю сумму на \(days) дн.").foregroundStyle(.secondary)
+                        Text("Я разделю сумму на \(days) дн.").foregroundStyle(Color.folkiSecondary)
                     }
-                }.font(.body.weight(.medium)).foregroundStyle(Color.folkiAccent)
+                }.font(FolkiFont.headline).foregroundStyle(Color.folkiAccent)
                 }
                 .padding(FolkiSpacing.page).frame(maxWidth: .infinity, alignment: .leading)
                 .glassEffect(.regular.tint(Color.folkiAccent.opacity(0.08)).interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-                .padding(.top, FolkiSpacing.large)
+                // With the payday row the page is taller: less space above the card keeps the hint clear of the keypad.
+                .padding(.top, length == .payday ? FolkiSpacing.card : FolkiSpacing.large)
                 // The first money is only for everyday spending; regular bills come with the plan.
                 Label {
                     Text("Аренду и подписки учту позже, во вкладке «План»")
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: { Image(systemName: "info.circle").foregroundStyle(Color.folkiAccent) }
-                .font(.footnote).foregroundStyle(.secondary).padding(.top, FolkiSpacing.item)
+                .folkiText(.footnote).padding(.top, FolkiSpacing.item)
                 if let errorMessage { FolkiErrorMessage(message: errorMessage).padding(.top, FolkiSpacing.item) }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
         } actions: {
@@ -266,7 +267,7 @@ private struct BudgetStartPage: View {
             FolkiFeedback.selection()
             withAnimation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion)) { length = value }
         } label: {
-            Text(title).font(.subheadline.weight(.semibold))
+            Text(title).font(FolkiFont.label)
                 .padding(.horizontal, FolkiSpacing.card).frame(minHeight: 40)
                 .foregroundStyle(selected ? Color.white : Color.folkiInk)
                 .glassEffect(.regular.tint(selected ? Color.folkiAccent : .clear).interactive(), in: Capsule())
@@ -292,7 +293,7 @@ private struct FeaturesPage: View {
     var body: some View {
         OnboardingPage {
             VStack(alignment: .leading, spacing: FolkiSpacing.large) {
-                Text("Вот что я умею").font(.largeTitle.bold())
+                Text("Вот что я умею").font(FolkiFont.title)
                 row(SpendDemo(), "Ты тратишь — я пересчитываю", "Запиши трату, и остаток дня сразу поменяется").rise(1)
                 row(RingsDemo(), "Общее и личное",
                     invited ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
@@ -308,8 +309,8 @@ private struct FeaturesPage: View {
         HStack(spacing: FolkiSpacing.card) {
             art.frame(width: 64, height: 64).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                Text(title).font(.headline)
-                Text(text).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(title).font(FolkiFont.headline)
+                Text(text).folkiText(.caption).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -327,25 +328,25 @@ private struct InvitedPage: View {
     var body: some View {
         OnboardingPage {
             VStack(alignment: .leading, spacing: FolkiSpacing.page) {
-                Image(systemName: "envelope.open").font(.system(size: 64)).foregroundStyle(Color.folkiAccent)
+                Image(systemName: "envelope.open").font(FolkiFont.symbol(64)).foregroundStyle(Color.folkiAccent)
                     .overlay(alignment: .topTrailing) {
-                        Image(systemName: "heart.fill").font(.title3).foregroundStyle(RingPalette.family.start).offset(x: 8, y: -4)
+                        Image(systemName: "heart.fill").font(FolkiFont.icon).foregroundStyle(Color.folkiFamily).offset(x: 8, y: -4)
                     }
                     .symbolEffect(.bounce, options: .nonRepeating)
-                Text("Открой ссылку из сообщения").font(.largeTitle.bold())
+                Text("Открой ссылку из сообщения").font(FolkiFont.title)
                 if cloudless {
                     Label("Эта сборка работает без iCloud, присоединиться к семье в ней нельзя.", systemImage: "icloud.slash")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.folkiSecondary)
                 } else {
                     step(1, "Попроси прислать приглашение в Folki")
                     step(2, "Открой ссылку на этом iPhone")
                     step(3, "Подключение произойдёт само")
                     status.padding(.top, FolkiSpacing.xs)
                     Button("Ссылка уже открыта, а ничего не происходит") { showingHelp.toggle() }
-                        .font(.subheadline).foregroundStyle(Color.folkiAccent)
+                        .font(FolkiFont.caption).foregroundStyle(Color.folkiAccent)
                     if showingHelp {
                         Text("Открой ссылку из сообщения ещё раз или скопируй её и вставь сюда.")
-                            .font(.subheadline).foregroundStyle(.secondary).transition(.opacity)
+                            .folkiText(.caption).transition(.opacity)
                         PasteButton(payloadType: URL.self) { urls in
                             guard let url = urls.first else { return }
                             Task { @MainActor in await FolkiApplication.shared.join(url) }
@@ -373,21 +374,21 @@ private struct InvitedPage: View {
     @ViewBuilder private var status: some View {
         if joined {
             Label("Ты в семейном бюджете", systemImage: "checkmark.circle.fill")
-                .font(.headline).foregroundStyle(Color.folkiAccent).transition(.scale.combined(with: .opacity))
+                .font(FolkiFont.headline).foregroundStyle(Color.folkiAccent).transition(.scale.combined(with: .opacity))
         } else {
             HStack(spacing: FolkiSpacing.xs) {
                 Circle().fill(Color.folkiAccent).frame(width: 8, height: 8).symbolEffect(.pulse)
                     .phaseAnimator([0.3, 1]) { dot, phase in dot.opacity(phase) } animation: { _ in .easeInOut(duration: 0.8) }
-                Text("Жду приглашение…").font(.subheadline).foregroundStyle(.secondary)
+                Text("Жду приглашение…").folkiText(.caption)
             }
         }
     }
 
     private func step(_ number: Int, _ text: LocalizedStringKey) -> some View {
         HStack(alignment: .top, spacing: FolkiSpacing.item) {
-            Text("\(number)").font(.subheadline.bold()).foregroundStyle(.white)
+            Text("\(number)").font(FolkiFont.label).foregroundStyle(.white)
                 .frame(width: 28, height: 28).background(Color.folkiAccent, in: Circle())
-            Text(text).font(.body).fixedSize(horizontal: false, vertical: true)
+            Text(text).font(FolkiFont.body).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -407,8 +408,8 @@ private struct RestorePage: View {
             VStack(spacing: FolkiSpacing.large) {
                 AnimatedHouse(searching: !found).frame(width: 120, height: 120)
                 VStack(spacing: FolkiSpacing.item) {
-                    Text(title).font(.title2.bold())
-                    if let detail { Text(detail).font(.body).foregroundStyle(.secondary) }
+                    Text(title).font(FolkiFont.section)
+                    if let detail { Text(detail).font(FolkiFont.body).foregroundStyle(Color.folkiSecondary) }
                 }.multilineTextAlignment(.center)
             }.padding(.bottom, FolkiSpacing.huge)
         } actions: {
@@ -416,11 +417,11 @@ private struct RestorePage: View {
                 Button("Открыть настройки") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-                Button("Начать с нуля", action: startFresh).font(.subheadline).frame(minHeight: 44)
+                Button("Начать с нуля", action: startFresh).font(FolkiFont.caption).frame(minHeight: 44).foregroundStyle(Color.folkiAccent)
             } else if timedOut && !found {
                 Button("Подождать ещё") { deadline = .now.addingTimeInterval(30); timedOut = false }
                     .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
-                Button("Начать с нуля", action: startFresh).font(.subheadline).frame(minHeight: 44)
+                Button("Начать с нуля", action: startFresh).font(FolkiFont.caption).frame(minHeight: 44).foregroundStyle(Color.folkiAccent)
             }
         }
         .task(id: deadline) {
@@ -454,10 +455,10 @@ private struct SpendDemo: View {
     @State private var spent = false
     var body: some View {
         ZStack {
-            Circle().stroke(RingPalette.personal.start.opacity(0.18), lineWidth: 6)
+            Circle().stroke(Color.folkiPersonal.opacity(0.18), lineWidth: 6)
             Circle().trim(from: 0, to: spent ? 0.45 : 0.75)
-                .stroke(RingPalette.personal.start, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
-            Text(verbatim: spent ? "790" : "1 240").font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
+                .stroke(Color.folkiPersonal, style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
+            Text(verbatim: spent ? "790" : "1 240").font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit() // token-exempt: tiny illustration
                 .contentTransition(.numericText())
         }
         .padding(4)
@@ -469,8 +470,8 @@ private struct RingsDemo: View {
     @State private var shown = false
     var body: some View {
         ZStack {
-            ring(RingPalette.personal.start, 0.8).padding(4)
-            ring(RingPalette.family.start, 0.55).padding(FolkiSpacing.card)
+            ring(Color.folkiPersonal, 0.8).padding(4)
+            ring(Color.folkiFamily, 0.55).padding(FolkiSpacing.card)
         }.task { try? await Task.sleep(for: .seconds(0.7)); withAnimation(FolkiMotion.ring) { shown = true } }
     }
     private func ring(_ color: Color, _ value: CGFloat) -> some View {
@@ -509,14 +510,14 @@ private struct AnimatedHouse: View {
             let w = geo.size.width
             let style = StrokeStyle(lineWidth: w * 0.09, lineCap: .round, lineJoin: .round)
             ZStack {
-                IconRoof(inner: false).stroke(RingPalette.personal.start.opacity(0.12), style: style)
+                IconRoof(inner: false).stroke(Color.folkiPersonal.opacity(0.12), style: style)
                 IconRoof(inner: false).trim(from: 0, to: outer)
-                    .stroke(RingPalette.personal.start, style: style)
-                IconRoof(inner: true).stroke(RingPalette.family.start.opacity(0.12), style: style)
+                    .stroke(Color.folkiPersonal, style: style)
+                IconRoof(inner: true).stroke(Color.folkiFamily.opacity(0.12), style: style)
                 IconRoof(inner: true).trim(from: 0, to: inner)
-                    .stroke(RingPalette.family.start, style: style)
+                    .stroke(Color.folkiFamily, style: style)
                 ZStack(alignment: .bottom) {
-                    RoundedRectangle(cornerRadius: w * 0.057).fill(scheme == .dark ? Color.white : Color(red: 0.09, green: 0.29, blue: 0.23))
+                    RoundedRectangle(cornerRadius: w * 0.057).fill(scheme == .dark ? Color.white : Color(red: 0.09, green: 0.29, blue: 0.23)) // token-exempt: illustration
                     UnevenRoundedRectangle(topLeadingRadius: w * 0.047, topTrailingRadius: w * 0.047)
                         .frame(width: w * 0.094, height: w * 0.137).blendMode(.destinationOut)
                 }.compositingGroup().frame(width: w * 0.41, height: w * 0.225)

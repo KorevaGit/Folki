@@ -26,13 +26,13 @@ struct PeriodSummaryView: View {
                     if let closing {
                         let left = closing.monthlyRemaining
                         VStack(spacing: FolkiSpacing.xs) {
-                            Text(left.minorUnits >= 0 ? "Осталось" : "Сверх плана").font(.headline).foregroundStyle(.secondary)
+                            Text(left.minorUnits >= 0 ? "Осталось" : "Сверх плана").font(FolkiFont.headline).foregroundStyle(Color.folkiSecondary)
                             Text(MoneyText.whole(left.minorUnits >= 0 ? left : Money(minorUnits: -left.minorUnits).roundedUpToWholeUnits))
-                                .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                                .font(FolkiFont.moneyLarge).monospacedDigit()
                                 .foregroundStyle(left.minorUnits >= 0 ? Color.folkiAccent : Color.folkiOver)
                             Text(left.minorUnits >= 0 ? "Остаток уже перенесён в новый период"
                                  : "Перерасход уже учтён: новый период начат с минусом")
-                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                .folkiText(.caption).multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, FolkiSpacing.page)
                     }
@@ -62,7 +62,7 @@ struct PeriodSummaryView: View {
 
     private func stat(_ title: String, _ value: String) -> some View {
         LabeledContent(title) {
-            Text(value).font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
-        }.font(.subheadline)
+            Text(value).font(FolkiFont.moneyRow).monospacedDigit()
+        }.font(FolkiFont.caption)
     }
 }

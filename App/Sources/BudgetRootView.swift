@@ -23,6 +23,8 @@ struct BudgetRootView: View {
     /// not when a swipe back from the history overshoots.
     @State private var pullArmed = false
     @State private var atTop = true
+    /// Height the banner takes, zero without one; the rings give it exactly that much room.
+    @State private var bannerHeight: CGFloat = 0
     @State private var refreshTask: Task<Void, Never>?
     @State private var selectedScope: BudgetScope = .personal
     private var session: BudgetSession { selectedScope == .personal ? personal : family }
@@ -84,24 +86,38 @@ struct BudgetRootView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 VStack(spacing: 12) {
-                                    if selectedDay == nil { banner }
-                                    interactiveRings(card).frame(maxHeight: .infinity)
-                                    distributionLine
+                                    // A past day keeps the banner's place, so switching days never moves the ring.
+                                    banner.opacity(selectedDay == nil ? 1 : 0).allowsHitTesting(selectedDay == nil)
+                                        .accessibilityHidden(selectedDay != nil)
+                                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bannerHeight = $0 }
+                                    // One diameter for every day, and the free space sits above the bottom block:
+                                    // a past day's summary in place of the buttons moves neither the ring nor the line under it.
+                                    if dynamicTypeSize.isAccessibilitySize {
+                                        interactiveRings(card).frame(maxHeight: .infinity)
+                                        distributionLine
+                                    } else {
+                                        interactiveRings(card)
+                                            .frame(width: ringSide(viewport.size, page: page), height: ringSide(viewport.size, page: page))
+                                            .frame(maxWidth: .infinity)
+                                        distributionLine
+                                        Spacer(minLength: 0)
+                                    }
                                     entryArea(date: date, personalDay: personalDay, familyDay: familyDay)
                                     Button { scrollToHistory(page) } label: {
                                         // A grabber, like a sheet's; the words only in the first days.
                                         Group {
                                             if showsHistoryLabel {
-                                                Label("Траты за период", systemImage: "chevron.down.2").font(.footnote.weight(.semibold))
+                                                Label("Траты за период", systemImage: "chevron.down.2").font(FolkiFont.label)
                                             } else {
                                                 Capsule().fill(Color.secondary.opacity(0.4)).frame(width: 36, height: 5)
                                             }
                                         }.frame(maxWidth: .infinity, minHeight: 40).contentShape(Rectangle())
-                                    }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Траты за период")
+                                    }.buttonStyle(.plain).foregroundStyle(Color.folkiSecondary).accessibilityLabel("Траты за период")
                                 }
                                 .padding(.horizontal, FolkiSpacing.page)
                                 .padding(.bottom, bottomInset)
-                                .frame(height: page)
+                                // Anchored to the top: if the page is ever a little too tall, the grabber yields, not the banner.
+                                .frame(height: page, alignment: .top)
                                 // The rings page recedes as the history scrolls over it.
                                 .visualEffect { content, proxy in
                                     let progress = min(1, max(0, -proxy.frame(in: .scrollView).minY / max(1, page)))
@@ -163,7 +179,7 @@ struct BudgetRootView: View {
             .toolbar(removing: .title)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text("Бюджет").font(.largeTitle.bold()).fixedSize().accessibilityAddTraits(.isHeader)
+                    Text("Бюджет").font(FolkiFont.title).fixedSize().accessibilityAddTraits(.isHeader)
                 }.sharedBackgroundVisibility(.hidden)
                 headerActions
             }
@@ -247,11 +263,11 @@ struct BudgetRootView: View {
         if let undoEntry {
             HStack(spacing: FolkiSpacing.item) {
                 Text(undoIsNewSpend ? String(localized: "Записано \(MoneyText.whole(undoEntry.record.transaction.amount))")
-                     : String(localized: "Запись удалена")).font(.subheadline).monospacedDigit()
+                     : String(localized: "Запись удалена")).font(FolkiFont.caption).monospacedDigit()
                 Spacer(minLength: 0)
                 Button(undoIsNewSpend ? String(localized: "Отменить") : String(localized: "Вернуть")) {
                     undoIsNewSpend ? takeBack(undoEntry) : restore(undoEntry)
-                }.font(.subheadline.weight(.semibold))
+                }.font(FolkiFont.label)
             }
             .padding(.horizontal, FolkiSpacing.page).frame(minHeight: 52)
             .glassEffect(.regular, in: Capsule())
@@ -319,7 +335,7 @@ struct BudgetRootView: View {
                             Text("≈ \(MoneyText.whole(result.todayGuide.roundedDownToWholeUnits))/день до \(last)")
                         }
                     }
-                    .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    .folkiText(.caption).monospacedDigit()
                     // Large text wraps the line instead of cutting off the date.
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 }.buttonStyle(.plain)
@@ -347,17 +363,17 @@ struct BudgetRootView: View {
             HStack(spacing: FolkiSpacing.item) {
                 Button { sheet = .sharing } label: {
                     Label {
-                        Text("Ведёшь бюджет с кем-то? Позови — общее будет видно обоим").font(.subheadline.weight(.medium))
-                            .multilineTextAlignment(.leading)
-                    } icon: { Image(systemName: "person.2.fill").foregroundStyle(RingPalette.family.start) }
+                        Text("Ведёшь бюджет с кем-то? Позови").font(FolkiFont.label)
+                            .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                    } icon: { Image(systemName: "person.2.fill").foregroundStyle(Color.folkiFamily) }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }.buttonStyle(.plain)
                 Button { withAnimation(FolkiMotion.standard) { inviteDismissed = true } } label: {
-                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 44, height: 44)
+                    Image(systemName: "xmark").font(FolkiFont.label).foregroundStyle(Color.folkiSecondary).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).accessibilityLabel("Скрыть")
             }
             .padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xxs)
-            .background(RingPalette.family.start.opacity(0.1), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
+            .background(Color.folkiFamily.opacity(0.1), in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
@@ -367,13 +383,13 @@ struct BudgetRootView: View {
         HStack(spacing: FolkiSpacing.item) {
             Button { seenSummary = period.start.timeIntervalSince1970; sheet = .summary } label: {
                 Label {
-                    Text("Период закончился, новый уже идёт. Посмотреть итоги").font(.subheadline.weight(.medium))
+                    Text("Период закончился, новый уже идёт. Посмотреть итоги").font(FolkiFont.label)
                         .multilineTextAlignment(.leading)
                 } icon: { Image(systemName: "calendar.badge.checkmark").foregroundStyle(Color.folkiAccent) }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
             Button { withAnimation(FolkiMotion.standard) { seenSummary = period.start.timeIntervalSince1970 } } label: {
-                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).frame(width: 44, height: 44)
+                Image(systemName: "xmark").font(FolkiFont.label).foregroundStyle(Color.folkiSecondary).frame(width: 44, height: 44)
             }.buttonStyle(.plain).accessibilityLabel("Скрыть")
         }
         .padding(.leading, FolkiSpacing.card).padding(.trailing, FolkiSpacing.xxs)
@@ -421,14 +437,14 @@ struct BudgetRootView: View {
                 } icon: {
                     Image(systemName: urgency == .serious ? "exclamationmark.circle.fill" : "clock.fill")
                 }
-                .font(.subheadline.weight(.medium))
+                .font(FolkiFont.label)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
             if urgency != .serious {
                 Button {
                     withAnimation(FolkiMotion.standard) { dismissedEnvelopes = (dismissedEnvelopes + " " + bannerKey(envelope)).trimmingCharacters(in: .whitespaces) }
                 } label: {
-                    Image(systemName: "xmark").font(.footnote.weight(.semibold)).frame(width: 44, height: 44)
+                    Image(systemName: "xmark").font(FolkiFont.label).frame(width: 44, height: 44)
                 }.buttonStyle(.plain).accessibilityLabel("Скрыть")
             }
         }
@@ -447,6 +463,14 @@ struct BudgetRootView: View {
 
     private var isAtToday: Bool {
         calendar.isDate(selectedDay ?? session.referenceDate, inSameDayAs: session.referenceDate)
+    }
+
+    /// The rings' diameter from the page alone: the width between margins, capped by 60 % of the page height.
+    private func ringSide(_ size: CGSize, page: CGFloat) -> CGFloat {
+        // A banner keeps the same height on every day, so it shrinks the rings once, not on each switch.
+        // The banner, its spacing and a little air, so a two-line banner never presses on the calendar.
+        let banner = bannerHeight > 0 ? bannerHeight + 24 : 0
+        return max(160, min(size.width - 2 * FolkiSpacing.page, page * 0.6 - banner))
     }
 
     private func interactiveRings<Content: View>(_ content: Content) -> some View {
@@ -531,7 +555,7 @@ struct BudgetRootView: View {
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
         }
-        .font(.system(.title3, design: .rounded, weight: .bold)).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.8).buttonStyle(.plain)
+        .font(FolkiFont.moneyCard).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.8).buttonStyle(.plain)
         }
         .overlay(alignment: .topLeading) {
             if showsSpendTip {
@@ -539,14 +563,14 @@ struct BudgetRootView: View {
                     HStack(alignment: .top, spacing: FolkiSpacing.item) {
                         Text("Запиши первую трату — покажу, как поменяется день")
                             .multilineTextAlignment(.leading)
-                        Image(systemName: "xmark").font(.caption.weight(.semibold)).padding(.top, FolkiSpacing.xxs)
+                        Image(systemName: "xmark").font(FolkiFont.tag).padding(.top, FolkiSpacing.xxs)
                     }
-                        .font(.subheadline.weight(.medium)).foregroundStyle(Color.folkiBackground)
+                        .font(FolkiFont.label).foregroundStyle(Color.folkiBackground)
                         .padding(.horizontal, FolkiSpacing.card).padding(.vertical, FolkiSpacing.item)
                         .background(Color.folkiInk, in: RoundedRectangle(cornerRadius: FolkiSpacing.controlRadius))
                         .overlay(alignment: .bottomLeading) {
                             // The bubble's tail points at "Потратить".
-                            Image(systemName: "arrowtriangle.down.fill").font(.system(size: 14)).foregroundStyle(Color.folkiInk)
+                            Image(systemName: "arrowtriangle.down.fill").font(FolkiFont.symbol(14)).foregroundStyle(Color.folkiInk)
                                 .offset(x: 48, y: 10)
                         }
                 }
@@ -636,10 +660,14 @@ struct LedgerRow: View {
         return session.category(for: record)?.name ?? ""
     }
     private var details: [String] {
-        var parts = [session.payerName(for: record)]
-        if record.transaction.kind != .income, let category = session.category(for: record) { parts.append(category.name) }
+        var parts: [String] = []
+        // "Я" says nothing when no one else keeps this budget.
+        if session.members.filter(\.isActive).count > 1 { parts.append(session.payerName(for: record)) }
+        // The category is already the title when there is no description.
+        if record.transaction.kind != .income, !record.title.isEmpty, let category = session.category(for: record) { parts.append(category.name) }
         if record.transaction.kind == .reserveAllocation { parts.append(String(localized: "В конверт")) }
-        if showsDate { parts.append(record.transaction.date.formatted(.dateTime.day().month())) }
+        parts.append(showsDate ? record.transaction.date.formatted(.dateTime.day().month())
+                               : record.transaction.date.formatted(date: .omitted, time: .shortened))
         return parts
     }
     var body: some View {
@@ -653,17 +681,17 @@ struct LedgerRow: View {
             } else {
                 CategoryIcon(symbol: record.transaction.kind.isContribution ? "person.2.fill" : "arrow.left.arrow.right", color: .secondary)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                Text(details.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).folkiText(.body)
+                Text(details.joined(separator: " · ")).folkiText(.footnote)
             }
             Spacer(minLength: 4)
             // Kopecks only when there are any.
             let amount = record.transaction.amount
-            Text("\(prefix)\(amount.minorUnits % 100 == 0 ? MoneyText.whole(amount) : MoneyText.string(amount))").monospacedDigit()
+            Text("\(prefix)\(amount.minorUnits % 100 == 0 ? MoneyText.whole(amount) : MoneyText.string(amount))")
+                .font(FolkiFont.moneyRow).monospacedDigit().foregroundStyle(Color.folkiInk)
                 .lineLimit(1).minimumScaleFactor(0.65).layoutPriority(1)
-        }.font(.subheadline).padding(.vertical, FolkiSpacing.item)
+        }.padding(.vertical, FolkiSpacing.item)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel([kindTitle, record.title.isEmpty ? category?.name ?? String(localized: "Другое") : record.title,
                 session.payerName(for: record), record.transaction.date.formatted(.dateTime.day().month(.wide).year()),
@@ -679,53 +707,75 @@ extension View {
     }
 }
 
-/// A read-only spending recap replaces today's entry actions when browsing the past.
+/// A past day under the rings: what the money went on and what that day did to every day after it.
+/// One row per budget; the ring above already says how much was spent.
 private struct BudgetDaySpendingSummary: View {
     let date: Date
     let personal: BudgetSession
     let family: BudgetSession
     let personalDay: BudgetDayOverview
     let familyDay: BudgetDayOverview
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
-                      alignment: .leading, spacing: FolkiSpacing.card) {
-                summary(personal, overview: personalDay)
-                if family.household != nil { summary(family, overview: familyDay) }
-            }
+        // Exactly the height of the buttons it replaces, so nothing above it moves when the day changes.
+        VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
+            row(personal, overview: personalDay)
+            if family.household != nil { row(family, overview: familyDay) }
         }
-        .padding(.horizontal, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton, maxHeight: FolkiSpacing.primaryButton, alignment: .center)
     }
 
-    private func summary(_ session: BudgetSession, overview: BudgetDayOverview) -> some View {
-        VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-            Text(session.scope.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.budget(session.scope))
-            if overview.errorMessage != nil {
-                Text("Не получилось загрузить").font(.footnote).foregroundStyle(.secondary)
-            } else if overview.result == nil && overview.records.isEmpty {
-                Text("Нет плана на этот день").font(.footnote).foregroundStyle(.secondary)
-            } else if let result = try? BudgetAnalytics.calculate(records: overview.records, period: .day,
-                anchor: date, asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog),
-                let spent = try? result.netSpending {
-                Text(MoneyText.whole(spent)).font(.system(.title2, design: .rounded, weight: .bold))
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-                let count = overview.records.filter { $0.transaction.kind == .expense }.count
-                Text("Трат: \(count)").font(.caption).foregroundStyle(.secondary)
-                if let top = result.categories.first(where: { $0.expenses.minorUnits > 0 }) {
-                    Text("Больше всего: \(session.catalog.category(for: top.categoryID).name) \(MoneyText.whole(top.expenses))")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                }
-                if result.refunds.minorUnits > 0 {
-                    Text("Возвраты: \(MoneyText.whole(result.refunds))").font(.caption).foregroundStyle(.secondary)
-                }
-            } else {
-                Text("Не получилось посчитать").font(.footnote).foregroundStyle(.secondary)
+    @ViewBuilder private func row(_ session: BudgetSession, overview: BudgetDayOverview) -> some View {
+        let analytics = try? BudgetAnalytics.calculate(records: overview.records, period: .day, anchor: date,
+            asOf: session.referenceDate, calendar: session.calendar, catalog: session.catalog)
+        let parts = (analytics?.categories ?? []).filter { $0.expenses.minorUnits > 0 }
+            .sorted { $0.expenses.minorUnits > $1.expenses.minorUnits }
+        HStack(spacing: FolkiSpacing.xs) {
+            Circle().fill(session.scope == .personal ? Color.folkiPersonal : Color.folkiFamily).frame(width: 8, height: 8)
+                .accessibilityLabel(session.scope.title)
+            if parts.isEmpty {
+                Image(systemName: "checkmark").font(FolkiFont.label).foregroundStyle(Color.folkiTertiary)
+                    .accessibilityLabel("Трат не было")
             }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+            // The two biggest categories; the rest are counted, not listed.
+            ForEach(parts.prefix(2)) { part in
+                let category = session.catalog.category(for: part.categoryID)
+                HStack(spacing: 6) {
+                    CategoryIcon(category: category, size: 22)
+                    Text(MoneyText.whole(part.expenses)).font(FolkiFont.moneySmall).monospacedDigit().foregroundStyle(Color.folkiInk)
+                }
+                .padding(.leading, 2).padding(.trailing, FolkiSpacing.item).frame(height: 28)
+                .background(Color.folkiTile, in: Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(category.name), \(MoneyText.whole(part.expenses))")
+            }
+            if parts.count > 2 {
+                Text("+\(parts.count - 2)").font(FolkiFont.label).foregroundStyle(Color.folkiSecondary)
+            }
+            Spacer(minLength: FolkiSpacing.xs)
+            if let effect = effect(overview.result) { consequence(effect) }
+        }
+        .lineLimit(1).minimumScaleFactor(0.8)
+    }
+
+    /// How that day moved every following day of the period: what it left or overspent, spread over the days after it.
+    private func effect(_ result: DailyBudgetSnapshot?) -> Money? {
+        guard let result, result.remainingDays > 1 else { return nil }
+        let perDay = result.todayRemaining.minorUnits / Int64(result.remainingDays - 1)
+        return abs(perDay) < 100 ? nil : Money(minorUnits: perDay)
+    }
+
+    private func consequence(_ perDay: Money) -> some View {
+        let gain = perDay.minorUnits > 0
+        return HStack(spacing: 4) {
+            Image(systemName: "arrow.forward").font(FolkiFont.tag)
+            Text((gain ? "+" : "−") + MoneyText.whole(Money(minorUnits: abs(perDay.minorUnits))))
+                .font(FolkiFont.moneySmall).monospacedDigit()
+            Text("/день").font(FolkiFont.footnote)
+        }
+        .foregroundStyle(gain ? Color.folkiAccent : Color.folkiOver)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(gain ? String(localized: "Каждый следующий день стал больше на \(MoneyText.whole(perDay))")
+            : String(localized: "Каждый следующий день стал меньше на \(MoneyText.whole(Money(minorUnits: -perDay.minorUnits)))"))
     }
 }

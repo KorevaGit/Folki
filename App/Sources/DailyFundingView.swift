@@ -58,6 +58,8 @@ struct DailyFundingView: View {
     @State private var amount = ""
     @State private var splitting = false
     @State private var shareToFamily = true
+    /// "+ конверты": the deposit also fills the envelopes; "всё на жизнь": it all stays as living money.
+    @State private var toEnvelopes = true
     @State private var split = EnvelopeDistribution(incoming: Money(minorUnits: 0), fills: [:])
     @State private var operationID = UUID()
     @State private var errorMessage: String?
@@ -65,7 +67,7 @@ struct DailyFundingView: View {
     @State private var isSaving = false
     /// Bills marked "Уже оплачено" here, as they were before moving to their next date, so "Вернуть" can undo it.
     @State private var paidOutside: [RecurringEnvelope] = []
-    private struct Line: Identifiable { let id: UUID; let name: String; let amount: Money }
+    private struct Line: Identifiable { let id: UUID; let name: String; let amount: Money; let symbol: String; let color: Color }
     private struct Receipt {
         let amount: Money
         let living: Money
@@ -108,7 +110,7 @@ struct DailyFundingView: View {
                 if hasFamily && receipt == nil && !distributesExisting {
                     FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: $scope,
                         options: [(String(localized: "Личный"), BudgetScope.personal), (String(localized: "Семья"), BudgetScope.family)],
-                        minimumHeight: 40)
+                        dots: [Color.folkiPersonal, Color.folkiFamily])
                 }
                 if let receipt { receiptPage(receipt) }
                 else if splitting { splitPage.transition(.move(edge: .trailing).combined(with: .opacity)) }
@@ -144,6 +146,7 @@ struct DailyFundingView: View {
                 updateSplit()
             }
             .onChange(of: shareToFamily) { updateSplit() }
+            .onChange(of: toEnvelopes) { updateSplit() }
             .onChange(of: amount) { updateSplit() }
             .onChange(of: source) { updateSplit() }
         }
@@ -151,49 +154,43 @@ struct DailyFundingView: View {
 
     private var amountView: some View {
         Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
-            .font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+            .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
             .foregroundStyle(money == nil ? .tertiary : .primary)
             .lineLimit(1).minimumScaleFactor(0.4).fixedSize(horizontal: false, vertical: true)
             .contentTransition(.numericText()).animation(FolkiMotion.quick, value: amount)
     }
 
     private func updateSplit() {
-        split = isContribution ? EnvelopeDistribution(incoming: money ?? Money(minorUnits: 0), fills: [:])
+        split = isContribution || (!distributesExisting && !toEnvelopes) ? EnvelopeDistribution(incoming: money ?? Money(minorUnits: 0), fills: [:])
             : distributesExisting ? session.existingDistribution(of: envelopeBase) : session.distribution(of: envelopeBase)
     }
+    /// Whether the deposit has a second step: envelopes to fill, or the family share to decide.
+    private var needsSplit: Bool { !isContribution && ((toEnvelopes && !openEnvelopes.isEmpty) || (scope == .personal && hasFamily)) }
 
     private var amountPage: some View {
         VStack(spacing: FolkiSpacing.item) {
             ScrollView {
                 VStack(spacing: FolkiSpacing.page) {
-                    amountView.padding(.top, FolkiSpacing.page)
+                    amountView
                     if scope == .family { familySources }
+                    // What this money does to the day: the same line as when spending.
                     if let before = session.result {
-                        VStack(spacing: 8) {
-                            Text("Бюджет до внесения").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            LabeledContent("Свободно", value: MoneyText.whole(before.monthlyRemaining))
-                            LabeledContent("Сегодня можно", value: MoneyText.whole(before.todayRemaining))
-                            LabeledContent("Дней осталось", value: "\(before.remainingDays)")
-                        }
-                        .font(.subheadline).padding(FolkiSpacing.card)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+                        SpendConsequence(session: session, before: before, after: money == nil ? nil : projected,
+                                         envelope: nil, money: money, tint: tint)
                     }
-                    if money != nil {
-                        impact(before: session.result, after: projected)
-                        if !isContribution { allocationSummary }
-                    } else {
-                        Text("Покажу, куда разойдутся деньги")
-                            .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    if !isContribution && !openEnvelopes.isEmpty {
+                        FolkiSegmentedPicker(title: String(localized: "Куда внести"), selection: $toEnvelopes,
+                            options: [(String(localized: "всё на жизнь"), false), (String(localized: "+ конверты"), true)])
                     }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.vertical, FolkiSpacing.xs)
             }.scrollBounceBehavior(.basedOnSize)
             AmountKeypad(text: $amount)
-            Button("Проверить распределение") {
+            Button(needsSplit ? String(localized: "Дальше") : String(localized: "Внести деньги")) {
                 guard money != nil else { FolkiFeedback.boundary(); return }
                 updateSplit()
-                move { splitting = true }
-            }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(money == nil)
+                if needsSplit { move { splitting = true } } else { save() }
+            }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).disabled(money == nil || isSaving)
         }
     }
 
@@ -204,7 +201,7 @@ struct DailyFundingView: View {
             radio(.income, "Общие поступления", "Деньги пришли сразу в семью")
         }
         .padding(.horizontal, FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
     }
 
     private func radio(_ value: FamilySource, _ title: LocalizedStringKey, _ detail: LocalizedStringKey) -> some View {
@@ -213,10 +210,10 @@ struct DailyFundingView: View {
         } label: {
             HStack(spacing: FolkiSpacing.item) {
                 Image(systemName: source == value ? "checkmark.circle.fill" : "circle")
-                    .font(.title3).foregroundStyle(source == value ? Color.folkiAccent : Color.secondary)
+                    .font(FolkiFont.icon).foregroundStyle(source == value ? Color.folkiAccent : Color.secondary)
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                    Text(title).font(.body).foregroundStyle(Color.folkiInk)
-                    Text(detail).font(.footnote).foregroundStyle(.secondary)
+                    Text(title).font(FolkiFont.body).foregroundStyle(Color.folkiInk)
+                    Text(detail).folkiText(.footnote)
                 }
                 Spacer(minLength: 0)
             }.frame(minHeight: 60).contentShape(Rectangle())
@@ -226,28 +223,30 @@ struct DailyFundingView: View {
     private var splitPage: some View {
         VStack(spacing: FolkiSpacing.item) {
             // The day before and after stays in sight while the sliders move.
-            if !isContribution { impact(before: session.result, after: projected) }
+            if !isContribution, let before = session.result {
+                SpendConsequence(session: session, before: before, after: projected, envelope: nil, money: money, tint: tint)
+            }
             ScrollView {
                 VStack(spacing: FolkiSpacing.page) {
                     Button { if !distributesExisting { move { splitting = false } } } label: {
-                        Text(money.map(MoneyText.whole) ?? "—").font(.largeTitle.bold()).monospacedDigit()
+                        Text(money.map(MoneyText.whole) ?? "—").font(FolkiFont.moneyLarge).monospacedDigit()
                     }.buttonStyle(.plain).accessibilityHint(distributesExisting ? "Текущий остаток бюджета" : "Изменить сумму")
                     if isContribution {
-                        Text("Перевод из личного бюджета в семейный").font(.subheadline).foregroundStyle(.secondary)
+                        // Both sides of a contribution: the personal day gives, the family day gets.
                         if let money, let personalBefore = personal.result {
-                            impact(before: personalBefore, after: personal.previewTransfer(money, kind: .contributionOut))
+                            SpendConsequence(session: personal, before: personalBefore, after: personal.previewTransfer(money, kind: .contributionOut),
+                                             envelope: nil, money: money, tint: Color.folkiPersonal)
                         }
                     } else {
                         if !distributesExisting && scope == .personal && hasFamily { shareRow }
-                        if openEnvelopes.isEmpty && paidOutside.isEmpty {
-                            Text("Конвертов для пополнения нет — поступление останется на жизнь")
-                                .font(.subheadline).foregroundStyle(.secondary)
+                        if toEnvelopes || distributesExisting {
+                            ForEach(openEnvelopes) { envelope in envelopeSlider(envelope) }
                         }
-                        ForEach(openEnvelopes) { envelope in envelopeSlider(envelope) }
                         ForEach(paidOutside) { envelope in paidRow(envelope) }
-                        allocationSummary
                     }
-                    if isContribution { impact(before: session.result, after: projected) }
+                    if isContribution, let before = session.result {
+                        SpendConsequence(session: session, before: before, after: projected, envelope: nil, money: money, tint: Color.folkiFamily)
+                    }
                     if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 }.padding(.vertical, FolkiSpacing.item)
             }.scrollBounceBehavior(.basedOnSize)
@@ -261,61 +260,41 @@ struct DailyFundingView: View {
         }
     }
 
-    private var allocationSummary: some View {
-        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
-            Text(distributesExisting ? "Деньги в бюджете сейчас" : "Куда пойдут деньги").font(.headline)
-            if familyShare.minorUnits > 0 { LabeledContent("В семью", value: MoneyText.whole(familyShare)) }
-            let total = split.fills.values.reduce(Int64(0)) { $0 + $1.minorUnits }
-            LabeledContent("В конверты", value: MoneyText.whole(Money(minorUnits: total)))
-            livingRow
-            if let money {
-                GeometryReader { geometry in
-                    HStack(spacing: FolkiSpacing.xxs) {
-                        if familyShare.minorUnits > 0 {
-                            Capsule().fill(RingPalette.family.start).frame(width: max(0, geometry.size.width - 4) * Double(familyShare.minorUnits) / Double(money.minorUnits))
-                        }
-                        if total > 0 {
-                            // Envelopes are neither budget's colour: neutral ink, living money in the accent.
-                            Capsule().fill(Color.folkiInk.opacity(0.3)).frame(width: max(0, geometry.size.width - 4) * Double(total) / Double(money.minorUnits))
-                        }
-                        Capsule().fill(Color.folkiAccent)
-                    }
-                }.frame(height: 7)
-            }
-        }
-        .font(.subheadline).padding(FolkiSpacing.card)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+    private var tint: Color { scope == .personal ? Color.folkiPersonal : Color.folkiFamily }
+
+    private func envelopeLook(_ envelope: RecurringEnvelope) -> (symbol: String, color: Color) {
+        let category = session.catalog.category(for: envelope.categoryID ?? BuiltInCategory.other.id)
+        return (envelope.symbol ?? category.symbol, (envelope.color ?? category.color).color)
     }
 
-    private func impact(before: DailyBudgetSnapshot?, after: DailyBudgetSnapshot?) -> some View {
-        VStack(spacing: FolkiSpacing.item) {
-            Text("Бюджет на день · до → после").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            HStack {
-                Text(before.map { MoneyText.whole($0.todayRemaining) } ?? "—").foregroundStyle(.secondary)
-                Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                Text(after.map { MoneyText.whole($0.todayRemaining) } ?? "—").foregroundStyle(Color.folkiAccent)
-            }.font(.title3.bold()).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
-            if let future = after?.futureAllocation {
-                Text("Дальше в день: \(MoneyText.whole(future.firstDayAmount))").font(.footnote).foregroundStyle(.secondary)
-            }
+    private func receiptRow(symbol: String, color: Color, name: String, amount: Money) -> some View {
+        HStack(spacing: FolkiSpacing.item) {
+            CategoryIcon(symbol: symbol, color: color, size: 30)
+            Text(name).font(FolkiFont.body).foregroundStyle(Color.folkiInk).lineLimit(1)
+            Spacer(minLength: FolkiSpacing.xs)
+            Text("+\(MoneyText.whole(amount))").font(FolkiFont.moneyRow).monospacedDigit().foregroundStyle(Color.folkiInk)
         }
-        .frame(maxWidth: .infinity).padding(FolkiSpacing.card)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .padding(.vertical, FolkiSpacing.item)
     }
 
     private func receiptPage(_ receipt: Receipt) -> some View {
         VStack(spacing: FolkiSpacing.page) {
             ScrollView {
                 VStack(spacing: FolkiSpacing.page) {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 64)).foregroundStyle(Color.folkiAccent)
-                    Text(distributesExisting ? "Бюджет распределён" : "Деньги внесены").font(.title.bold())
-                    Text(MoneyText.whole(receipt.amount)).font(.largeTitle.bold()).monospacedDigit()
-                    VStack(spacing: 12) {
-                        if receipt.share.minorUnits > 0 { LabeledContent("В семью", value: MoneyText.whole(receipt.share)) }
-                        ForEach(receipt.lines) { line in LabeledContent(line.name, value: MoneyText.whole(line.amount)) }
-                        LabeledContent("На жизнь", value: MoneyText.whole(receipt.living))
-                    }.padding(FolkiSpacing.card).glassEffect(.regular, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
-                    impact(before: receipt.before, after: receipt.after)
+                    Image(systemName: "checkmark.circle.fill").font(FolkiFont.symbol(64)).foregroundStyle(Color.folkiAccent)
+                    Text(distributesExisting ? "Бюджет распределён" : "Деньги внесены").font(FolkiFont.section)
+                    Text(MoneyText.whole(receipt.amount)).font(FolkiFont.moneyLarge).monospacedDigit()
+                    if let before = receipt.before {
+                        SpendConsequence(session: session, before: before, after: receipt.after, envelope: nil, money: receipt.amount, tint: tint)
+                    }
+                    VStack(spacing: 0) {
+                        if receipt.share.minorUnits > 0 {
+                            receiptRow(symbol: "heart.fill", color: Color.folkiFamily, name: String(localized: "В семью"), amount: receipt.share)
+                        }
+                        ForEach(receipt.lines) { line in receiptRow(symbol: line.symbol, color: line.color, name: line.name, amount: line.amount) }
+                        receiptRow(symbol: "wallet.bifold.fill", color: tint, name: String(localized: "На жизнь"), amount: receipt.living)
+                    }
+                    .padding(.horizontal, FolkiSpacing.card).folkiTileBackground()
                 }.padding(.vertical, FolkiSpacing.page)
             }
             Button("Готово") { dismiss() }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
@@ -325,20 +304,20 @@ struct DailyFundingView: View {
     private var shareRow: some View {
         Toggle(isOn: $shareToFamily.animation(FolkiMotion.quick)) {
             HStack(spacing: FolkiSpacing.item) {
-                Image(systemName: "heart.fill").foregroundStyle(RingPalette.family.start)
-                    .frame(width: 36, height: 36).background(RingPalette.family.start.opacity(0.14), in: Circle())
+                Image(systemName: "heart.fill").foregroundStyle(Color.folkiFamily)
+                    .frame(width: 36, height: 36).background(Color.folkiFamily.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                    Text("В семью \(family.contributionPercent)%").font(.body.weight(.medium))
+                    Text("В семью \(family.contributionPercent)%").font(FolkiFont.headline)
                     Text(MoneyText.whole(shareToFamily ? familyShare : (money.flatMap { try? ContributionAdvisor.suggestion(topUp: $0,
                         percent: family.contributionPercent, urgentFamilyShortfalls: family.urgentShortfalls,
                         personalObligations: personal.mandatoryObligations) } ?? Money(minorUnits: 0))))
-                        .font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+                        .folkiText(.footnote).monospacedDigit()
                 }
             }
         }
-        .tint(RingPalette.family.start)
+        .tint(Color.folkiFamily)
         .padding(FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
     }
 
     private func envelopeSlider(_ envelope: RecurringEnvelope) -> some View {
@@ -357,31 +336,36 @@ struct DailyFundingView: View {
                     split = next
                 }
             })
+        let full = fill.minorUnits >= need.minorUnits && need.minorUnits > 0
         return VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-            HStack {
-                EnvelopeIcon(session: session, envelope: envelope, size: 28)
-                Text(envelope.name).font(.body.weight(.medium)).lineLimit(1)
-                Spacer()
-                Text("\(MoneyText.whole(fill)) из \(MoneyText.whole(need.roundedUpToWholeUnits))")
-                    .font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+            HStack(spacing: FolkiSpacing.item) {
+                EnvelopeIcon(session: session, envelope: envelope, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(envelope.name).font(FolkiFont.headline).foregroundStyle(Color.folkiInk).lineLimit(1)
+                    Text(dueLine(envelope)).font(FolkiFont.footnote).foregroundStyle(urgency == .calm || urgency == .funded ? Color.folkiSecondary : urgency.color)
+                }
+                Spacer(minLength: FolkiSpacing.xs)
+                // What goes in now; a check once this deposit makes the envelope whole.
+                Text("+\(MoneyText.whole(fill))").font(FolkiFont.moneyRow).monospacedDigit()
+                    .foregroundStyle(fill.minorUnits > 0 ? Color.folkiInk : Color.folkiTertiary)
+                    .contentTransition(.numericText(value: Double(fill.minorUnits)))
+                Image(systemName: full ? "checkmark.circle.fill" : "circle").font(FolkiFont.icon)
+                    .foregroundStyle(full ? Color.folkiAccent : Color.folkiTertiary)
+                    .animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: full)
             }
             Slider(value: binding, in: 0...max(1, Double(need.roundedUpToWholeUnits.minorUnits / 100)), step: 1)
-                .tint(urgency == .calm || urgency == .funded ? Color.folkiAccent : urgency.color)
+                .tint(envelopeLook(envelope).color)
                 .accessibilityLabel(envelope.name)
                 .accessibilityValue(MoneyText.whole(fill))
-            HStack(alignment: .firstTextBaseline) {
-                Text(dueLine(envelope)).font(.footnote).foregroundStyle(urgency == .calm ? .secondary : urgency.color)
-                Spacer(minLength: FolkiSpacing.xs)
-                // Money already set aside elsewhere, or the bill already paid: this time is skipped, not funded.
-                if isDueThisPeriod(envelope) {
-                    Button("Уже оплачено") { markPaid(envelope) }
-                        .font(.footnote.weight(.semibold)).foregroundStyle(Color.folkiAccent)
-                        .buttonStyle(.plain).frame(minHeight: 44)
-                }
+            // Money already set aside elsewhere, or the bill already paid: this time is skipped, not funded.
+            if isDueThisPeriod(envelope) {
+                Button("Уже оплачено") { markPaid(envelope) }
+                    .font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
+                    .buttonStyle(.plain).frame(minHeight: 32)
             }
         }
         .padding(FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
     }
 
     private func isDueThisPeriod(_ envelope: RecurringEnvelope) -> Bool {
@@ -392,19 +376,19 @@ struct DailyFundingView: View {
     private func paidRow(_ original: RecurringEnvelope) -> some View {
         let next = session.envelopes.first { $0.id == original.id }?.nextDue ?? original.nextDue
         return HStack(spacing: FolkiSpacing.item) {
-            Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Color.folkiAccent)
+            Image(systemName: "checkmark.circle.fill").font(FolkiFont.icon).foregroundStyle(Color.folkiAccent)
             VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
-                Text(original.name).font(.body.weight(.medium)).lineLimit(1)
+                Text(original.name).font(FolkiFont.headline).lineLimit(1)
                 Text("Следующий платёж жду \(next.formatted(.dateTime.day().month(.abbreviated)))")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .folkiText(.footnote)
             }
             Spacer(minLength: FolkiSpacing.xs)
             Button("Вернуть") { undoPaid(original) }
-                .font(.footnote.weight(.semibold)).foregroundStyle(Color.folkiAccent)
+                .font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
                 .buttonStyle(.plain).frame(minHeight: 44)
         }
         .padding(FolkiSpacing.card)
-        .background(Color.folkiSoft, in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius))
+        .folkiTileBackground()
         .transition(.opacity)
     }
 
@@ -441,15 +425,6 @@ struct DailyFundingView: View {
         return Money(minorUnits: max(0, envelopeBase.minorUnits - envelopes))
     }
 
-    private var livingRow: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("На жизнь").font(.headline)
-            Spacer()
-            Text(MoneyText.whole(living)).font(.system(.title2, design: .rounded, weight: .bold)).monospacedDigit()
-                .foregroundStyle(Color.folkiAccent).contentTransition(.numericText()).animation(FolkiMotion.quick, value: living)
-        }
-    }
-
     private func move(_ change: () -> Void) {
         withAnimation(FolkiMotion.resolved(FolkiMotion.standard, reduceMotion: reduceMotion), change)
     }
@@ -461,7 +436,8 @@ struct DailyFundingView: View {
         let before = session.result
         let lines = openEnvelopes.compactMap { envelope -> Line? in
             guard let fill = split.fills[envelope.id], fill.minorUnits > 0 else { return nil }
-            return Line(id: envelope.id, name: envelope.name, amount: fill)
+            let look = envelopeLook(envelope)
+            return Line(id: envelope.id, name: envelope.name, amount: fill, symbol: look.symbol, color: look.color)
         }
         let share = familyShare
         let livingAmount = isContribution ? money : living
