@@ -132,13 +132,12 @@ extension BudgetRepository {
         } catch { context.rollback(); throw error }
     }
 
-    /// Pays an envelope with the real amount of the bill and moves it to next month.
-    /// The envelope's balance pays first; a bigger bill takes the difference from living money,
-    /// a smaller one returns the remainder to living money.
-    /// A spend in the envelope's category: covered by what is set aside for it, the rest from living money.
-    /// Unlike a payment, the envelope stays open and keeps its date.
+    /// A spend from an envelope. Only the spend leaves it; whatever is left stays set aside.
+    /// When the envelope holds less than the spend, living money first tops it up by the difference, so the
+    /// shortfall is spread over the days that are left instead of landing on today, and then all of it is spent
+    /// from the envelope. `closesCycle` also closes the bill for this time (see `closeEnvelope`).
     public func spendFromEnvelope(_ id: UUID, amount: Money, in budget: StoredBudget, asOf now: Date,
-                                  operationID: UUID = UUID()) throws {
+                                  operationID: UUID = UUID(), closesCycle: Bool = false) throws {
         guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
         do {
             guard try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID)).isEmpty else { return }
@@ -150,58 +149,118 @@ extension BudgetRepository {
             let balance = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).reserveBalances[id]
                 ?? Money(minorUnits: 0)
             let category = item.value(forKey: "categoryID") as? UUID ?? BuiltInCategory.other.id
-            let fromEnvelope = Money(minorUnits: min(balance.minorUnits, amount.minorUnits))
-            let fromLiving = try amount.subtracting(fromEnvelope)
+            let shortfall = Money(minorUnits: max(0, amount.minorUnits - balance.minorUnits))
             let author = try authorID(in: current)
             var records: [LedgerRecord] = []
-            if fromEnvelope.minorUnits > 0 {
-                records.append(LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: fromEnvelope, kind: .expense,
-                    funding: .reserve(id), date: now, authorID: author, payerID: author), title: "", categoryID: category))
+            if shortfall.minorUnits > 0 {
+                records.append(try movement(.reserveAllocation, amount: shortfall, envelope: id, title: envelope.name, budget: current, now: now,
+                                            id: Self.topUpID(for: operationID)))
             }
-            if fromLiving.minorUnits > 0 {
-                records.append(LedgerRecord(transaction: TransactionSnapshot(id: records.isEmpty ? operationID : UUID(), amount: fromLiving,
-                    kind: .expense, funding: .flexible, date: now, authorID: author, payerID: author), title: "", categoryID: category))
-            }
+            records.append(LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: amount, kind: .expense,
+                funding: .reserve(id), date: now, authorID: author, payerID: author), title: "", categoryID: category))
             try write(records, in: current, root: root, now: now)
+            if closesCycle && !envelope.isSavings {
+                try encodeEnvelope(closing(envelope, in: current, now: now), into: item)
+            }
             try commit()
         } catch { context.rollback(); throw error }
     }
 
-    public func payEnvelope(_ id: UUID, amount: Money, in budget: StoredBudget, asOf now: Date,
-                            operationID: UUID = UUID()) throws {
-        guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+    /// Deletes or restores a spend from an envelope as one operation: with it go the top-ups living money made into
+    /// the envelope at the same moment, and a bill it closed in this period opens again when it is deleted.
+    public func setEnvelopeSpendDeleted(_ spend: LedgerRecord, deleted: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        guard spend.transaction.kind == .expense, case .reserve(let id) = spend.transaction.funding else { throw BudgetError.invalidTransaction }
         do {
-            guard try fetch("Transaction", predicate: NSPredicate(format: "id == %@", operationID as NSUUID)).isEmpty else { return }
             let root = try writableRoot(budget, now: now)
-            let item = try writableItem("Envelope", id: id, budget: budget)
-            let envelope = try decodeEnvelope(item)
-            try ensureReserve(for: envelope, in: budget, root: root)
             guard let current = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
-            let balance = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now).reserveBalances[id]
-                ?? Money(minorUnits: 0)
-            let category = item.value(forKey: "categoryID") as? UUID ?? BuiltInCategory.other.id
-            let fromEnvelope = Money(minorUnits: min(balance.minorUnits, amount.minorUnits))
-            let fromLiving = try amount.subtracting(fromEnvelope)
-            let leftover = try balance.subtracting(fromEnvelope)
-            let author = try authorID(in: current)
-            var records: [LedgerRecord] = []
-            if fromEnvelope.minorUnits > 0 {
-                records.append(LedgerRecord(transaction: TransactionSnapshot(id: operationID, amount: fromEnvelope, kind: .expense,
-                    funding: .reserve(id), date: now, authorID: author, payerID: author), title: envelope.name, categoryID: category))
+            let topUp = Self.topUpID(for: spend.id)
+            let parts = current.records.filter { $0.id == spend.id || $0.id == topUp }
+            let changed = parts.map { record in
+                LedgerRecord(transaction: TransactionSnapshot(id: record.id, amount: record.transaction.amount, kind: record.transaction.kind,
+                    funding: record.transaction.funding, date: record.transaction.date, authorID: record.transaction.authorID,
+                    payerID: record.transaction.payerID, isDeleted: deleted),
+                    title: record.title, categoryID: record.categoryID, linkID: record.linkID)
             }
-            if fromLiving.minorUnits > 0 {
-                records.append(LedgerRecord(transaction: TransactionSnapshot(id: records.isEmpty ? operationID : UUID(), amount: fromLiving,
-                    kind: .expense, funding: .flexible, date: now, authorID: author, payerID: author), title: envelope.name, categoryID: category))
+            // The whole operation must leave a valid ledger, whichever order the parts are applied in.
+            let ids = Set(changed.map(\.id))
+            let snapshot = HouseholdSnapshot(id: current.snapshot.id, period: current.snapshot.period,
+                monthlyFreePlan: current.snapshot.monthlyFreePlan, openingFunds: current.snapshot.openingFunds, reserves: current.snapshot.reserves,
+                transactions: current.records.filter { !ids.contains($0.id) }.map(\.transaction) + changed.map(\.transaction))
+            _ = try DailyBudgetCalculator.calculate(snapshot, asOf: now)
+            for record in changed {
+                guard let object = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", record.id as NSUUID)).first else {
+                    throw LedgerError.conflict
+                }
+                encode(record, into: object, updatedAt: now)
             }
-            if leftover.minorUnits > 0 {
-                records.append(try movement(.reserveRelease, amount: leftover, envelope: id, title: envelope.name, budget: current, now: now))
+            if deleted {
+                let item = try writableItem("Envelope", id: id, budget: current)
+                let envelope = try decodeEnvelope(item)
+                if envelope.closedThrough == current.snapshot.period.endExclusive {
+                    let calendar = current.snapshot.period.calendar
+                    guard let earlier = calendar.date(byAdding: .month, value: -1, to: envelope.nextDue) else { throw BudgetError.invalidPeriod }
+                    let previous = try EnvelopeSchedule.dueDate(day: envelope.dueDay, inMonthOf: earlier, calendar: calendar)
+                    encodeEnvelope(try envelope.with(nextDue: previous).closed(through: nil), into: item)
+                }
             }
-            try write(records, in: current, root: root, now: now)
-            let calendar = current.snapshot.period.calendar
-            let next = try EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, notBefore: now, calendar: calendar)
-            try encodeEnvelope(envelope.with(nextDue: next), into: item)
+            _ = root
             try commit()
         } catch { context.rollback(); throw error }
+    }
+
+    /// The top-up living money makes for a spend is tied to it by its identifier: the spend's, with the last byte flipped.
+    static func topUpID(for spend: UUID) -> UUID {
+        var bytes = spend.uuid
+        bytes.15 ^= 0xFF
+        return UUID(uuid: bytes)
+    }
+
+    /// «Закрыть период»: the bill is done for this time. Its date moves to the next one, it asks for nothing more,
+    /// and what it holds stays fixed until the end of the period, when the rest returns to living money.
+    public func closeEnvelope(_ id: UUID, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            let item = try writableItem("Envelope", id: id, budget: budget)
+            let envelope = try decodeEnvelope(item)
+            guard !envelope.isSavings, !envelope.isClosed else { throw BudgetError.invalidPlan }
+            try encodeEnvelope(closing(envelope, in: budget, now: now), into: item)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Undoes a close: the bill is back on its date and asks for money again.
+    public func reopenEnvelope(_ id: UUID, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            let item = try writableItem("Envelope", id: id, budget: budget)
+            let envelope = try decodeEnvelope(item)
+            guard envelope.isClosed else { return }
+            let calendar = budget.snapshot.period.calendar
+            guard let earlier = calendar.date(byAdding: .month, value: -1, to: envelope.nextDue) else { throw BudgetError.invalidPeriod }
+            let previous = try EnvelopeSchedule.dueDate(day: envelope.dueDay, inMonthOf: earlier, calendar: calendar)
+            try encodeEnvelope(envelope.with(nextDue: previous).closed(through: nil), into: item)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// A new period has begun: envelopes closed through its start are open again for their next time.
+    /// Their money was already returned to living money when the period was opened.
+    public func clearClosures(_ ids: [UUID], in budget: StoredBudget, asOf now: Date) throws {
+        guard !ids.isEmpty else { return }
+        do {
+            _ = try writableRoot(budget, now: now)
+            for id in ids {
+                let item = try writableItem("Envelope", id: id, budget: budget)
+                try encodeEnvelope(decodeEnvelope(item).closed(through: nil), into: item)
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    private func closing(_ envelope: RecurringEnvelope, in budget: StoredBudget, now: Date) throws -> RecurringEnvelope {
+        let calendar = budget.snapshot.period.calendar
+        let next = try EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, notBefore: now, calendar: calendar)
+        return try envelope.with(nextDue: next).closed(through: budget.snapshot.period.endExclusive)
     }
 
     /// A bill that was not paid this time: it moves to its coming date and keeps what it holds.
@@ -231,7 +290,8 @@ extension BudgetRepository {
             symbol: item.value(forKey: "symbol") as? String,
             color: (item.value(forKey: "color") as? String).flatMap(CategoryColor.init(rawValue:)),
             // Envelopes from before jars existed, or of a kind this version does not know, are payments.
-            kind: savingsTarget(item) == nil ? .payment : .savings, target: savingsTarget(item))
+            kind: savingsTarget(item) == nil ? .payment : .savings, target: savingsTarget(item),
+            closedThrough: item.value(forKey: "closedThrough") as? Date)
     }
 
     private func savingsTarget(_ item: NSManagedObject) -> Money? {
@@ -250,6 +310,7 @@ extension BudgetRepository {
         item.setValue(envelope.color?.rawValue, forKey: "color")
         item.setValue(envelope.kind.rawValue, forKey: "kind")
         item.setValue(envelope.target?.minorUnits, forKey: "target")
+        item.setValue(envelope.closedThrough, forKey: "closedThrough")
         item.setValue(UUID(), forKey: "revision")
     }
 

@@ -169,38 +169,89 @@ import FolkiDuoCore
         #expect(try result(repo).reserveBalances[b.id] == rub(0))
         let stats = try BudgetAnalytics.calculate(records: repo.history(scope: .personal), period: .day,
             anchor: now, asOf: now, calendar: budget(repo).snapshot.period.calendar)
-        #expect(stats.envelopeNetSpending == rub(1_000))
-        #expect(stats.flexibleNetSpending == rub(500))
+        // The envelope pays all of it; living money only topped it up, which is not a spend of today.
+        #expect(stats.envelopeNetSpending == rub(1_200))
+        #expect(stats.flexibleNetSpending == rub(300))
+        #expect(try result(repo).todayNetSpending == rub(300))
         #expect(try stats.netSpending == rub(1_500))
         try repo.spendFromEnvelope(b.id, amount: rub(1_200), in: budget(repo), asOf: now, operationID: operation)
         #expect(try result(repo).totalFunds == rub(58_500))
         try repo.close()
     }
 
-    @Test func biggerBillTakesTheDifferenceFromLivingAndMovesToNextMonth() async throws {
+    @Test func shortEnvelopeIsToppedUpWithoutTouchingTodayAndCanCloseTheBill() async throws {
         let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
         let internet = try repo.createEnvelope(name: "Интернет", size: rub(800), dueDay: 25, nextDue: rentDue, isMandatory: true,
                                                in: budget(repo), asOf: now)
         try repo.fundEnvelope(internet.id, amount: rub(800), in: budget(repo), asOf: now)
-        try repo.payEnvelope(internet.id, amount: rub(870), in: budget(repo), asOf: now)
+        let guide = try result(repo).todayGuide
+        try repo.spendFromEnvelope(internet.id, amount: rub(870), in: budget(repo), asOf: now, closesCycle: true)
         #expect(try result(repo).reserveBalances[internet.id] == rub(0))
         #expect(try result(repo).monthlyRemaining == rub(59_130))
-        #expect(try repo.envelopes(scope: .personal).first?.nextDue == ISO8601DateFormatter().date(from: "2026-11-24T21:00:00Z"))
+        // The 70 the envelope lacked is spread over the days left: today shows no spend, its guide shrinks a little.
+        #expect(try result(repo).todayNetSpending == rub(0))
+        #expect(try result(repo).todayGuide.minorUnits < guide.minorUnits)
+        let closed = try #require(try repo.envelopes(scope: .personal).first)
+        #expect(closed.isClosed)
+        #expect(closed.nextDue == ISO8601DateFormatter().date(from: "2026-11-24T21:00:00Z"))
         try repo.close()
     }
 
-    @Test func smallerBillReturnsTheRemainderAndEmptyEnvelopeStillPays() async throws {
+    @Test func closingKeepsTheMoneyAsksForNothingAndCanBeUndone() async throws {
         let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
         let utilities = try repo.createEnvelope(name: "Коммуналка", size: rub(5_000), dueDay: 25, nextDue: rentDue, isMandatory: true,
                                                 in: budget(repo), asOf: now)
-        try repo.fundEnvelope(utilities.id, amount: rub(5_000), in: budget(repo), asOf: now)
-        try repo.payEnvelope(utilities.id, amount: rub(4_200), in: budget(repo), asOf: now)
-        #expect(try result(repo).reserveBalances[utilities.id] == rub(0))
-        #expect(try result(repo).monthlyRemaining == rub(55_800))
+        try repo.fundEnvelope(utilities.id, amount: rub(3_000), in: budget(repo), asOf: now)
+        try repo.closeEnvelope(utilities.id, in: budget(repo), asOf: now)
+        let closed = try #require(try repo.envelopes(scope: .personal).first)
+        #expect(try result(repo).reserveBalances[utilities.id] == rub(3_000))
+        #expect(try closed.shortfall(balance: rub(3_000)) == rub(0))
+        #expect(closed.closedThrough == (try budget(repo)).snapshot.period.endExclusive)
+        #expect(closed.nextDue > rentDue)
 
-        // Next month's bill is paid before anything was put aside: all of it comes from living money.
-        try repo.payEnvelope(utilities.id, amount: rub(5_000), in: budget(repo), asOf: now)
-        #expect(try result(repo).monthlyRemaining == rub(50_800))
+        try repo.reopenEnvelope(utilities.id, in: budget(repo), asOf: now)
+        let open = try #require(try repo.envelopes(scope: .personal).first)
+        #expect(!open.isClosed)
+        #expect(open.nextDue == rentDue)
+        #expect(try open.shortfall(balance: rub(3_000)) == rub(2_000))
+        try repo.close()
+    }
+
+    @Test func aSmallerSpendKeepsTheRestSetAsideAndTheDate() async throws {
+        let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
+        let rent = try repo.createEnvelope(name: "Аренда", size: rub(25_000), dueDay: 25, nextDue: rentDue, isMandatory: true,
+                                           in: budget(repo), asOf: now)
+        try repo.fundEnvelope(rent.id, amount: rub(10_000), in: budget(repo), asOf: now)
+        try repo.spendFromEnvelope(rent.id, amount: rub(4_000), in: budget(repo), asOf: now)
+        #expect(try result(repo).reserveBalances[rent.id] == rub(6_000))
+        #expect(try result(repo).monthlyRemaining == rub(50_000))
+        let open = try #require(try repo.envelopes(scope: .personal).first)
+        #expect(open.nextDue == rentDue)
+        #expect(!open.isClosed)
+        try repo.close()
+    }
+
+    @Test func deletingAnEnvelopeSpendUndoesTheWholeOperation() async throws {
+        let (repo, directory) = try await open(); defer { try? FileManager.default.removeItem(at: directory) }
+        let rent = try repo.createEnvelope(name: "Аренда", size: rub(25_000), dueDay: 25, nextDue: rentDue, isMandatory: true,
+                                           in: budget(repo), asOf: now)
+        try repo.fundEnvelope(rent.id, amount: rub(10_000), in: budget(repo), asOf: now)
+        let operation = UUID()
+        try repo.spendFromEnvelope(rent.id, amount: rub(25_000), in: budget(repo), asOf: now, operationID: operation, closesCycle: true)
+        #expect(try result(repo).monthlyRemaining == rub(35_000))
+        let spend = try #require(try budget(repo).records.first { $0.id == operation })
+
+        try repo.setEnvelopeSpendDeleted(spend, deleted: true, in: budget(repo), asOf: now)
+        // The spend and the 15 000 top-up are gone; the bill is open on its date again.
+        #expect(try result(repo).monthlyRemaining == rub(50_000))
+        #expect(try result(repo).reserveBalances[rent.id] == rub(10_000))
+        let reopened = try #require(try repo.envelopes(scope: .personal).first)
+        #expect(!reopened.isClosed)
+        #expect(reopened.nextDue == rentDue)
+
+        try repo.setEnvelopeSpendDeleted(spend, deleted: false, in: budget(repo), asOf: now)
+        #expect(try result(repo).monthlyRemaining == rub(35_000))
+        #expect(try result(repo).reserveBalances[rent.id] == rub(0))
         try repo.close()
     }
 

@@ -196,8 +196,8 @@ struct BudgetRootView: View {
         .sheet(item: $editingRecord) { ExpenseEditorView(session: session, editing: $0) }
         .sheet(item: $editingEntry) { entry in
             // An own everyday spend opens in the spend sheet; incomes, refunds and envelope spends keep the full form.
-            if entry.record.transaction.kind == .expense, entry.record.transaction.funding == .flexible,
-               entry.session.isEditable(entry.record) {
+            // Envelope spends too: they are edited where they were made, and keep their envelope (while it exists).
+            if entry.record.transaction.kind == .expense, entry.session.isEditable(entry.record), spendSheetCanEdit(entry) {
                 QuickSpendView(editing: entry.record, in: entry.session, personal: personal, family: family) { record, session in
                     Task {
                         try? await Task.sleep(for: .milliseconds(350))
@@ -234,6 +234,14 @@ struct BudgetRootView: View {
                 DistributionChoiceView(current: session.periodRule, apply: { try session.setPeriodRule($0) })
             case .allocate: DailyFundingView(personal: personal, family: family, initialScope: selectedScope, distributesExisting: true)
             }
+        }
+    }
+
+    private func spendSheetCanEdit(_ entry: PeriodEntry) -> Bool {
+        switch entry.record.transaction.funding {
+        case .flexible: true
+        case .reserve(let id): entry.session.envelopes.contains { $0.id == id }
+        default: false
         }
     }
 

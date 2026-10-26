@@ -188,6 +188,16 @@
         }
       }
     },
+    "%@ доложу с жизни — по дням, не сегодня" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ comes from living money — spread over the days, not today"
+          }
+        }
+      }
+    },
     "%@ из %@" : {
       "localizations" : {
         "en" : {
@@ -1267,6 +1277,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The envelope is full"
+          }
+        }
+      }
+    },
+    "В конверте останется %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ stays in the envelope"
           }
         }
       }
@@ -3037,6 +3057,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "Закрыть период" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the period"
           }
         }
       }
@@ -5446,6 +5476,16 @@
         }
       }
     },
+    "Не получилось закрыть период. Попробуй ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't close the period. Try again."
+          }
+        }
+      }
+    },
     "Не получилось записать. Сумма осталась здесь, попробуй ещё раз." : {
       "localizations" : {
         "en" : {
@@ -6377,6 +6417,16 @@
         }
       }
     },
+    "Оплатить из конверта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pay from envelope"
+          }
+        }
+      }
+    },
     "Оплачено" : {
       "localizations" : {
         "en" : {
@@ -6678,6 +6728,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "Открыть снова" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reopen"
           }
         }
       }
@@ -7064,6 +7124,16 @@
         }
       }
     },
+    "Период закрыт · держу до %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period closed · kept until %@"
+          }
+        }
+      }
+    },
     "Период пока не начат" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7286,6 +7356,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You can set up payments and savings in the next step."
+          }
+        }
+      }
+    },
+    "Платежи периода закрыты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This period's bills are closed"
           }
         }
       }
@@ -11187,6 +11267,16 @@
         }
       }
     },
+    "в день до %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a day until %@"
+          }
+        }
+      }
+    },
     "в день на жизнь" : {
       "localizations" : {
         "en" : {
@@ -11467,6 +11557,16 @@
         }
       }
     },
+    "период закрыт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "period closed"
+          }
+        }
+      }
+    },
     "план" : {
       "localizations" : {
         "en" : {
@@ -11529,6 +11629,16 @@
         }
       }
     },
+    "с жизни · по дням" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "from living · over days"
+          }
+        }
+      }
+    },
     "сверх" : {
       "localizations" : {
         "en" : {
@@ -11587,6 +11697,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "family %@"
+          }
+        }
+      }
+    },
+    "след. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "next %@"
           }
         }
       }

@@ -27,11 +27,15 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
     public let kind: EnvelopeKind
     /// Savings only: the goal the jar is collected up to.
     public let target: Money?
+    /// Set by «Закрыть период»: this time is done, the envelope asks for nothing and keeps what it holds
+    /// until this date (the end of the period); then the rest returns to living money.
+    public let closedThrough: Date?
     public var isSavings: Bool { kind == .savings }
+    public var isClosed: Bool { closedThrough != nil }
 
     public init(id: UUID = UUID(), name: String, size: Money, dueDay: Int, nextDue: Date, isMandatory: Bool,
                 categoryID: UUID? = nil, symbol: String? = nil, color: CategoryColor? = nil,
-                kind: EnvelopeKind = .payment, target: Money? = nil) throws {
+                kind: EnvelopeKind = .payment, target: Money? = nil, closedThrough: Date? = nil) throws {
         guard size.minorUnits > 0 else { throw BudgetError.invalidAmount }
         guard (1...31).contains(dueDay) else { throw BudgetError.invalidPeriod }
         guard kind == .payment ? target == nil : (target?.minorUnits ?? 0) > 0 else { throw BudgetError.invalidAmount }
@@ -46,6 +50,7 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
         self.color = color
         self.kind = kind
         self.target = target
+        self.closedThrough = closedThrough
     }
 
     /// The same envelope with other fields, for edits and moving to the next payment.
@@ -54,7 +59,14 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
                      target: Money? = nil) throws -> RecurringEnvelope {
         try RecurringEnvelope(id: id, name: name ?? self.name, size: size ?? self.size, dueDay: dueDay ?? self.dueDay,
                               nextDue: nextDue ?? self.nextDue, isMandatory: isMandatory ?? self.isMandatory, categoryID: categoryID,
-                              symbol: symbol ?? self.symbol, color: color ?? self.color, kind: kind, target: target ?? self.target)
+                              symbol: symbol ?? self.symbol, color: color ?? self.color, kind: kind, target: target ?? self.target,
+                              closedThrough: closedThrough)
+    }
+
+    /// The same envelope closed until `date`, or open again with nil.
+    public func closed(through date: Date?) throws -> RecurringEnvelope {
+        try RecurringEnvelope(id: id, name: name, size: size, dueDay: dueDay, nextDue: nextDue, isMandatory: isMandatory,
+                              categoryID: categoryID, symbol: symbol, color: color, kind: kind, target: target, closedThrough: date)
     }
 
     /// The amount the envelope is filled up to: the bill for a payment, the goal for a jar.
@@ -63,6 +75,8 @@ public struct RecurringEnvelope: Hashable, Sendable, Identifiable {
     /// How much is still missing for the next payment, never negative.
     /// A jar asks for at most one contribution at a time, until its goal is reached.
     public func shortfall(balance: Money) throws -> Money {
+        // A closed envelope is done for this time: it needs nothing more.
+        if isClosed { return Money(minorUnits: 0, currency: size.currency) }
         let missing = try capacity.subtracting(balance).nonnegative
         return isSavings ? Money(minorUnits: min(missing.minorUnits, size.minorUnits), currency: size.currency) : missing
     }

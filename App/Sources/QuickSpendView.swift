@@ -134,21 +134,30 @@ struct QuickSpendView: View {
     /// Where the money comes from follows what it is for: a jar picked by itself, or the bill of the chosen category
     /// (rent for «Жильё»), nearest first. Everything else is living money. An edited spend keeps its source.
     private var envelope: RecurringEnvelope? {
-        guard !isIncome, editing == nil else { return nil }
+        guard !isIncome else { return nil }
+        // An edited spend keeps the envelope it came from.
+        if editing != nil { return editedEnvelopeID.flatMap { id in session.envelopes.first { $0.id == id } } }
         if let envelopeID { return session.envelopes.first { $0.id == envelopeID } }
         guard let categoryID, categoryID != BuiltInCategory.other.id else { return nil }
         return session.payments.filter { $0.categoryID == categoryID }.min { $0.nextDue < $1.nextDue }
     }
+    private var editedEnvelopeID: UUID? {
+        if case .reserve(let id) = editing?.transaction.funding { return id }
+        return nil
+    }
+    /// What the envelope can give this spend: its balance, plus an edited spend's own amount, which comes back first.
+    private func available(in envelope: RecurringEnvelope) -> Money {
+        let back = editedEnvelopeID == envelope.id ? editing?.transaction.amount.minorUnits ?? 0 : 0
+        return Money(minorUnits: session.envelopeBalance(envelope).minorUnits + back)
+    }
     private var after: DailyBudgetSnapshot? {
         guard let draft else { return nil }
         if let envelope, let money {
-            // Only what the envelope cannot cover reaches the day.
-            let missing = max(0, money.minorUnits - session.envelopeBalance(envelope).minorUnits)
+            // An envelope spend never lands on today: what the envelope lacks is moved into it from living money,
+            // which spreads over the days left.
+            let missing = max(0, money.minorUnits - available(in: envelope).minorUnits)
             if missing == 0 { return session.result }
-            guard let rest = try? session.draft(amount: Money(minorUnits: missing), title: "", payerID: draft.transaction.payerID,
-                date: date, kind: entryKind, categoryID: categoryID ?? BuiltInCategory.other.id, funding: .flexible, newRecordID: recordID)
-            else { return nil }
-            return try? session.preview(rest)
+            return session.previewAvailableDistribution([envelope.id: Money(minorUnits: missing)])
         }
         return try? session.preview(draft, editing: editing)
     }
@@ -172,9 +181,11 @@ struct QuickSpendView: View {
                             .accessibilityLabel("Сумма \(money.map(MoneyText.string) ?? "не введена")")
                         // One line of consequence: where the money comes from and what it leaves.
                         SpendConsequence(session: session, before: before, after: after, envelope: envelope, money: money,
-                                         tint: scope == .personal ? Color.folkiPersonal : Color.folkiFamily)
+                                         tint: scope == .personal ? Color.folkiPersonal : Color.folkiFamily,
+                                         envelopeAvailable: envelope.map { available(in: $0) })
                             .padding(.horizontal, FolkiSpacing.page)
-                        if !isIncome { categoryIcons }
+                        // An edited envelope spend stays in its envelope; everything else picks what it is for.
+                        if !isIncome && editedEnvelopeID == nil { categoryIcons }
                         if isIncome {
                             Text("Поступление увеличит свободные деньги \(scope == .personal ? "личного" : "семейного") бюджета. Это не перевод из другого бюджета.")
                                 .folkiText(.footnote).padding(.horizontal, FolkiSpacing.page)
@@ -201,7 +212,9 @@ struct QuickSpendView: View {
             .safeAreaInset(edge: .bottom, spacing: 12) {
                 if session.result != nil { VStack(spacing: 0) {
                     Button(action: save) {
-                        Text(isIncome ? String(localized: "Внести деньги") : editing != nil ? String(localized: "Сохранить") : String(localized: "Записать")).font(FolkiFont.headline)
+                        Text(isIncome ? String(localized: "Внести деньги") : editing != nil ? String(localized: "Сохранить")
+                             : envelope.map { e in money.map { spendPaysBill(e, amount: $0) } ?? false } == true
+                                ? String(localized: "Оплатить из конверта") : String(localized: "Записать")).font(FolkiFont.headline)
                             .frame(maxWidth: .infinity).frame(minHeight: FolkiSpacing.primaryButton)
                             .foregroundStyle(.white)
                             .glassEffect(.regular.tint(Color.folkiAccent.opacity(after == nil ? 0.35 : 1)).interactive(), in: Capsule())
@@ -310,14 +323,14 @@ struct QuickSpendView: View {
         let crossed = !isIncome && FolkiFeedback.crossesIntoMinus(before: session.result?.todayRemaining, after: after?.todayRemaining)
         do {
             if let envelope, let money {
-                // A bill is paid and moves to its next date; what the envelope lacks comes from living money.
-                if envelope.isSavings {
-                    try session.spendFromEnvelope(envelope, amount: money, operationID: recordID)
-                } else {
-                    try session.payEnvelope(envelope, amount: money, operationID: recordID)
-                }
-                FolkiFeedback.saved(crossedIntoMinus: crossed)
+                // Only the spend leaves the envelope; the rest stays set aside until the period ends.
+                // A spend of the whole bill closes it for this time. An edit replaces the old spend as a whole.
+                if let editing { try session.setDeleted(true, record: editing) }
+                let fresh = session.envelopes.first { $0.id == envelope.id } ?? envelope
+                try session.spendFromEnvelope(fresh, amount: money, operationID: recordID, closesCycle: spendPaysBill(fresh, amount: money))
+                FolkiFeedback.saved()
                 dismiss(); onSaved?()
+                if editing == nil, let saved = session.records.first(where: { $0.id == recordID }) { onRecorded?(saved, session) }
                 return
             }
             try session.save(draft, editing: editing)
@@ -521,16 +534,28 @@ struct SpendConsequence: View {
     let envelope: RecurringEnvelope?
     let money: Money?
     let tint: Color
+    /// What the envelope can give, when it differs from its balance (an edited spend gives its own amount back first).
+    var envelopeAvailable: Money? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
+        let color = envelope.map(envelopeColor) ?? tint
+        VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+            // Where the money comes from, named: the two kinds of spending never look alike.
+            Label(envelope.map { String(localized: "Из конверта «\($0.name)»") } ?? String(localized: "Из денег на жизнь"),
+                  systemImage: envelope == nil ? "wallet.bifold" : "tray.full.fill")
+                .font(FolkiFont.tag).foregroundStyle(color).lineLimit(1)
             if let envelope { envelopeLine(envelope) } else { dayLine }
         }
         .padding(FolkiSpacing.card)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .folkiTileBackground()
+        .background(envelope == nil ? Color.folkiTile : color.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: FolkiSpacing.cardRadius, style: .continuous))
         .animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: envelope?.id)
+    }
+
+    private func envelopeColor(_ envelope: RecurringEnvelope) -> Color {
+        (envelope.color ?? session.catalog.category(for: envelope.categoryID ?? BuiltInCategory.other.id).color).color
     }
 
     private var dayLine: some View {
@@ -554,7 +579,7 @@ struct SpendConsequence: View {
     }
 
     private func envelopeLine(_ envelope: RecurringEnvelope) -> some View {
-        let balance = session.envelopeBalance(envelope)
+        let balance = envelopeAvailable ?? session.envelopeBalance(envelope)
         let spend = money?.minorUnits ?? 0
         let fromEnvelope = min(spend, max(0, balance.minorUnits))
         let left = Money(minorUnits: balance.minorUnits - fromEnvelope)
@@ -569,9 +594,14 @@ struct SpendConsequence: View {
             }
             Spacer(minLength: FolkiSpacing.xs)
             if missing > 0 {
-                trailing(String(localized: "с жизни"), "−\(MoneyText.whole(Money(minorUnits: missing)))", Color.folkiOver)
-            } else if money != nil && !envelope.isSavings {
-                Label("оплачено", systemImage: "checkmark.circle.fill").font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
+                // Topped up from living money and spread over the days left, so it never shows as today's spend.
+                trailing(String(localized: "с жизни · по дням"), "+\(MoneyText.whole(Money(minorUnits: missing)))", Color.folkiWarning)
+            } else if let money, spendPaysBill(envelope, amount: money) {
+                // Paid: the next date is what this spend buys.
+                let next = (try? EnvelopeSchedule.nextDue(after: envelope.nextDue, day: envelope.dueDay, notBefore: session.referenceDate,
+                                                          calendar: session.calendar)) ?? envelope.nextDue
+                trailing(String(localized: "след. \(next.formatted(.dateTime.day().month(.abbreviated)))"),
+                         String(localized: "период закрыт"), Color.folkiAccent)
             }
         }
         .accessibilityElement(children: .combine)
@@ -608,4 +638,10 @@ struct SpendConsequence: View {
         }
         .foregroundStyle(color).lineLimit(1)
     }
+}
+
+/// A spend from a bill's envelope closes it for this time when it is the whole bill, not less: the bill moves
+/// to its next date and what is left stays fixed until the period ends. A jar is never closed.
+func spendPaysBill(_ envelope: RecurringEnvelope, amount: Money) -> Bool {
+    !envelope.isSavings && !envelope.isClosed && amount.minorUnits >= envelope.size.minorUnits
 }

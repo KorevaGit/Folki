@@ -51,29 +51,35 @@ struct EnvelopesSection: View {
         }
     }
 
-    /// How ready the bills are as one figure and one bar, then the month as a line: each bill a circle on its day,
-    /// as big as its amount and coloured by how ready it is, with today marked, so it is clear what is still ahead.
+    /// The bills of this period: how much of them is set aside, and the period as a line with each bill on its day.
+    /// Bills due after the period are only in the list; they do not count here yet.
     private var summary: some View {
-        let saved = session.payments.reduce(Int64(0)) { $0 + min(session.envelopeBalance($1).minorUnits, $1.size.minorUnits) }
-        let total = session.payments.reduce(Int64(0)) { $0 + $1.size.minorUnits }
-        let missing = session.payments.filter(\.isMandatory)
+        let open = session.periodBills.filter { !$0.done }.map(\.envelope)
+        let saved = open.reduce(Int64(0)) { $0 + min(session.envelopeBalance($1).minorUnits, $1.size.minorUnits) }
+        let total = open.reduce(Int64(0)) { $0 + $1.size.minorUnits }
+        let missing = open.filter(\.isMandatory)
             .reduce(Int64(0)) { $0 + ((try? $1.shortfall(balance: session.envelopeBalance($1)).minorUnits) ?? 0) }
-        let worst = session.payments.map(session.envelopeUrgency).max() ?? .funded
+        let worst = open.map(session.envelopeUrgency).max() ?? .funded
         return VStack(alignment: .leading, spacing: FolkiSpacing.page) {
-            VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
-                HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
-                    Text(MoneyText.whole(Money(minorUnits: saved))).font(FolkiFont.moneyCard).monospacedDigit()
-                        .contentTransition(.numericText()).animation(FolkiMotion.quick, value: saved)
-                    Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(FolkiFont.caption).foregroundStyle(Color.folkiSecondary).monospacedDigit()
-                    Spacer(minLength: FolkiSpacing.xs)
-                    if missing > 0 {
-                        Text("−\(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
-                            .font(FolkiFont.moneySmall).monospacedDigit()
-                            .foregroundStyle(worst == .calm ? Color.folkiSecondary : worst.color)
-                            .accessibilityLabel("Не хватает \(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
+            if total > 0 {
+                VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+                    HStack(alignment: .firstTextBaseline, spacing: FolkiSpacing.xs) {
+                        Text(MoneyText.whole(Money(minorUnits: saved))).font(FolkiFont.moneyCard).monospacedDigit()
+                            .contentTransition(.numericText()).animation(FolkiMotion.quick, value: saved)
+                        Text("из \(MoneyText.whole(Money(minorUnits: total)))").font(FolkiFont.caption).foregroundStyle(Color.folkiSecondary).monospacedDigit()
+                        Spacer(minLength: FolkiSpacing.xs)
+                        if missing > 0 {
+                            Text("−\(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
+                                .font(FolkiFont.moneySmall).monospacedDigit()
+                                .foregroundStyle(worst == .calm ? Color.folkiSecondary : worst.color)
+                                .accessibilityLabel("Не хватает \(MoneyText.whole(Money(minorUnits: missing).roundedUpToWholeUnits))")
+                        }
                     }
+                    ProgressBar(fraction: Double(saved) / Double(total), color: worst == .funded ? .folkiAccent : worst.color, height: 6)
                 }
-                ProgressBar(fraction: total > 0 ? Double(saved) / Double(total) : 0, color: worst == .funded ? .folkiAccent : worst.color, height: 6)
+            } else {
+                Label("Платежи периода закрыты", systemImage: "checkmark.circle.fill")
+                    .font(FolkiFont.label).foregroundStyle(Color.folkiAccent)
             }
             MonthLine(session: session)
         }
@@ -91,8 +97,8 @@ struct EnvelopesSection: View {
     }
 }
 
-/// The month as a line: a circle on each payment day, its size the amount, ringed while it still needs money and
-/// filled with a check once it is ready or paid. A tag above the line marks today; the days before it are shaded.
+/// The period as a line: each bill of the period on its day, as big as its amount, ringed while it still needs
+/// money and filled with a check once it is closed. A tag above the line marks today; the days gone are shaded.
 private struct MonthLine: View {
     let session: BudgetSession
     private let largest: CGFloat = 34
@@ -101,32 +107,31 @@ private struct MonthLine: View {
     private let tag: CGFloat = 22
 
     var body: some View {
-        let calendar = session.calendar
-        let days = calendar.range(of: .day, in: .month, for: session.referenceDate)?.count ?? 31
-        let today = calendar.component(.day, from: session.referenceDate)
-        let biggest = Double(session.payments.map(\.size.minorUnits).max() ?? 1)
-        let month = session.referenceDate.formatted(.dateTime.month(.abbreviated))
+        let bills = session.periodBills
+        let start = session.household?.period.start ?? session.referenceDate
+        let end = session.household?.period.endExclusive ?? session.referenceDate.addingTimeInterval(30 * 86_400)
+        let span = max(1, end.timeIntervalSince(start) - 86_400)
+        let biggest = Double(bills.map(\.envelope.size.minorUnits).max() ?? 1)
+        let style = Date.FormatStyle.dateTime.day().month(.abbreviated)
         VStack(spacing: FolkiSpacing.xs) {
             GeometryReader { geometry in
                 let inset = largest / 2
                 let width = geometry.size.width - largest
-                let x = { (day: Int) in inset + width * CGFloat(min(max(day, 1), days) - 1) / CGFloat(max(1, days - 1)) }
+                let x = { (date: Date) in inset + width * CGFloat(min(max(date.timeIntervalSince(start) / span, 0), 1)) }
                 let lineY = tag + 6 + largest / 2
+                let today = session.calendar.startOfDay(for: session.referenceDate)
                 ZStack(alignment: .topLeading) {
                     Capsule().fill(Color.folkiSecondary.opacity(0.12)).frame(width: width, height: track)
                         .position(x: inset + width / 2, y: lineY)
-                    // The days already gone, shaded: how far into the month we are.
+                    // The days already gone, shaded: how far into the period we are.
                     Capsule().fill(Color.folkiSecondary.opacity(0.28)).frame(width: max(track, x(today) - inset), height: track)
                         .position(x: inset + max(track, x(today) - inset) / 2, y: lineY)
-                    ForEach(session.payments) { payment in
-                        let urgency = session.envelopeUrgency(payment)
-                        // Its next date is in a later month: this month's bill is behind us, paid.
-                        let paid = payment.nextDue > session.referenceDate
-                            && !calendar.isDate(payment.nextDue, equalTo: session.referenceDate, toGranularity: .month)
-                        let side = smallest + (largest - smallest) * CGFloat((Double(payment.size.minorUnits) / biggest).squareRoot())
-                        dot(day: min(payment.dueDay, days), side: side, ready: paid || urgency == .funded, color: tone(urgency))
-                            .position(x: x(payment.dueDay), y: lineY)
-                            .accessibilityLabel("\(payment.name), \(min(payment.dueDay, days))-го, \(MoneyText.whole(payment.size))")
+                    ForEach(bills, id: \.envelope.id) { bill in
+                        let side = smallest + (largest - smallest) * CGFloat((Double(bill.envelope.size.minorUnits) / biggest).squareRoot())
+                        dot(day: session.calendar.component(.day, from: bill.date), side: side, ready: bill.done,
+                            color: tone(session.envelopeUrgency(bill.envelope)))
+                            .position(x: x(bill.date), y: lineY)
+                            .accessibilityLabel("\(bill.envelope.name), \(bill.date.formatted(style)), \(MoneyText.whole(bill.envelope.size))")
                     }
                     todayTag.position(x: min(max(x(today), 34), geometry.size.width - 34), y: tag / 2)
                     Triangle().fill(Color.folkiInk).frame(width: 8, height: 5).position(x: x(today), y: tag + 2)
@@ -134,7 +139,7 @@ private struct MonthLine: View {
             }
             .frame(height: tag + 6 + largest)
             HStack {
-                Text("1 \(month)"); Spacer(); Text("\(days) \(month)")
+                Text(start.formatted(style)); Spacer(); Text(end.addingTimeInterval(-1).formatted(style))
             }
             .font(FolkiFont.footnote).monospacedDigit().foregroundStyle(Color.folkiTertiary)
         }
@@ -320,10 +325,9 @@ struct EnvelopeDetailView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var sheet: Sheet?
     @State private var paidCheck = false
-    @State private var askNewSize: Money?
     @State private var errorMessage: String?
     @State private var confirmingDelete = false
-    enum Sheet: String, Identifiable { case fund, pay, spend, edit; var id: String { rawValue } }
+    enum Sheet: String, Identifiable { case fund, spend, edit; var id: String { rawValue } }
     private var envelope: RecurringEnvelope? { session.envelopes.first { $0.id == envelopeID } }
 
     var body: some View {
@@ -355,6 +359,12 @@ struct EnvelopeDetailView: View {
                         Text(envelope.isSavings ? dueText(envelope, session: session)
                              : String(localized: "Каждый месяц, \(envelope.dueDay)-го · \(dueText(envelope, session: session))"))
                             .folkiText(.caption)
+                        if let through = envelope.closedThrough {
+                            // Closed: the money is kept as it is until the period ends.
+                            Label("Период закрыт · держу до \(through.addingTimeInterval(-1).formatted(.dateTime.day().month(.abbreviated)))",
+                                  systemImage: "lock.fill")
+                                .font(FolkiFont.label).foregroundStyle(Color.folkiAccent).padding(.top, FolkiSpacing.xxs)
+                        }
                         if !envelope.isMandatory && !envelope.isSavings { Text("Необязательный").font(FolkiFont.footnote).foregroundStyle(Color.folkiTertiary) }
                     }.multilineTextAlignment(.center)
                     actions
@@ -382,7 +392,6 @@ struct EnvelopeDetailView: View {
             if let envelope {
                 switch kind {
                 case .fund: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .fund) { _ in }
-                case .pay: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .pay) { paid in afterPayment(paid, envelope) }
                 case .spend: EnvelopeAmountSheet(session: session, envelope: envelope, mode: .spend) { _ in }
                 case .edit: EnvelopeEditorView(session: session, editing: envelope)
                 }
@@ -393,18 +402,6 @@ struct EnvelopeDetailView: View {
         } message: {
             Text("Деньги из него вернутся на жизнь, история сохранится")
         }
-        .alert("Сделать новым размером?", isPresented: Binding(get: { askNewSize != nil }, set: { if !$0 { askNewSize = nil } })) {
-            Button("Да") {
-                if let size = askNewSize, let envelope {
-                    do { try session.updateEnvelope(envelope.with(size: size)) }
-                    catch { errorMessage = String(localized: "Не получилось сохранить новый размер. Попробуй ещё раз.") }
-                }
-                askNewSize = nil
-            }
-            Button("Только сейчас", role: .cancel) { askNewSize = nil }
-        } message: {
-            Text("Платёж был \(askNewSize.map(MoneyText.whole) ?? ""). Запомню эту сумму на следующие месяцы")
-        }
     }
 
     private var actions: some View {
@@ -412,14 +409,17 @@ struct EnvelopeDetailView: View {
             ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
         return GlassEffectContainer(spacing: 12) {
             layout {
-                Button { sheet = envelope?.isSavings == true ? .spend : .pay } label: {
-                    Text(envelope?.isSavings == true ? String(localized: "Потратить") : String(localized: "Оплачено"))
+                Button(action: primaryAction) {
+                    Text(envelope?.isSavings == true ? String(localized: "Потратить")
+                         : envelope?.isClosed == true ? String(localized: "Открыть снова") : String(localized: "Закрыть период"))
                         .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
                         .foregroundStyle(.white)
                         .glassEffect(.regular.tint(Color.folkiAccent).interactive(), in: Capsule())
                 }
                 .buttonStyle(FolkiPressStyle())
                 .frame(minWidth: 104, maxWidth: .infinity)
+                // A closed envelope asks for nothing until the period ends.
+                if envelope?.isClosed != true {
                 Button { sheet = .fund } label: {
                     Text("+ Пополнить")
                         .frame(maxWidth: .infinity, minHeight: FolkiSpacing.primaryButton)
@@ -429,6 +429,7 @@ struct EnvelopeDetailView: View {
                 .buttonStyle(FolkiPressStyle())
                 .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 140)
                 .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil)
+                }
             }
             .font(FolkiFont.moneyCard)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
@@ -445,7 +446,7 @@ struct EnvelopeDetailView: View {
                     let paid = record.transaction.kind == .expense
                     let released = record.transaction.kind == .reserveRelease
                     HStack {
-                        Text(paid ? (envelope.isSavings ? "Потрачено" : "Оплачено") : released ? "Вернулось на жизнь" : "Пополнение").font(FolkiFont.body)
+                        Text(paid ? "Потрачено" : released ? "Вернулось на жизнь" : "Пополнение").font(FolkiFont.body)
                         Spacer()
                         Text("\(paid || released ? "−" : "+")\(MoneyText.whole(record.transaction.amount))")
                             .font(FolkiFont.moneyRow).monospacedDigit()
@@ -458,12 +459,25 @@ struct EnvelopeDetailView: View {
         }
     }
 
-    private func afterPayment(_ paid: Money, _ envelope: RecurringEnvelope) {
-        withAnimation(FolkiMotion.quick) { paidCheck = true }
-        Task {
-            try? await Task.sleep(for: .seconds(0.8))
-            withAnimation(FolkiMotion.standard) { paidCheck = false }
-            if paid != envelope.size { askNewSize = paid }
+    /// A jar is spent from; a bill is closed for this time, or opened again if it was closed by mistake.
+    private func primaryAction() {
+        guard let envelope else { return }
+        if envelope.isSavings { sheet = .spend; return }
+        do {
+            if envelope.isClosed {
+                try session.reopenEnvelope(envelope)
+            } else {
+                try session.closeEnvelope(envelope)
+                FolkiFeedback.saved()
+                withAnimation(FolkiMotion.quick) { paidCheck = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(0.8))
+                    withAnimation(FolkiMotion.standard) { paidCheck = false }
+                }
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = String(localized: "Не получилось закрыть период. Попробуй ещё раз.")
         }
     }
 
@@ -479,9 +493,9 @@ struct EnvelopeDetailView: View {
     }
 }
 
-/// Amount sheet for "Пополнить" (from living money) and "Оплачено" (the real bill).
+/// Amount sheet for "Пополнить" (from living money) and "Потратить" (from the envelope).
 private struct EnvelopeAmountSheet: View {
-    enum Mode { case fund, pay, spend }
+    enum Mode { case fund, spend }
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
     let envelope: RecurringEnvelope
@@ -495,8 +509,7 @@ private struct EnvelopeAmountSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: FolkiSpacing.page) {
-                Text(mode == .pay ? "Сколько ушло на «\(envelope.name)»?" : mode == .spend ? "Сколько взять из «\(envelope.name)»?"
-                     : "Сколько положить в «\(envelope.name)»?")
+                Text(mode == .spend ? "Сколько взять из «\(envelope.name)»?" : "Сколько положить в «\(envelope.name)»?")
                     .font(FolkiFont.headline).multilineTextAlignment(.center)
                 Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
                     .font(FolkiFont.money(FolkiFont.inputSize)).monospacedDigit()
@@ -506,7 +519,7 @@ private struct EnvelopeAmountSheet: View {
                 if let errorMessage { FolkiErrorMessage(message: errorMessage) }
                 Spacer(minLength: 0)
                 AmountKeypad(text: $amount)
-                Button(mode == .pay ? "Оплачено" : mode == .spend ? "Потратить" : "Положить", action: save)
+                Button(mode == .spend ? "Потратить" : "Положить", action: save)
                     .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             }
             .padding(.horizontal, FolkiSpacing.page).padding(.bottom, FolkiSpacing.xs).padding(.top, FolkiSpacing.page)
@@ -516,7 +529,6 @@ private struct EnvelopeAmountSheet: View {
             let need = (try? envelope.shortfall(balance: session.envelopeBalance(envelope))) ?? envelope.size
             let free = session.result?.monthlyRemaining.nonnegative ?? Money(minorUnits: 0)
             let start = switch mode {
-            case .pay: envelope.size
             case .spend: Money(minorUnits: 0)
             case .fund: Money(minorUnits: min(need.minorUnits, free.minorUnits))
             }
@@ -533,18 +545,9 @@ private struct EnvelopeAmountSheet: View {
             return String(localized: "Из денег на жизнь")
         case .spend:
             if money.minorUnits > balance.minorUnits {
-                return String(localized: "\(MoneyText.whole(Money(minorUnits: money.minorUnits - balance.minorUnits))) возьму из денег на жизнь")
+                return String(localized: "\(MoneyText.whole(Money(minorUnits: money.minorUnits - balance.minorUnits))) доложу с жизни — по дням, не сегодня")
             }
-            return String(localized: "В копилке останется \(MoneyText.whole(Money(minorUnits: balance.minorUnits - money.minorUnits)))")
-        case .pay:
-            if money.minorUnits > balance.minorUnits {
-                let diff = Money(minorUnits: money.minorUnits - balance.minorUnits)
-                return String(localized: "\(MoneyText.whole(diff)) возьму из денег на жизнь")
-            } else if money.minorUnits < balance.minorUnits {
-                let diff = Money(minorUnits: balance.minorUnits - money.minorUnits)
-                return String(localized: "\(MoneyText.whole(diff)) вернётся на жизнь")
-            }
-            return String(localized: "Ровно сколько отложено")
+            return String(localized: "В конверте останется \(MoneyText.whole(Money(minorUnits: balance.minorUnits - money.minorUnits)))")
         }
     }
 
@@ -553,7 +556,6 @@ private struct EnvelopeAmountSheet: View {
         do {
             switch mode {
             case .fund: try session.fundEnvelope(envelope, amount: money, operationID: operationID)
-            case .pay: try session.payEnvelope(envelope, amount: money, operationID: operationID)
             case .spend: try session.spendFromEnvelope(envelope, amount: money, operationID: operationID)
             }
             FolkiFeedback.saved()

@@ -170,11 +170,17 @@ final class BudgetSession {
     func ensureDailyPeriod() throws {
         if household?.period.contains(referenceDate) == true { return }
         var funds = Money(minorUnits: 0), freePlan = Money(minorUnits: 0), reserves: [ProtectedReserve] = []
+        // Envelopes closed for the period that ends now give back what they kept: it becomes living money again.
+        let ending = household?.period.endExclusive
+        let released = Set(envelopes.filter { envelope in ending.map { (envelope.closedThrough ?? .distantFuture) <= $0 } ?? false }.map(\.id))
         if let household {
             let previous = try DailyBudgetCalculator.calculate(household, asOf: household.period.endExclusive.addingTimeInterval(-0.001))
             funds = previous.totalFunds; freePlan = previous.monthlyRemaining.nonnegative
+            // What closed envelopes give back counts in the new period's plan as well as in its money.
+            for id in released { freePlan = (try? freePlan.adding(previous.reserveBalances[id] ?? Money(minorUnits: 0))) ?? freePlan }
             reserves = household.reserves.map {
-                ProtectedReserve(id: $0.id, name: $0.name, openingAmount: previous.reserveBalances[$0.id] ?? Money(minorUnits: 0),
+                ProtectedReserve(id: $0.id, name: $0.name,
+                                 openingAmount: released.contains($0.id) ? Money(minorUnits: 0) : previous.reserveBalances[$0.id] ?? Money(minorUnits: 0),
                                  isRegularPayment: $0.isRegularPayment, dueDate: $0.dueDate, targetAmount: $0.targetAmount)
             }
         }
@@ -183,6 +189,10 @@ final class BudgetSession {
         try createPlan(monthlyPlan: freePlan, available: funds,
                        reserves: reserves, payday: periodRule.end(after: anchor, now: referenceDate, calendar: calendar),
                        startingAt: household.map { _ in anchor })
+        if !released.isEmpty, let repository, let budget = storedBudget {
+            try repository.clearClosures(Array(released), in: budget, asOf: referenceDate)
+            refresh()
+        }
     }
     /// Changes how this and later periods end; the current period is recut from its own start.
     func setPeriodRule(_ rule: PeriodRule) throws {
@@ -331,14 +341,21 @@ final class BudgetSession {
         try repository.fundEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
         refresh()
     }
-    func payEnvelope(_ envelope: RecurringEnvelope, amount: Money, operationID: UUID = UUID()) throws {
+    func spendFromEnvelope(_ envelope: RecurringEnvelope, amount: Money, operationID: UUID = UUID(), closesCycle: Bool = false) throws {
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
-        try repository.payEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
+        try repository.spendFromEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID,
+                                         closesCycle: closesCycle)
         refresh()
     }
-    func spendFromEnvelope(_ envelope: RecurringEnvelope, amount: Money, operationID: UUID = UUID()) throws {
+    /// «Закрыть период»: the bill is done for this time; its money stays fixed until the period ends.
+    func closeEnvelope(_ envelope: RecurringEnvelope) throws {
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
-        try repository.spendFromEnvelope(envelope.id, amount: amount, in: budget, asOf: referenceDate, operationID: operationID)
+        try repository.closeEnvelope(envelope.id, in: budget, asOf: referenceDate)
+        refresh()
+    }
+    func reopenEnvelope(_ envelope: RecurringEnvelope) throws {
+        guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
+        try repository.reopenEnvelope(envelope.id, in: budget, asOf: referenceDate)
         refresh()
     }
     /// A bill not paid this time moves to its coming date.
@@ -368,7 +385,27 @@ final class BudgetSession {
         if total > free { return .short(Money(minorUnits: total - max(0, free))) }
         return previewAvailableDistribution(fills).map { .guide($0.todayGuide) }
     }
+    /// The daily figure the main screen shows under the rings: today's guide, after this period's unpaid bills.
+    var dailyOutlook: Money? {
+        switch obligationsOutlook {
+        case .guide(let guide): guide
+        case .short: Money(minorUnits: 0)
+        case nil: result?.todayGuide
+        }
+    }
     var payments: [RecurringEnvelope] { envelopes.filter { !$0.isSavings } }
+    /// The bills of the current period, each on its date in the period; done when closed, or already moved past
+    /// that date («Уже оплачено»).
+    var periodBills: [(envelope: RecurringEnvelope, date: Date, done: Bool)] {
+        guard let period = household?.period else { return [] }
+        return payments.compactMap { bill in
+            let months = [period.start, calendar.date(byAdding: .month, value: 1, to: period.start) ?? period.start]
+            guard let date = months.compactMap({ try? EnvelopeSchedule.dueDate(day: bill.dueDay, inMonthOf: $0, calendar: calendar) })
+                .first(where: { $0 >= period.start && $0 < period.endExclusive }) else { return nil }
+            return (bill, date, bill.isClosed || bill.nextDue > date)
+        }
+        .sorted { $0.date < $1.date }
+    }
     var jars: [RecurringEnvelope] { envelopes.filter(\.isSavings) }
     func archiveEnvelope(_ envelope: RecurringEnvelope) throws {
         guard let budget = storedBudget, let repository else { throw LedgerError.unavailable }
@@ -408,9 +445,14 @@ final class BudgetSession {
         let end = household?.period.endExclusive ?? referenceDate.addingTimeInterval(30 * 86_400)
         let balances = Dictionary(uniqueKeysWithValues: envelopes.map { ($0.id, envelopeBalance($0)) })
         let days = max(1, (try? household?.period.remainingDays(including: referenceDate)) ?? 1)
-        // Preserve at least today's guide, or one day of the new money for an unfunded plan.
+        // Living money is reserved first: after this income every day left gets at least what it gets now, or the
+        // plan's daily amount when there is a plan; envelopes share only what is above that. Never less than one day.
         let oneDay = incoming.minorUnits / Int64(days) + (incoming.minorUnits % Int64(days) > 0 ? 1 : 0)
-        let living = Money(minorUnits: max(0, result?.todayGuide.minorUnits ?? 0, oneDay), currency: incoming.currency)
+        let floor = max(result?.todayGuide.minorUnits ?? 0, plannedDailySpending?.minorUnits ?? 0)
+        let free = result?.monthlyRemaining.minorUnits ?? 0
+        let keep = floor.multipliedReportingOverflow(by: Int64(days))
+        let needed = keep.overflow ? incoming.minorUnits : max(0, keep.partialValue - free)
+        let living = Money(minorUnits: min(incoming.minorUnits, max(oneDay, needed)), currency: incoming.currency)
         return (try? EnvelopeDistributor.distribute(incoming: incoming, envelopes: envelopes, balances: balances,
                                                     periodEnd: end, minimumLiving: living))
             ?? EnvelopeDistribution(incoming: incoming, fills: [:])
@@ -543,6 +585,15 @@ final class BudgetSession {
     }
     func setDeleted(_ deleted: Bool, record: LedgerRecord) throws {
         overviewCache = [:]
+        // A spend from an envelope is one operation: its top-up from living money and the bill it closed go with it.
+        guard record.transaction.kind == .expense, case .reserve = record.transaction.funding,
+              let repository, let budget = try? self.budget(editing: record) else {
+            try setDeletedAlone(deleted, record: record); return
+        }
+        try repository.setEnvelopeSpendDeleted(record, deleted: deleted, in: budget, asOf: calculationDate(in: budget))
+        refresh()
+    }
+    private func setDeletedAlone(_ deleted: Bool, record: LedgerRecord) throws {
         let entry = record.transaction
         let draft = try draft(amount: entry.amount, title: record.title, payerID: entry.payerID, date: entry.date,
             kind: entry.kind, categoryID: record.categoryID, funding: entry.funding, editing: record, deleted: deleted)

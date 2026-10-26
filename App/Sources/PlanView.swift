@@ -377,7 +377,8 @@ private struct PlanBalanceCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: FolkiSpacing.card) {
-            if let guide = session.plannedDailySpending {
+            // The same daily figure as under the rings, from the money there is, not from the plan's income.
+            if let guide = session.dailyOutlook {
                 VStack(alignment: .leading, spacing: FolkiSpacing.xxs) {
                     Text("≈ \(MoneyText.whole(revealed ? guide.roundedDownToWholeUnits : Money(minorUnits: 0)))")
                         .font(FolkiFont.money(FolkiFont.inputSize))
@@ -385,7 +386,8 @@ private struct PlanBalanceCard: View {
                         .contentTransition(.numericText())
                         .animation(reduceMotion ? nil : FolkiMotion.hero, value: revealed)
                         .animation(reduceMotion ? nil : FolkiMotion.quick, value: guide)
-                    Text("в день на жизнь").folkiText(.caption)
+                    Text(session.household.map { String(localized: "в день до \($0.period.endExclusive.addingTimeInterval(-1).formatted(.dateTime.day().month(.abbreviated)))") }
+                         ?? String(localized: "в день на жизнь")).folkiText(.caption)
                 }
             }
             Button(action: distribute) {

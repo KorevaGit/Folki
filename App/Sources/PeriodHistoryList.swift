@@ -70,16 +70,17 @@ struct PeriodHistoryList: View {
             ForEach(days, id: \.0) { day, items in
                 let today = personal.calendar.isDate(day, inSameDayAs: personal.referenceDate)
                 let detailed = today || expanded.contains(day)
-                VStack(alignment: .leading, spacing: FolkiSpacing.item) {
+                // One rhythm for every day: header, 16, its spends; 32 to the next day, folded or not.
+                VStack(alignment: .leading, spacing: FolkiSpacing.card) {
                     header(day, items, collapsible: !today, detailed: detailed)
                     if detailed {
                         VStack(spacing: 0) {
                             ForEach(items) { entry in
-                                row(entry)
+                                row(entry).padding(.vertical, FolkiSpacing.xxs)
                                 if entry.id != items.last?.id { Divider().padding(.leading, 52) }
                             }
                         }
-                        .padding(.horizontal, FolkiSpacing.card)
+                        .padding(.horizontal, FolkiSpacing.card).padding(.vertical, FolkiSpacing.xxs)
                         .folkiTileBackground()
                         .transition(.opacity)
                     } else {
@@ -107,7 +108,7 @@ struct PeriodHistoryList: View {
             FolkiFeedback.selection()
             withAnimation(FolkiMotion.standard) { if detailed { expanded.remove(day) } else { expanded.insert(day) } }
         } label: {
-            VStack(alignment: .leading, spacing: FolkiSpacing.xs) {
+            VStack(alignment: .leading, spacing: FolkiSpacing.item) {
                 HStack(spacing: FolkiSpacing.item) {
                     if let guide { dayRing(spent: spent, guide: guide) }
                     VStack(alignment: .leading, spacing: 2) {
