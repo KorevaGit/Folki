@@ -31,7 +31,15 @@ struct OnboardingView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
         }
         .background { FolkiBackground() }
-        .onAppear { step = Step(rawValue: savedStep) ?? .hello }
+        .onAppear {
+            step = Step(rawValue: savedStep) ?? .hello
+            // After a relaunch the way back is rebuilt; past the money step there is none.
+            history = switch step {
+            case .hello, .features: []
+            case .start: [.hello]
+            case .budget, .invited, .restore: [.hello, .start]
+            }
+        }
     }
 
     @ViewBuilder private var page: some View {
