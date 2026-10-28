@@ -43,8 +43,11 @@ struct SharingView: View {
                 } else if let repository = session.repository, let identifier = repository.cloudIdentifier {
                     if (try? repository.ownsFamily()) == true, let householdID = session.household?.id {
                         Section {
+                            let report = $errorMessage
                             ShareLink(item: FamilyInvitation(share: existingShare, container: CKContainer(identifier: identifier)) {
-                                try await repository.share(householdID: householdID)
+                                // The share sheet closes silently when this fails, so say why under the button.
+                                do { return try await repository.share(householdID: householdID) }
+                                catch { await MainActor.run { report.wrappedValue = SharingView.inviteFailure(error) }; throw error }
                             }, preview: SharePreview("Семейный бюджет Folki", image: Image("LaunchHouse"))) {
                                 Label("Отправить приглашение", systemImage: "person.badge.plus")
                             }.disabled(session.members.filter(\.isActive).count >= 5)
@@ -101,6 +104,17 @@ struct SharingView: View {
                 Button("Отмена", role: .cancel) { editingMember = nil }
             }
         }
+    }
+}
+
+extension SharingView {
+    /// The error code stays in the text: it is the only clue from a TestFlight build.
+    nonisolated static func inviteFailure(_ error: Error) -> String {
+        if (error as? LedgerError) == .cloudNotConfigured {
+            return String(localized: "iCloud ещё не ответил. Нажми «Проверить iCloud» и отправь приглашение снова.")
+        }
+        let code = (error as NSError).code
+        return String(localized: "Ссылка не создана: iCloud вернул ошибку \(code). Проверь сеть и вход в iCloud.")
     }
 }
 

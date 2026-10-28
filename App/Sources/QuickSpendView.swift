@@ -164,13 +164,10 @@ struct QuickSpendView: View {
 
     var body: some View {
         NavigationStack {
+            Group { if session.result == nil { notSetUp } else {
             FolkiEntryLayout { availableHeight in
                 SpendContentLayout(availableHeight: availableHeight) {
-                    if family.household != nil && editing == nil { FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
-                        options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, dots: [Color.folkiPersonal, Color.folkiFamily])
-                        .padding(.horizontal, FolkiSpacing.page)
-                    .onChange(of: activeScopeRaw) { categoryID = nil; envelopeID = nil; preselectCategory(); recordID = UUID() }
-                    }
+                    if family.household != nil && editing == nil { scopePicker }
                     if let before = session.result {
                         Text("\(amount.isEmpty ? "0" : MoneyText.grouped(amount)) ₽")
                             .font(FolkiFont.money(amountSize)).monospacedDigit()
@@ -193,24 +190,14 @@ struct QuickSpendView: View {
                         if let errorMessage {
                             FolkiErrorMessage(message: errorMessage).padding(.horizontal, FolkiSpacing.page)
                         }
-                    } else {
-                        ContentUnavailableView {
-                            Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
-                        } description: {
-                            Text("Задай сумму на период — я посчитаю твой день")
-                        } actions: {
-                            Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
-                        }
                     }
                 }
             } keypad: {
-                if session.result != nil {
-                    AmountKeypad(text: keypadText).padding(.horizontal, FolkiSpacing.page)
-                }
+                AmountKeypad(text: keypadText).padding(.horizontal, FolkiSpacing.page)
             }
             // Outside the scrolling area: with large text the keypad scrolls, the save button stays in reach.
             .safeAreaInset(edge: .bottom, spacing: 12) {
-                if session.result != nil { VStack(spacing: 0) {
+                VStack(spacing: 0) {
                     Button(action: save) {
                         Text(isIncome ? String(localized: "Внести деньги") : editing != nil ? String(localized: "Сохранить")
                              : envelope.map { e in money.map { spendPaysBill(e, amount: $0) } ?? false } == true
@@ -225,8 +212,9 @@ struct QuickSpendView: View {
                             .font(FolkiFont.label).foregroundStyle(Color.folkiOver)
                             .frame(minHeight: 44).padding(.bottom, FolkiSpacing.xs)
                     }
-                } }
+                }
             }
+            } }
             .background { FolkiBackground() }
             .navigationTitle(editing.map { String(localized: "Трата · \($0.transaction.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))") }
                              ?? (isIncome ? String(localized: "Поступление") : String(localized: "Трата")))
@@ -253,6 +241,30 @@ struct QuickSpendView: View {
             .onChange(of: amount) { largeConfirmed = false }
         }
         .tint(Color.folkiAccent)
+    }
+
+    /// No budget yet: the budget switch on top and the setup prompt in the middle of the sheet.
+    private var notSetUp: some View {
+        VStack(spacing: FolkiSpacing.item) {
+            if family.household != nil && editing == nil { scopePicker }
+            ContentUnavailableView {
+                Label("\(scope.title) бюджет не настроен", systemImage: "wallet.bifold")
+            } description: {
+                Text("Задай сумму на период — я посчитаю твой день")
+            } actions: {
+                Button("Настроить") { settingUp = true }.buttonStyle(FolkiPrimaryButtonStyle())
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .padding(.top, FolkiSpacing.card)
+        .frame(maxWidth: FolkiSpacing.maxWidth).frame(maxWidth: .infinity)
+    }
+
+    private var scopePicker: some View {
+        FolkiSegmentedPicker(title: String(localized: "Бюджет"), selection: scopeSelection,
+            options: BudgetScope.allCases.map { ($0.title, $0.rawValue) }, dots: [Color.folkiPersonal, Color.folkiFamily])
+            .padding(.horizontal, FolkiSpacing.page)
+            .onChange(of: activeScopeRaw) { categoryID = nil; envelopeID = nil; preselectCategory(); recordID = UUID() }
     }
 
     /// What the money is for, as round icons: the frequent categories, then the envelopes of their own (jars, bills
@@ -371,9 +383,9 @@ struct AmountKeypad: View {
                     }
                     .font(FolkiFont.keypad)
                     .frame(maxWidth: .infinity, minHeight: keyHeight)
-                    // Liquid glass, each key on its own: the keypad is never placed inside a GlassEffectContainer,
-                    // so neighbouring keys do not melt into one another.
-                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: FolkiSpacing.card, style: .continuous))
+                    // A solid key, as in the spec: glass keys melt into each other inside the wizard's glass
+                    // container and leave stray backgrounds when pressed.
+                    .background(Color.folkiKey, in: RoundedRectangle(cornerRadius: FolkiSpacing.card, style: .continuous))
                     .contentShape(RoundedRectangle(cornerRadius: FolkiSpacing.card, style: .continuous))
                 }
                 .buttonStyle(FolkiPressStyle(scale: 0.92))

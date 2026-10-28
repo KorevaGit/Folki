@@ -62,6 +62,8 @@ extension Color {
     static let folkiFamily = RingPalette.family.start
     /// Content tiles and quiet fills: a soft tint of the text colour.
     static let folkiTile = Color.folkiSoft
+    /// A key of the Folki keypad: a solid fill, not glass.
+    static let folkiKey = Color(uiColor: .secondarySystemFill)
     /// Text under a title, times, hints.
     static let folkiSecondary = Color.secondary
     /// Chevrons, disabled hints: the quietest text.

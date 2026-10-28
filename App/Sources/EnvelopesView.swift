@@ -97,47 +97,56 @@ struct EnvelopesSection: View {
     }
 }
 
-/// The period as a line: each bill of the period on its day, as big as its amount, ringed while it still needs
-/// money and filled with a check once it is closed. A tag above the line marks today; the days gone are shaded.
+/// The period as a ruler: one tick per day, a tall mark on today, each bill on its own day.
+/// A bill still collecting money is a ring as big as its amount; a paid one shrinks to a small check,
+/// so it never covers the days around it. The days gone are darker.
 private struct MonthLine: View {
     let session: BudgetSession
-    private let largest: CGFloat = 34
-    private let smallest: CGFloat = 18
-    private let track: CGFloat = 8
+    private let largest: CGFloat = 26
+    private let smallest: CGFloat = 16
+    private let paid: CGFloat = 16
     private let tag: CGFloat = 22
+    private let tick: CGFloat = 6
 
     var body: some View {
         let bills = session.periodBills
-        let start = session.household?.period.start ?? session.referenceDate
+        let calendar = session.calendar
+        let start = calendar.startOfDay(for: session.household?.period.start ?? session.referenceDate)
         let end = session.household?.period.endExclusive ?? session.referenceDate.addingTimeInterval(30 * 86_400)
-        let span = max(1, end.timeIntervalSince(start) - 86_400)
+        let days = max(1, calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: end)).day ?? 30)
+        let index = { (date: Date) in min(max(calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: date)).day ?? 0, 0), days - 1) }
+        let today = index(session.referenceDate)
         let biggest = Double(bills.map(\.envelope.size.minorUnits).max() ?? 1)
         let style = Date.FormatStyle.dateTime.day().month(.abbreviated)
+        let baseline = tag + 8 + largest
         VStack(spacing: FolkiSpacing.xs) {
             GeometryReader { geometry in
-                let inset = largest / 2
-                let width = geometry.size.width - largest
-                let x = { (date: Date) in inset + width * CGFloat(min(max(date.timeIntervalSince(start) / span, 0), 1)) }
-                let lineY = tag + 6 + largest / 2
-                let today = session.calendar.startOfDay(for: session.referenceDate)
+                let cell = geometry.size.width / CGFloat(days)
+                let x = { (day: Int) in cell * (CGFloat(day) + 0.5) }
                 ZStack(alignment: .topLeading) {
-                    Capsule().fill(Color.folkiSecondary.opacity(0.12)).frame(width: width, height: track)
-                        .position(x: inset + width / 2, y: lineY)
-                    // The days already gone, shaded: how far into the period we are.
-                    Capsule().fill(Color.folkiSecondary.opacity(0.28)).frame(width: max(track, x(today) - inset), height: track)
-                        .position(x: inset + max(track, x(today) - inset) / 2, y: lineY)
-                    ForEach(bills, id: \.envelope.id) { bill in
+                    ForEach(0..<days, id: \.self) { day in
+                        // A longer tick every week from the start of the period.
+                        let height = day % 7 == 0 ? tick + 4 : tick
+                        Capsule().fill(day < today ? Color.folkiSecondary : Color.folkiSecondary.opacity(0.3))
+                            .frame(width: 2, height: height)
+                            .position(x: x(day), y: baseline + 4 + height / 2)
+                    }
+                    Capsule().fill(Color.folkiInk).frame(width: 3, height: baseline + 4 + tick + 4 - tag - 2)
+                        .position(x: x(today), y: (tag + 2 + baseline + 4 + tick + 4) / 2)
+                    ForEach(bills.filter(\.done), id: \.envelope.id) { bill in
+                        check.position(x: x(index(bill.date)), y: baseline - paid / 2)
+                            .accessibilityLabel("\(bill.envelope.name), \(bill.date.formatted(style)), оплачено")
+                    }
+                    ForEach(bills.filter { !$0.done }, id: \.envelope.id) { bill in
                         let side = smallest + (largest - smallest) * CGFloat((Double(bill.envelope.size.minorUnits) / biggest).squareRoot())
-                        dot(day: session.calendar.component(.day, from: bill.date), side: side, ready: bill.done,
-                            color: tone(session.envelopeUrgency(bill.envelope)))
-                            .position(x: x(bill.date), y: lineY)
+                        ring(day: calendar.component(.day, from: bill.date), side: side, color: tone(session.envelopeUrgency(bill.envelope)))
+                            .position(x: x(index(bill.date)), y: baseline - side / 2)
                             .accessibilityLabel("\(bill.envelope.name), \(bill.date.formatted(style)), \(MoneyText.whole(bill.envelope.size))")
                     }
                     todayTag.position(x: min(max(x(today), 34), geometry.size.width - 34), y: tag / 2)
-                    Triangle().fill(Color.folkiInk).frame(width: 8, height: 5).position(x: x(today), y: tag + 2)
                 }
             }
-            .frame(height: tag + 6 + largest)
+            .frame(height: baseline + 4 + tick + 4)
             HStack {
                 Text(start.formatted(style)); Spacer(); Text(end.addingTimeInterval(-1).formatted(style))
             }
@@ -146,19 +155,21 @@ private struct MonthLine: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func dot(day: Int, side: CGFloat, ready: Bool, color: Color) -> some View {
+    private var check: some View {
+        Image(systemName: "checkmark").font(FolkiFont.dot).foregroundStyle(.white)
+            .frame(width: paid, height: paid).background(Color.folkiAccent, in: Circle())
+            .background(Circle().fill(Color(uiColor: .systemBackground)).padding(-1.5))
+    }
+
+    private func ring(day: Int, side: CGFloat, color: Color) -> some View {
         ZStack {
-            Circle().fill(ready ? Color.folkiAccent : Color(uiColor: .systemBackground))
-            if !ready { Circle().strokeBorder(color, lineWidth: 2.5) }
-            if ready {
-                Image(systemName: "checkmark").font(FolkiFont.tag).foregroundStyle(.white)
-            } else if side >= 24 {
-                Text("\(day)").font(FolkiFont.dot).monospacedDigit().foregroundStyle(color)
-            }
+            Circle().fill(Color(uiColor: .systemBackground))
+            Circle().strokeBorder(color, lineWidth: 2)
+            if side >= 20 { Text("\(day)").font(FolkiFont.dot).monospacedDigit().foregroundStyle(color) }
         }
         .frame(width: side, height: side)
-        // A ring of the ground around each circle keeps it apart from the line under it.
-        .background(Circle().fill(Color(uiColor: .systemBackground)).padding(-2))
+        // A ring of the ground around each circle keeps neighbours and the today mark apart.
+        .background(Circle().fill(Color(uiColor: .systemBackground)).padding(-1.5))
     }
 
     private var todayTag: some View {
@@ -170,18 +181,6 @@ private struct MonthLine: View {
 
     private func tone(_ urgency: EnvelopeUrgency) -> Color {
         urgency == .calm || urgency == .funded ? Color.folkiSecondary : urgency.color
-    }
-}
-
-/// The small pointer under the "сегодня" tag.
-private struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { path in
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-            path.closeSubpath()
-        }
     }
 }
 

@@ -116,6 +116,7 @@
       }
     },
     "%@ · −%@ · %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -169,6 +170,7 @@
       }
     },
     "%@ вернётся на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -179,6 +181,7 @@
       }
     },
     "%@ возьму из денег на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -199,6 +202,7 @@
       }
     },
     "%@ из %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -259,6 +263,22 @@
         }
       }
     },
+    "%@ → %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ → %@"
+          }
+        }
+      }
+    },
     "%@%@" : {
       "localizations" : {
         "en" : {
@@ -290,7 +310,34 @@
         }
       }
     },
+    "%@, %@, %@" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@, %@"
+          }
+        }
+      }
+    },
+    "%@, %@, оплачено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, paid"
+          }
+        }
+      }
+    },
     "%@, %lld-го, %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -332,7 +379,6 @@
       }
     },
     "%@: не хватает %@ к %@" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -547,6 +593,7 @@
       }
     },
     "+ %@ из денег на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -597,6 +644,7 @@
       }
     },
     "+%@ с дохода" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -612,6 +660,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "+%@ over"
+          }
+        }
+      }
+    },
+    "+%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld"
           }
         }
       }
@@ -680,6 +738,7 @@
       }
     },
     "1 %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -710,6 +769,7 @@
       }
     },
     "Email Apple ID" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -717,8 +777,7 @@
             "value" : "Apple ID email"
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Folki %@" : {
       "localizations" : {
@@ -779,6 +838,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud is off — data can't be restored"
+          }
+        }
+      }
+    },
+    "iCloud ещё не ответил. Нажми «Проверить iCloud» и отправь приглашение снова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud hasn’t answered yet. Tap “Check iCloud” and send the invitation again."
           }
         }
       }
@@ -1062,6 +1131,7 @@
       }
     },
     "Больше всего: %@ %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1141,6 +1211,7 @@
       }
     },
     "Бюджет до внесения" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1151,6 +1222,7 @@
       }
     },
     "Бюджет на день · до → после" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1256,6 +1328,7 @@
       }
     },
     "В конверте %@ · ориентир %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1292,6 +1365,7 @@
       }
     },
     "В конверты" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1302,6 +1376,7 @@
       }
     },
     "В копилке останется %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1490,6 +1565,7 @@
       }
     },
     "Ведёшь бюджет с кем-то? Позови — общее будет видно обоим" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1571,6 +1647,7 @@
       }
     },
     "Версия" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1805,6 +1882,7 @@
       }
     },
     "Возвраты: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2148,6 +2226,7 @@
       }
     },
     "Готовим…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2155,8 +2234,7 @@
             "value" : "Preparing…"
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Готово" : {
       "localizations" : {
@@ -2201,6 +2279,7 @@
       }
     },
     "Да" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2221,6 +2300,7 @@
       }
     },
     "Дальше в день: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2345,6 +2425,7 @@
       }
     },
     "Деньги в бюджете сейчас" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2460,6 +2541,7 @@
       }
     },
     "Дней осталось" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2832,6 +2914,7 @@
       }
     },
     "Если Folki ставился по ссылке, открой ссылку из сообщения ещё раз — теперь приложение её примет." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2839,8 +2922,7 @@
             "value" : "If you installed Folki from the link, open the link from the message again — the app will accept it now."
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Если в конверте не хватит, разницу возьму из денег на жизнь." : {
       "localizations" : {
@@ -3254,6 +3336,7 @@
       }
     },
     "Зарплата" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3264,6 +3347,7 @@
       }
     },
     "Зарплата делится на аренду, связь, подписки и деньги на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3563,6 +3647,7 @@
       }
     },
     "Изменить источник" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3995,6 +4080,7 @@
       }
     },
     "Категории и конверты" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4190,6 +4276,7 @@
       }
     },
     "Конвертов для пополнения нет — поступление останется на жизнь" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4413,6 +4500,7 @@
       }
     },
     "Куда пойдут деньги" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4604,6 +4692,7 @@
       }
     },
     "Личный бюджет видишь только ты." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4770,6 +4859,7 @@
       }
     },
     "Можно взять из конверта" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5291,6 +5381,7 @@
       }
     },
     "Настройки уведомлений" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5456,6 +5547,7 @@
       }
     },
     "Не получилось загрузить" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5750,6 +5842,7 @@
       }
     },
     "Не получилось сохранить новый размер. Попробуй ещё раз." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5916,6 +6009,7 @@
       }
     },
     "Не получилось. Проверь Apple ID и попробуй ещё раз." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5923,8 +6017,7 @@
             "value" : "That didn't work. Check the Apple ID and try again."
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Не распределено: %@" : {
       "extractionState" : "stale",
@@ -6018,6 +6111,7 @@
       }
     },
     "Нет плана на этот день" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6428,6 +6522,7 @@
       }
     },
     "Оплачено" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6764,6 +6859,7 @@
       }
     },
     "Отложено" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6878,6 +6974,7 @@
       }
     },
     "Отправь ссылку: человек откроет её и сразу окажется в вашем бюджете" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6885,8 +6982,7 @@
             "value" : "Send the link: the person opens it and joins your budget right away"
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Отпуск" : {
       "localizations" : {
@@ -6991,6 +7087,7 @@
       }
     },
     "Перевод из личного бюджета в семейный" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7371,6 +7468,7 @@
       }
     },
     "Платёж был %@. Запомню эту сумму на следующие месяцы" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7569,6 +7667,7 @@
       }
     },
     "Позвать в семью" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7662,6 +7761,7 @@
       }
     },
     "Покажу, куда разойдутся деньги" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8118,6 +8218,7 @@
       }
     },
     "Пригласить по Apple ID" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8125,8 +8226,7 @@
             "value" : "Invite by Apple ID"
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Приглашение не принято. Для вступления нужно пустое пространство и доступный iCloud. Локальный бюджет не заменён." : {
       "extractionState" : "stale",
@@ -8151,6 +8251,7 @@
       }
     },
     "Приложение" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8203,6 +8304,7 @@
       }
     },
     "Пришла зарплата? Введи сумму и дату следующей. История сохранится." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8264,6 +8366,7 @@
       }
     },
     "Проверить распределение" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8566,6 +8669,7 @@
       }
     },
     "Ровно сколько отложено" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8759,6 +8863,7 @@
       }
     },
     "Свободно" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8904,6 +9009,7 @@
       }
     },
     "Сделать новым размером?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8945,6 +9051,7 @@
       }
     },
     "Сегодня %@, после %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9122,6 +9229,7 @@
       }
     },
     "Семейный бюджет видят все участники." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9448,6 +9556,7 @@
       }
     },
     "Сколько ушло на «%@»?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9647,6 +9756,7 @@
       }
     },
     "Создать приглашение" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9654,8 +9764,7 @@
             "value" : "Create invite"
           }
         }
-      },
-      "extractionState" : "stale"
+      }
     },
     "Создать свой конверт" : {
       "extractionState" : "stale",
@@ -9783,6 +9892,16 @@
         }
       }
     },
+    "Ссылка не создана: iCloud вернул ошибку %lld. Проверь сеть и вход в iCloud." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The link wasn’t created: iCloud returned error %lld. Check the network and your iCloud sign-in."
+          }
+        }
+      }
+    },
     "Ссылка уже открыта, а ничего не происходит" : {
       "localizations" : {
         "en" : {
@@ -9856,7 +9975,6 @@
       }
     },
     "Сумма" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10108,6 +10226,7 @@
       }
     },
     "Только сейчас" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10188,6 +10307,7 @@
       }
     },
     "Трат: %lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10384,6 +10504,7 @@
       }
     },
     "Ты" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10528,6 +10649,7 @@
       }
     },
     "Уведомления выключены" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10713,6 +10835,7 @@
       }
     },
     "Участники и доступ" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11458,6 +11581,7 @@
       }
     },
     "можно %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11478,6 +11602,7 @@
       }
     },
     "не хватает %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11508,6 +11633,7 @@
       }
     },
     "оплачено" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11538,6 +11664,7 @@
       }
     },
     "останется %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11600,6 +11727,7 @@
       }
     },
     "просрочен" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11620,6 +11748,7 @@
       }
     },
     "с жизни" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11650,6 +11779,7 @@
       }
     },
     "сверх %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
