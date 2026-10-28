@@ -869,19 +869,18 @@ public final class BudgetRepository {
         try writable()
         guard cloudIdentifier != nil, cloudIdentity != nil else { throw LedgerError.cloudNotConfigured }
         let household = try sharingRoot(householdID: householdID)
-        if let local = try container.fetchShares(matching: [household.objectID])[household.objectID] {
-            // The local copy may never have reached iCloud, so the link is taken from the server's one.
-            guard let share = try await CKContainer(identifier: cloudIdentifier!).privateCloudDatabase
-                .record(for: local.recordID) as? CKShare else { throw LedgerError.unavailable }
+        if let share = try container.fetchShares(matching: [household.objectID])[household.objectID] {
+            // The local copy may never have reached iCloud, so the server is asked whether its link opens.
+            guard let url = share.url else { throw LedgerError.unavailable }
+            _ = try await CKContainer(identifier: cloudIdentifier!).shareMetadata(for: url)
             if share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner {
                 share.publicPermission = .readWrite
                 try await persist(share: share, store: household.objectID.persistentStore!)
             }
-            guard share.url != nil else { throw LedgerError.unavailable }
             return share
         }
         let share: CKShare = try await withCheckedThrowingContinuation { continuation in
-            container.share([household], to: nil) { _, share, _, error in
+            container.share([household], to: nil) { @Sendable _, share, _, error in
                 if let error { continuation.resume(throwing: error) }
                 else if let share { continuation.resume(returning: share) }
                 else { continuation.resume(throwing: LedgerError.unavailable) }
@@ -944,7 +943,7 @@ public final class BudgetRepository {
     public func persist(share: CKShare, store: NSPersistentStore) async throws {
         guard share.participants.count <= 5 else { throw LedgerError.familyFull }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            container.persistUpdatedShare(share, in: store) { _, error in
+            container.persistUpdatedShare(share, in: store) { @Sendable _, error in
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
@@ -968,7 +967,7 @@ public final class BudgetRepository {
             try removeOwnFamily()
         }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            container.acceptShareInvitations(from: [metadata], into: sharedStore) { _, error in
+            container.acceptShareInvitations(from: [metadata], into: sharedStore) { @Sendable _, error in
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
