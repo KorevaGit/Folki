@@ -1780,6 +1780,26 @@
         }
       }
     },
+    "Видно всей семье" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visible to the whole family"
+          }
+        }
+      }
+    },
+    "Видно только тебе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only you can see it"
+          }
+        }
+      }
+    },
     "Видят все" : {
       "localizations" : {
         "en" : {
@@ -2903,16 +2923,6 @@
         }
       }
     },
-    "Его видишь только ты" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only you can see it"
-          }
-        }
-      }
-    },
     "Еда" : {
       "localizations" : {
         "en" : {
@@ -3320,6 +3330,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Log your first expense — I'll show how your day changes"
+          }
+        }
+      }
+    },
+    "Запиши трату, и остаток дня сразу поменяется" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log a purchase and the day's remainder changes right away"
           }
         }
       }
@@ -7729,16 +7749,6 @@
         }
       }
     },
-    "Пока начать с личного бюджета" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start with a personal budget for now"
-          }
-        }
-      }
-    },
     "Пока не коплю" : {
       "localizations" : {
         "en" : {
@@ -9502,6 +9512,16 @@
         }
       }
     },
+    "Сколько на общие траты?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much for shared spending?"
+          }
+        }
+      }
+    },
     "Сколько откладывать с поступления?" : {
       "localizations" : {
         "en" : {
@@ -10107,16 +10127,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your home hub."
-          }
-        }
-      }
-    },
-    "Твой личный бюджет" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your personal budget"
           }
         }
       }

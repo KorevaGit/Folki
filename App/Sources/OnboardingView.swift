@@ -1,20 +1,20 @@
 import SwiftUI
 import FolkiDuoCore
 
-/// First launch: hello → how to start → money to live on → what Folki does → the main screen.
-/// Invited people wait for their link; people with a Folki elsewhere restore from iCloud.
+/// First launch: hello → personal money → the family (create, join or later) → what Folki does → the main screen.
+/// People with a Folki elsewhere restore from iCloud on the money step.
 struct OnboardingView: View {
     let personal: BudgetSession
     let family: BudgetSession
     /// Called when the main screen should appear.
     let finish: () -> Void
 
-    enum Step: String { case hello, start, budget, features, invited, restore }
+    enum Step: String { case hello, budget, family, familyBudget, features, invited, restore }
     @AppStorage("FolkiOnboardingStep") private var savedStep = Step.hello.rawValue
     @State private var step: Step = .hello
     @State private var history: [Step] = []
     @State private var forward = true
-    @State private var invited = false
+    @State private var inFamily = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var transition: AnyTransition {
@@ -35,28 +35,30 @@ struct OnboardingView: View {
             step = Step(rawValue: savedStep) ?? .hello
             // After a relaunch the way back is rebuilt; past the money step there is none.
             history = switch step {
-            case .hello, .features: []
-            case .start: [.hello]
-            case .budget, .invited, .restore: [.hello, .start]
+            case .hello, .family, .features: []
+            case .budget: [.hello]
+            case .restore: [.hello, .budget]
+            case .familyBudget, .invited: [.family]
             }
         }
     }
 
     @ViewBuilder private var page: some View {
         switch step {
-        case .hello: HelloPage { go(.start) }
-        case .start: StartPage(family: family) { choice in
+        case .hello: HelloPage { go(.budget) }
+        // Money is saved on this step, so there is no way back to it.
+        case .budget: BudgetStartPage(session: personal, kind: .personal) { go(.family, keepingHistory: false) }
+        case .family: FamilyPage(family: family) { choice in
             switch choice {
-            case .fresh: invited = false; go(.budget)
+            case .create: go(.familyBudget)
             case .invited: go(.invited)
-            case .restore: go(.restore)
+            case .later: go(.features, keepingHistory: false)
             }
         }
-        // Money is saved on this step, so there is no way back to it.
-        case .budget: BudgetStartPage(personal: personal, invited: invited) { go(.features, keepingHistory: false) }
-        case .features: FeaturesPage(invited: invited, done: finish)
-        case .invited: InvitedPage(family: family) { joined in invited = joined; go(.budget) }
-        case .restore: RestorePage(personal: personal, done: finish) { go(.budget) }
+        case .familyBudget: BudgetStartPage(session: family, kind: .family) { inFamily = true; go(.features, keepingHistory: false) }
+        case .features: FeaturesPage(inFamily: inFamily || family.household != nil, done: finish)
+        case .invited: InvitedPage(family: family) { joined in inFamily = joined; go(.features, keepingHistory: false) }
+        case .restore: RestorePage(personal: personal, done: finish) { back() }
         }
     }
 
@@ -70,6 +72,10 @@ struct OnboardingView: View {
                 .transition(.opacity)
             }
             Spacer()
+            // A Folki from another iPhone comes back from iCloud instead of a new budget; the corner keeps the keypad in view.
+            if step == .budget {
+                Button("Восстановить из iCloud") { go(.restore) }.folkiText(.caption).frame(minHeight: 44)
+            }
         }.animation(FolkiMotion.resolved(FolkiMotion.quick, reduceMotion: reduceMotion), value: history.isEmpty)
     }
 
@@ -148,11 +154,12 @@ private struct HelloPage: View {
     }
 }
 
-private enum StartChoice { case fresh, invited, restore }
+private enum FamilyChoice { case create, invited, later }
 
-private struct StartPage: View {
+/// The family budget is offered once money to live on is set; without this page people may never find it.
+private struct FamilyPage: View {
     let family: BudgetSession
-    let choose: (StartChoice) -> Void
+    let choose: (FamilyChoice) -> Void
     var body: some View {
         OnboardingPage(centered: true) {
             VStack(spacing: FolkiSpacing.large) {
@@ -163,7 +170,7 @@ private struct StartPage: View {
                 }.multilineTextAlignment(.center).rise(3)
             }.padding(.bottom, FolkiSpacing.large)
         } actions: {
-            Button("Начать с нуля") { FolkiFeedback.selection(); choose(.fresh) }
+            Button("Создать семью") { FolkiFeedback.selection(); choose(.create) }
                 .buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true)).rise(4)
             Button { FolkiFeedback.selection(); choose(.invited) } label: {
                 Label { Text("Меня пригласили") } icon: {
@@ -173,16 +180,18 @@ private struct StartPage: View {
                     }
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(FolkiSoftButtonStyle()).rise(5)
-            Button("Восстановить из iCloud") { choose(.restore) }
+            Button("Позже") { choose(.later) }
                 .folkiText(.caption).frame(minHeight: 44).rise(6)
         }
     }
 }
 
 /// "Сколько денег на жизнь?": a period, an amount and the live daily figure. Mandatory: no skip.
+/// The same page sets the family's money when a family is created.
 private struct BudgetStartPage: View {
-    let personal: BudgetSession
-    let invited: Bool
+    enum Kind { case personal, family }
+    let session: BudgetSession
+    let kind: Kind
     let next: () -> Void
 
     enum Length: String, CaseIterable { case payday, month, week }
@@ -193,8 +202,8 @@ private struct BudgetStartPage: View {
     @State private var errorMessage: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var calendar: Calendar { personal.calendar }
-    private var today: Date { calendar.startOfDay(for: personal.referenceDate) }
+    private var calendar: Calendar { session.calendar }
+    private var today: Date { calendar.startOfDay(for: session.referenceDate) }
     /// How later periods repeat: the same date next month, every seven days, or until the next payday.
     private var rule: PeriodRule {
         switch length {
@@ -206,7 +215,7 @@ private struct BudgetStartPage: View {
     /// The start of the first day after the period.
     private var end: Date {
         if length == .payday { return calendar.startOfDay(for: payday) }
-        return (try? rule.end(after: today, now: personal.referenceDate, calendar: calendar))
+        return (try? rule.end(after: today, now: session.referenceDate, calendar: calendar))
             ?? calendar.date(byAdding: .day, value: 30, to: today)!
     }
     private var days: Int { max(1, calendar.dateComponents([.day], from: today, to: end).day ?? 1) }
@@ -216,10 +225,9 @@ private struct BudgetStartPage: View {
     var body: some View {
         OnboardingPage {
             VStack(alignment: .leading, spacing: 0) {
-                Text(invited ? "Твой личный бюджет" : "Сколько денег на жизнь?").font(FolkiFont.title)
-                if invited {
-                    Text("Его видишь только ты").font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).padding(.top, FolkiSpacing.xs)
-                }
+                Text(kind == .family ? "Сколько на общие траты?" : "Сколько денег на жизнь?").font(FolkiFont.title)
+                Text(kind == .family ? "Видно всей семье" : "Видно только тебе")
+                    .font(FolkiFont.body).foregroundStyle(Color.folkiSecondary).padding(.top, FolkiSpacing.xs)
                 HStack(spacing: FolkiSpacing.xs) {
                     chip(.payday, "До зарплаты"); chip(.month, "Месяц"); chip(.week, "Неделя")
                 }.padding(.top, FolkiSpacing.page)
@@ -285,7 +293,7 @@ private struct BudgetStartPage: View {
     private func save() {
         guard let money else { FolkiFeedback.boundary(); shakes += 1; return }
         do {
-            try personal.startBudget(amount: money, until: end, rule: rule)
+            try session.startBudget(amount: money, until: end, rule: rule)
             FolkiFeedback.saved()
             next()
         } catch {
@@ -296,15 +304,15 @@ private struct BudgetStartPage: View {
 
 /// "Вот что я умею": three rows, each with a small animation that plays once.
 private struct FeaturesPage: View {
-    let invited: Bool
+    let inFamily: Bool
     let done: () -> Void
     var body: some View {
         OnboardingPage {
             VStack(alignment: .leading, spacing: FolkiSpacing.large) {
                 Text("Вот что я умею").font(FolkiFont.title)
-                row(SpendDemo(), "Ты тратишь — я пересчитываю", "Запиши трату, и остаток дня сразу поменяется").rise(1)
+                row(SpendDemo(), "Ты тратишь — я пересчитываю", String(localized: "Запиши трату, и остаток дня сразу поменяется")).rise(1)
                 row(RingsDemo(), "Общее и личное",
-                    invited ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
+                    inFamily ? String(localized: "Ты в семейном бюджете: общее видят все, личное — только ты")
                         : String(localized: "Семья видит общее, твоё — только ты")).rise(2)
                 row(EnvelopesDemo(), "Финансовый план — когда захочется", String(localized: "Учту аренду и подписки, напомню о платежах. Вкладка «План»")).rise(3)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, FolkiSpacing.page)
@@ -365,7 +373,7 @@ private struct InvitedPage: View {
                 .animation(FolkiMotion.quick, value: showingHelp)
         } actions: {
             if waitedLong || cloudless {
-                Button("Пока начать с личного бюджета") { next(false) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
+                Button("Позже") { next(false) }.buttonStyle(FolkiPrimaryButtonStyle(fullWidth: true))
             }
         }
         .task {
