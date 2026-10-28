@@ -869,10 +869,15 @@ public final class BudgetRepository {
         try writable()
         guard cloudIdentifier != nil, cloudIdentity != nil else { throw LedgerError.cloudNotConfigured }
         let household = try sharingRoot(householdID: householdID)
-        if let share = try container.fetchShares(matching: [household.objectID])[household.objectID] {
-            guard share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner else { return share }
-            share.publicPermission = .readWrite
-            try await persist(share: share, store: household.objectID.persistentStore!)
+        if let local = try container.fetchShares(matching: [household.objectID])[household.objectID] {
+            // The local copy may never have reached iCloud, so the link is taken from the server's one.
+            guard let share = try await CKContainer(identifier: cloudIdentifier!).privateCloudDatabase
+                .record(for: local.recordID) as? CKShare else { throw LedgerError.unavailable }
+            if share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner {
+                share.publicPermission = .readWrite
+                try await persist(share: share, store: household.objectID.persistentStore!)
+            }
+            guard share.url != nil else { throw LedgerError.unavailable }
             return share
         }
         let share: CKShare = try await withCheckedThrowingContinuation { continuation in
@@ -885,6 +890,7 @@ public final class BudgetRepository {
         share.publicPermission = .readWrite
         share[CKShare.SystemFieldKey.title] = String(localized: "Общий бюджет Folki", bundle: .module) as CKRecordValue
         try await persist(share: share, store: household.objectID.persistentStore!)
+        guard share.url != nil else { throw LedgerError.unavailable }
         return share
     }
     /// A copied link works like an opened one.

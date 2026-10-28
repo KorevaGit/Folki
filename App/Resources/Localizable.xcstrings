@@ -265,16 +265,16 @@
     },
     "%@ → %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ → %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ → %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
           }
         }
       }
@@ -312,16 +312,16 @@
     },
     "%@, %@, %@" : {
       "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$@, %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, %@, %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@"
           }
         }
       }
@@ -848,6 +848,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud hasn’t answered yet. Tap “Check iCloud” and send the invitation again."
+          }
+        }
+      }
+    },
+    "iCloud сохранил приглашение без ссылки. Попробуй ещё раз через минуту." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud saved the invite without a link. Try again in a minute."
           }
         }
       }
@@ -2232,6 +2242,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preparing…"
+          }
+        }
+      }
+    },
+    "Готовлю ссылку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the link…"
           }
         }
       }
@@ -9794,6 +9814,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Create a family"
+          }
+        }
+      }
+    },
+    "Создать ссылку-приглашение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create invite link"
           }
         }
       }

@@ -1,12 +1,13 @@
 import SwiftUI
-import CloudKit
 import FolkiDuoCore
+import FolkiDuoPersistence
 
 struct SharingView: View {
     @Environment(\.dismiss) private var dismiss
     let session: BudgetSession
     @State private var name = ""
-    @State private var existingShare: CKShare?
+    @State private var inviteLink: URL?
+    @State private var preparingLink = false
     @State private var errorMessage: String?
     @State private var editingMember: Member?
     @State private var editedName = ""
@@ -43,18 +44,21 @@ struct SharingView: View {
                 } else if let repository = session.repository, let identifier = repository.cloudIdentifier {
                     if (try? repository.ownsFamily()) == true, let householdID = session.household?.id {
                         Section {
-                            let report = $errorMessage
-                            ShareLink(item: FamilyInvitation(share: existingShare, container: CKContainer(identifier: identifier)) {
-                                // The share sheet closes silently when this fails, so say why under the button.
-                                do { return try await repository.share(householdID: householdID) }
-                                catch { await MainActor.run { report.wrappedValue = SharingView.inviteFailure(error) }; throw error }
-                            }, preview: SharePreview("Семейный бюджет Folki", image: Image("LaunchHouse"))) {
-                                Label("Отправить приглашение", systemImage: "person.badge.plus")
-                            }.disabled(session.members.filter(\.isActive).count >= 5)
+                            if let inviteLink {
+                                ShareLink(item: inviteLink, preview: SharePreview("Семейный бюджет Folki", image: Image("LaunchHouse"))) {
+                                    Label("Отправить приглашение", systemImage: "person.badge.plus")
+                                }
+                            } else {
+                                Button { Task { await prepareLink(repository, householdID) } } label: {
+                                    Label(preparingLink ? "Готовлю ссылку…" : "Создать ссылку-приглашение", systemImage: "link")
+                                }.disabled(preparingLink)
+                            }
                         } footer: {
                             Text("Ссылку можно отправить в любой мессенджер. Кто откроет её на iPhone, попадёт в семью — всего до пяти человек.")
                         }
-                        .task { existingShare = try? repository.existingShare(householdID: householdID) }
+                        .disabled(session.members.filter(\.isActive).count >= 5)
+                        // A family invited before already has a link; it is checked with iCloud before it is offered.
+                        .task { if (try? repository.existingShare(householdID: householdID)) != nil { await prepareLink(repository, householdID) } }
                     }
                 } else {
                     Section("Добавить участника") {
@@ -108,30 +112,21 @@ struct SharingView: View {
 }
 
 extension SharingView {
+    /// The share is saved to iCloud here, so a failure shows under the button instead of in the share sheet.
+    private func prepareLink(_ repository: BudgetRepository, _ householdID: UUID) async {
+        preparingLink = true; defer { preparingLink = false }
+        do { inviteLink = try await repository.share(householdID: householdID).url; errorMessage = nil }
+        catch { errorMessage = SharingView.inviteFailure(error) }
+    }
     /// The error code stays in the text: it is the only clue from a TestFlight build.
     nonisolated static func inviteFailure(_ error: Error) -> String {
         if (error as? LedgerError) == .cloudNotConfigured {
             return String(localized: "iCloud ещё не ответил. Нажми «Проверить iCloud» и отправь приглашение снова.")
         }
+        if (error as? LedgerError) == .unavailable {
+            return String(localized: "iCloud сохранил приглашение без ссылки. Попробуй ещё раз через минуту.")
+        }
         let code = (error as NSError).code
         return String(localized: "Ссылка не создана: iCloud вернул ошибку \(code). Проверь сеть и вход в iCloud.")
-    }
-}
-
-/// The family invitation for the share sheet: a link anyone can open, with edit rights.
-private struct FamilyInvitation: Transferable {
-    let share: CKShare?
-    let container: CKContainer
-    let prepare: @Sendable () async throws -> CKShare
-
-    static var transferRepresentation: some TransferRepresentation {
-        CKShareTransferRepresentation { invitation in
-            let options = CKAllowedSharingOptions(allowedParticipantPermissionOptions: .readWrite,
-                                                  allowedParticipantAccessOptions: .anyoneWithLink)
-            if let share = invitation.share {
-                return .existing(share, container: invitation.container, allowedSharingOptions: options)
-            }
-            return .prepareShare(container: invitation.container, allowedSharingOptions: options, preparationHandler: invitation.prepare)
-        }
     }
 }
