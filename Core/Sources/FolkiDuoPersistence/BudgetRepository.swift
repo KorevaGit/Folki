@@ -869,14 +869,15 @@ public final class BudgetRepository {
         try writable()
         guard cloudIdentifier != nil, cloudIdentity != nil else { throw LedgerError.cloudNotConfigured }
         let household = try sharingRoot(householdID: householdID)
-        if let share = try container.fetchShares(matching: [household.objectID])[household.objectID] {
-            // The local copy may never have reached iCloud, so the server is asked whether its link opens.
-            guard let url = share.url else { throw LedgerError.unavailable }
-            _ = try await CKContainer(identifier: cloudIdentifier!).shareMetadata(for: url)
+        if let local = try container.fetchShares(matching: [household.objectID])[household.objectID] {
+            // The local copy may lack the link, or never have reached iCloud: the server's copy answers for both.
+            var share = try await serverShare(local)
             if share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner {
                 share.publicPermission = .readWrite
-                try await persist(share: share, store: household.objectID.persistentStore!)
+                share = try await persist(share: share, store: household.objectID.persistentStore!)
             }
+            if share.url == nil { share = try await serverShare(share) }
+            guard share.url != nil else { throw LedgerError.unavailable }
             return share
         }
         let container = container
@@ -893,9 +894,16 @@ public final class BudgetRepository {
         }
         share.publicPermission = .readWrite
         share[CKShare.SystemFieldKey.title] = String(localized: "Общий бюджет Folki", bundle: .module) as CKRecordValue
-        try await persist(share: share, store: household.objectID.persistentStore!)
-        guard share.url != nil else { throw LedgerError.unavailable }
-        return share
+        // The link is in the copy iCloud saved, not in the one passed in.
+        var saved = try await persist(share: share, store: household.objectID.persistentStore!)
+        if saved.url == nil { saved = try await serverShare(saved) }
+        guard saved.url != nil else { throw LedgerError.unavailable }
+        return saved
+    }
+    private func serverShare(_ share: CKShare) async throws -> CKShare {
+        guard let server = try await CKContainer(identifier: cloudIdentifier!).privateCloudDatabase
+            .record(for: share.recordID) as? CKShare else { throw LedgerError.unavailable }
+        return server
     }
     /// A copied link works like an opened one.
     public func invitation(from url: URL) async throws -> CKShare.Metadata {
@@ -950,18 +958,20 @@ public final class BudgetRepository {
     private nonisolated static func offMain(_ work: @escaping @Sendable () -> Void) {
         DispatchQueue.global(qos: .userInitiated).async(execute: work)
     }
-    public func persist(share: CKShare, store: NSPersistentStore) async throws {
+    @discardableResult
+    public func persist(share: CKShare, store: NSPersistentStore) async throws -> CKShare {
         guard share.participants.count <= 5 else { throw LedgerError.familyFull }
         let container = container
         nonisolated(unsafe) let store = store
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let saved: CKShare = try await withCheckedThrowingContinuation { continuation in
             BudgetRepository.offMain {
-                container.persistUpdatedShare(share, in: store) { @Sendable _, error in
-                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                container.persistUpdatedShare(share, in: store) { @Sendable saved, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume(returning: saved ?? share) }
                 }
             }
         }
         changeToken = UUID()
+        return saved
     }
     /// An invitation is always accepted. An empty family of one's own is replaced silently;
     /// one with records needs `replacingExisting` after the user confirms.
