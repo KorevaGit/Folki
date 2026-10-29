@@ -8,6 +8,7 @@ struct SharingView: View {
     @State private var name = ""
     @State private var inviteLink: URL?
     @State private var preparingLink = false
+    @State private var inviteError: String?
     @State private var errorMessage: String?
     @State private var editingMember: Member?
     @State private var editedName = ""
@@ -53,6 +54,8 @@ struct SharingView: View {
                                     Label(preparingLink ? "Готовлю ссылку…" : "Создать ссылку-приглашение", systemImage: "link")
                                 }.disabled(preparingLink)
                             }
+                            // Right under the button: at the bottom of the list it went unnoticed.
+                            if let inviteError { FolkiErrorMessage(message: inviteError) }
                         } footer: {
                             Text("Ссылку можно отправить в любой мессенджер. Кто откроет её на iPhone, попадёт в семью — всего до пяти человек.")
                         }
@@ -115,8 +118,8 @@ extension SharingView {
     /// The share is saved to iCloud here, so a failure shows under the button instead of in the share sheet.
     private func prepareLink(_ repository: BudgetRepository, _ householdID: UUID) async {
         preparingLink = true; defer { preparingLink = false }
-        do { inviteLink = try await repository.share(householdID: householdID).url; errorMessage = nil }
-        catch { errorMessage = SharingView.inviteFailure(error) }
+        do { inviteLink = try await repository.share(householdID: householdID).url; inviteError = nil }
+        catch { inviteError = SharingView.inviteFailure(error) }
     }
     /// The error code stays in the text: it is the only clue from a TestFlight build.
     nonisolated static func inviteFailure(_ error: Error) -> String {

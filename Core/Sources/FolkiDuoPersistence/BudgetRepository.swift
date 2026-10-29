@@ -879,11 +879,16 @@ public final class BudgetRepository {
             }
             return share
         }
+        let container = container
+        let householdObjectID = household.objectID
         let share: CKShare = try await withCheckedThrowingContinuation { continuation in
-            container.share([household], to: nil) { @Sendable _, share, _, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let share { continuation.resume(returning: share) }
-                else { continuation.resume(throwing: LedgerError.unavailable) }
+            let background = container.newBackgroundContext()
+            background.perform {
+                container.share([background.object(with: householdObjectID)], to: nil) { @Sendable _, share, _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else if let share { continuation.resume(returning: share) }
+                    else { continuation.resume(throwing: LedgerError.unavailable) }
+                }
             }
         }
         share.publicPermission = .readWrite
@@ -940,11 +945,20 @@ public final class BudgetRepository {
             item.setValue(true, forKey: "inactive"); try commit()
         } catch { context.rollback(); throw error }
     }
+    /// Core Data's sharing calls wait for their own work before they return, and that work needs the main queue:
+    /// started on the main queue they hang the app until the watchdog kills it, so they start on a background one.
+    private nonisolated static func offMain(_ work: @escaping @Sendable () -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async(execute: work)
+    }
     public func persist(share: CKShare, store: NSPersistentStore) async throws {
         guard share.participants.count <= 5 else { throw LedgerError.familyFull }
+        let container = container
+        nonisolated(unsafe) let store = store
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            container.persistUpdatedShare(share, in: store) { @Sendable _, error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+            BudgetRepository.offMain {
+                container.persistUpdatedShare(share, in: store) { @Sendable _, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                }
             }
         }
         changeToken = UUID()
@@ -966,9 +980,13 @@ public final class BudgetRepository {
             guard replacingExisting || empty else { throw LedgerError.familyHasRecords }
             try removeOwnFamily()
         }
+        let container = container
+        nonisolated(unsafe) let target = sharedStore
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            container.acceptShareInvitations(from: [metadata], into: sharedStore) { @Sendable _, error in
-                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+            BudgetRepository.offMain {
+                container.acceptShareInvitations(from: [metadata], into: target) { @Sendable _, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                }
             }
         }
         changeToken = UUID()
