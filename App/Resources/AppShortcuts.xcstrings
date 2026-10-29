@@ -1,0 +1,37 @@
+{
+  "sourceLanguage" : "ru",
+  "strings" : {
+    "Записать трату в ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Log an expense in ${applicationName}"
+          }
+        },
+        "ru" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Записать трату в ${applicationName}",
+              "Потратить в ${applicationName}"
+            ]
+          }
+        }
+      }
+    },
+    "Потратить в ${applicationName}" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spend in ${applicationName}"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

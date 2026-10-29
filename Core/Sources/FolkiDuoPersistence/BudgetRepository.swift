@@ -1,0 +1,1085 @@
+import Foundation
+import CoreData
+import CloudKit
+import Observation
+import FolkiDuoCore
+
+private struct CloudEventSnapshot: Sendable {
+    let identifier: UUID
+    let storeIdentifier: String
+    let type: Int
+    let endDate: Date?
+    let succeeded: Bool
+
+    init(_ event: NSPersistentCloudKitContainer.Event) {
+        identifier = event.identifier
+        storeIdentifier = event.storeIdentifier
+        type = event.type.rawValue
+        endDate = event.endDate
+        succeeded = event.succeeded
+    }
+}
+
+@MainActor @Observable
+public final class BudgetRepository {
+    public let container: NSPersistentCloudKitContainer
+    public let cloudIdentifier: String?
+    public private(set) var changeToken = UUID()
+    public private(set) var syncError: String?
+    public private(set) var lastCloudUpdate: Date?
+    public private(set) var pendingExport = false
+    public private(set) var accountLocked = false
+    public private(set) var cloudIdentity: String?
+    private var observers: [NSObjectProtocol] = []
+    private var exports = ExportTracker()
+    private let localMemberID: UUID
+    var context: NSManagedObjectContext { container.viewContext }
+    public var privateStore: NSPersistentStore { container.persistentStoreCoordinator.persistentStores.first! }
+    public var sharedStore: NSPersistentStore? { container.persistentStoreCoordinator.persistentStores.dropFirst().first }
+    public var statusText: String {
+        if accountLocked { return String(localized: "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki.", bundle: .module) }
+        if let syncError { return syncError }
+        if cloudIdentifier == nil { return String(localized: "Сохранено на iPhone · iCloud не подключён", bundle: .module) }
+        if pendingExport { return String(localized: "Сохранено на iPhone · ожидает отправки", bundle: .module) }
+        if lastCloudUpdate != nil { return String(localized: "Обмен с iCloud выполнен", bundle: .module) }
+        return String(localized: "Сохранено на iPhone · ожидание iCloud", bundle: .module)
+    }
+
+    private init(container: NSPersistentCloudKitContainer, cloudIdentifier: String?, localMemberID: UUID) {
+        self.container = container; self.cloudIdentifier = cloudIdentifier; self.localMemberID = localMemberID
+        let metadata = container.persistentStoreCoordinator.metadata(for: privateStore)
+        exports.pending = Set(metadata["FolkiPendingStores"] as? [String] ?? [])
+        pendingExport = !exports.pending.isEmpty
+        lastCloudUpdate = metadata["FolkiLastCloudUpdate"] as? Date
+        context.automaticallyMergesChangesFromParent = true
+        // Fail local optimistic conflicts; do not silently overwrite another editor's changes.
+        context.mergePolicy = NSMergePolicy(merge: .errorMergePolicyType)
+        context.transactionAuthor = localMemberID.uuidString
+        observe()
+    }
+
+    public static func open(directory: URL, cloudIdentifier: String? = nil,
+                            localMemberID: UUID) async throws -> BudgetRepository {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let model = try managedObjectModel()
+        let container = NSPersistentCloudKitContainer(name: "Folki", managedObjectModel: model)
+        var descriptions: [NSPersistentStoreDescription] = []
+        for name in cloudIdentifier == nil ? ["private"] : ["private", "shared"] {
+            let description = NSPersistentStoreDescription(url: directory.appendingPathComponent("\(name).sqlite"))
+            description.shouldMigrateStoreAutomatically = true
+            description.shouldInferMappingModelAutomatically = true
+            description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            if let cloudIdentifier {
+                let options = NSPersistentCloudKitContainerOptions(containerIdentifier: cloudIdentifier)
+                options.databaseScope = name == "private" ? .private : .shared
+                description.cloudKitContainerOptions = options
+            }
+            descriptions.append(description)
+        }
+        // Load sequentially so a single error cannot resume a continuation twice.
+        container.persistentStoreDescriptions = []
+        for description in descriptions {
+            container.persistentStoreDescriptions = [description]
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                container.loadPersistentStores { _, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                }
+            }
+        }
+        container.persistentStoreDescriptions = descriptions
+        return BudgetRepository(container: container, cloudIdentifier: cloudIdentifier, localMemberID: localMemberID)
+    }
+
+    static func managedObjectModel() throws -> NSManagedObjectModel {
+        guard let model = NSManagedObjectModel(contentsOf: try modelDirectory()) else { throw LedgerError.corruptStore }
+        return model
+    }
+
+    /// The compiled `Folki.momd` with every model version, the current one and the ones it migrates from.
+    static func modelDirectory() throws -> URL {
+        if let compiled = Bundle.module.url(forResource: "Folki", withExtension: "momd") { return compiled }
+        #if os(macOS)
+        // Classic command-line SwiftPM copies raw models; iOS/Xcode compiles them.
+        return try compileCommandLineModel()
+        #else
+        throw LedgerError.corruptStore
+        #endif
+    }
+
+    #if os(macOS)
+    private static var commandLineModelURL: URL?
+
+    private static func compileCommandLineModel() throws -> URL {
+        if let commandLineModelURL { return commandLineModelURL }
+        guard let source = Bundle.module.url(forResource: "Folki", withExtension: "xcdatamodeld") else {
+            throw LedgerError.corruptStore
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("FolkiModel-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let output = directory.appendingPathComponent("Folki.momd")
+        do {
+            let compiler = Process()
+            compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+            compiler.arguments = ["momc", source.path, output.path]
+            let diagnostics = Pipe()
+            compiler.standardOutput = diagnostics
+            compiler.standardError = diagnostics
+            try compiler.run()
+            _ = diagnostics.fileHandleForReading.readDataToEndOfFile()
+            compiler.waitUntilExit()
+            guard compiler.terminationStatus == 0 else { throw LedgerError.corruptStore }
+            commandLineModelURL = output
+            return output
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+    }
+    #endif
+
+    func fetch(_ entity: String, predicate: NSPredicate? = nil, stores: [NSPersistentStore]? = nil) throws -> [NSManagedObject] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+        request.predicate = predicate
+        request.affectedStores = stores
+        return try context.fetch(request)
+    }
+    func object(_ entity: String, id: UUID) throws -> NSManagedObject {
+        let results = try fetch(entity, predicate: NSPredicate(format: "id == %@", id as NSUUID))
+        guard results.count == 1, let first = results.first else { throw LedgerError.missingRecord }
+        return first
+    }
+    func insert(_ entity: String, id: UUID = UUID(), household: NSManagedObject? = nil) -> NSManagedObject {
+        let object = NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+        object.setValue(id, forKey: "id")
+        if let household {
+            context.assign(object, to: household.objectID.persistentStore!)
+            object.setValue(household, forKey: "household")
+        } else { context.assign(object, to: privateStore) }
+        return object
+    }
+
+    func households(in scope: BudgetScope) throws -> [NSManagedObject] {
+        try fetch("Household", predicate: NSPredicate(format: "scope == %@", scope.rawValue),
+                  stores: scope == .personal ? [privateStore] : nil)
+    }
+
+    public func load(asOf date: Date, scope: BudgetScope = .family) throws -> StoredBudget? {
+        let households = try households(in: scope)
+        guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let household = households.first else { return nil }
+        let householdID: UUID = try household.required("id")
+        let zone: String = try household.required("timeZone")
+        let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
+        let sorted = try periods.map { object -> (NSManagedObject, BudgetPeriod) in
+            let month: Date = try object.required("month")
+            // Periods until payday store their end; older ones are calendar months.
+            if let end = object.value(forKey: "endsAt") as? Date {
+                return (object, try BudgetPeriod(start: month, endExclusive: end, timeZoneIdentifier: zone))
+            }
+            return (object, try BudgetPeriod(monthContaining: month, timeZoneIdentifier: zone))
+        }.sorted { $0.1.start > $1.1.start }
+        guard let selected = sorted.first(where: { $0.1.contains(date) }) ?? sorted.first(where: { $0.1.start <= date }) else { return nil }
+        let periodObject = selected.0
+        let periodID: UUID = try periodObject.required("id")
+        let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household)).map {
+            Member(id: try $0.required("id"), name: try $0.required("name"), isActive: $0.value(forKey: "inactive") as? Bool != true)
+        }.sorted { $0.id.uuidString < $1.id.uuidString }
+        guard scope == .personal ? members.count == 1 : (1...5).contains(members.filter(\.isActive).count) else { throw LedgerError.corruptStore }
+        let reserves = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", periodObject)).map {
+            ProtectedReserve(id: try $0.required("id"), name: try $0.required("name"),
+                             openingAmount: Money(minorUnits: try $0.required("openingAmount")),
+                             isRegularPayment: $0.value(forKey: "isRegularPayment") as? Bool ?? false,
+                             dueDate: $0.value(forKey: "dueDate") as? Date,
+                             targetAmount: ($0.value(forKey: "targetAmount") as? NSNumber).map { Money(minorUnits: $0.int64Value) })
+        }
+        let transactionObjects = try fetch("Transaction", predicate: NSPredicate(format: "period == %@", periodObject))
+        var records: [LedgerRecord] = try transactionObjects.map { try decode($0) }
+        records.sort {
+            if $0.transaction.date == $1.transaction.date { return $0.id.uuidString < $1.id.uuidString }
+            return $0.transaction.date < $1.transaction.date
+        }
+        let currency: String = try periodObject.required("currency")
+        guard currency == "RUB", Set(records.map(\.id)).count == records.count else { throw LedgerError.corruptStore }
+        let snapshot = HouseholdSnapshot(id: householdID, period: selected.1,
+            monthlyFreePlan: Money(minorUnits: try periodObject.required("monthlyPlan")),
+            openingFunds: Money(minorUnits: try periodObject.required("openingFunds")),
+            reserves: reserves, transactions: records.map(\.transaction))
+        return StoredBudget(snapshot: snapshot, periodID: periodID, members: members, records: records, scope: scope)
+    }
+
+    public func history(scope: BudgetScope = .family) throws -> [LedgerRecord] {
+        let households = try households(in: scope)
+        guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let household = households.first else { return [] }
+        let objects = try fetch("Transaction", predicate: NSPredicate(format: "household == %@", household))
+        return try objects.map { try decode($0) }.sorted { $0.transaction.date < $1.transaction.date }
+    }
+
+    public func periods(scope: BudgetScope = .family) throws -> [BudgetPeriod] {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let root = roots.first else { return [] }
+        let zone: String = try root.required("timeZone")
+        return try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", root)).map {
+            let start: Date = try $0.required("month")
+            if let end = $0.value(forKey: "endsAt") as? Date {
+                return try BudgetPeriod(start: start, endExclusive: end, timeZoneIdentifier: zone)
+            }
+            return try BudgetPeriod(monthContaining: start, timeZoneIdentifier: zone)
+        }.sorted { $0.start < $1.start }
+    }
+
+    /// Adjust the opening salary plan without discarding any operations.
+    /// Removed reserves remain with a zero opening amount so old record references still resolve.
+    public func updateSalaryPlan(available: Money, reserves: [ProtectedReserve], in budget: StoredBudget, asOf now: Date,
+                                 balanceIsCurrent: Bool = false) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard let current = try load(asOf: now, scope: budget.scope),
+                  current.snapshot.openingFunds == budget.snapshot.openingFunds,
+                  current.snapshot.monthlyFreePlan == budget.snapshot.monthlyFreePlan,
+                  Set(current.snapshot.reserves) == Set(budget.snapshot.reserves),
+                  Set(current.records.map(\.revision)) == Set(budget.records.map(\.revision)) else { throw LedgerError.conflict }
+            guard Set(reserves.map(\.id)).count == reserves.count,
+                  reserves.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+                throw BudgetError.invalidPlan
+            }
+            let removed = current.snapshot.reserves.filter { !reserves.map(\.id).contains($0.id) }
+                .map { ProtectedReserve(id: $0.id, name: $0.name, openingAmount: Money(minorUnits: 0), isRegularPayment: $0.isRegularPayment) }
+            let all = reserves + removed
+            let protected = try all.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
+            let oldResult = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
+            let oldProtected = try current.snapshot.reserves.reduce(Money(minorUnits: 0)) { try $0.adding($1.openingAmount) }
+            let cashChange = try available.subtracting(oldResult.totalFunds)
+            let opening = balanceIsCurrent ? try current.snapshot.openingFunds.adding(cashChange) : available
+            let freePlan = balanceIsCurrent
+                ? try current.snapshot.monthlyFreePlan.adding(cashChange).adding(oldProtected).subtracting(protected)
+                : try available.subtracting(protected)
+            guard available.currency == .rub, available.minorUnits >= 0, freePlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+            let candidate = HouseholdSnapshot(id: current.snapshot.id, period: current.snapshot.period,
+                monthlyFreePlan: freePlan, openingFunds: opening, reserves: all, transactions: current.snapshot.transactions)
+            let result = try DailyBudgetCalculator.calculate(candidate, asOf: now)
+            guard result.monthlyRemaining.minorUnits >= 0 else { throw BudgetError.insufficientReserve }
+            let period = try object("BudgetPeriod", id: current.periodID)
+            let existing = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", period))
+            for reserve in all {
+                let item = existing.first { $0.value(forKey: "id") as? UUID == reserve.id } ?? insert("Reserve", id: reserve.id, household: root)
+                item.setValue(period, forKey: "period")
+                item.setValue(reserve.name, forKey: "name")
+                item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
+                item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
+                item.setValue(reserve.dueDate, forKey: "dueDate")
+                item.setValue(reserve.targetAmount?.minorUnits, forKey: "targetAmount")
+            }
+            period.setValue(opening.minorUnits, forKey: "openingFunds")
+            period.setValue(freePlan.minorUnits, forKey: "monthlyPlan")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Starts a budget period. With `payday`, it runs from today until that date; without, it is the calendar month.
+    /// `closeCurrent` ends a period that still covers today, for when the salary comes early.
+    public func createPlan(monthlyPlan: Money, available: Money, asOf now: Date,
+                           timeZone: String = TimeZone.current.identifier,
+                           reserves: [ProtectedReserve] = [], scope: BudgetScope = .family,
+                           payday: Date? = nil, closeCurrent: Bool = false, startingAt start: Date? = nil) throws {
+        try writable()
+        guard monthlyPlan.currency == .rub, available.currency == .rub,
+              monthlyPlan.minorUnits >= 0 else { throw BudgetError.invalidPlan }
+        do {
+            let households = try households(in: scope)
+            guard households.count <= 1 else { throw LedgerError.multipleHouseholds }
+            let household: NSManagedObject
+            if let existing = households.first { household = existing }
+            else {
+                household = insert("Household")
+                household.setValue(scope.rawValue, forKey: "scope")
+                household.setValue(scope == .personal ? String(localized: "Личный бюджет", bundle: .module) : String(localized: "Семейный бюджет", bundle: .module), forKey: "name")
+                household.setValue(timeZone, forKey: "timeZone")
+                household.setValue(now, forKey: "createdAt")
+                try context.obtainPermanentIDs(for: [household])
+                // Only real people: others join through an invitation or are added by name.
+                for (id, name) in [(localMemberID, String(localized: "Я", bundle: .module))] {
+                    let member = insert("Member", id: id, household: household)
+                    member.setValue(name, forKey: "name")
+                    if id == localMemberID { member.setValue(cloudIdentity, forKey: "cloudIdentity") }
+                }
+            }
+            let zone: String = try household.required("timeZone")
+            guard let store = household.objectID.persistentStore,
+                  container.canModifyManagedObjects(in: store) else { throw LedgerError.accessDenied }
+            var period = try payday.map { try BudgetPeriod.untilPayday(from: now, payday: $0, timeZoneIdentifier: zone) }
+                ?? BudgetPeriod(monthContaining: now, timeZoneIdentifier: zone)
+            // A period that follows the previous one starts where it ended, so every device that extends
+            // a shared budget creates the same period.
+            if let start, start <= now, payday != nil {
+                period = try BudgetPeriod(start: start, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
+            }
+            if closeCurrent, payday != nil {
+                period = try BudgetPeriod(start: now, endExclusive: period.endExclusive, timeZoneIdentifier: zone)
+            }
+            let allReserves = reserves
+            _ = try DailyBudgetCalculator.calculate(HouseholdSnapshot(period: period,
+                monthlyFreePlan: monthlyPlan, openingFunds: available, reserves: allReserves), asOf: now)
+            // A period that still covers today blocks a new one, unless asked to close it now.
+            for existing in try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household)) {
+                let start: Date = try existing.required("month")
+                let monthEnd = try BudgetPeriod(monthContaining: start, timeZoneIdentifier: zone).endExclusive
+                let end = existing.value(forKey: "endsAt") as? Date ?? monthEnd
+                guard start <= now, now < end || start == period.start else { continue }
+                guard closeCurrent, start < now else { throw LedgerError.existingPeriod }
+                existing.setValue(now, forKey: "endsAt")
+            }
+            let object = insert("BudgetPeriod", household: household)
+            object.setValue(period.start, forKey: "month")
+            if payday != nil { object.setValue(period.endExclusive, forKey: "endsAt") }
+            object.setValue(monthlyPlan.minorUnits, forKey: "monthlyPlan")
+            object.setValue(available.minorUnits, forKey: "openingFunds")
+            object.setValue("RUB", forKey: "currency")
+            for reserve in allReserves {
+                let item = insert("Reserve", id: reserve.id, household: household)
+                item.setValue(object, forKey: "period")
+                item.setValue(reserve.name, forKey: "name")
+                item.setValue(reserve.openingAmount.minorUnits, forKey: "openingAmount")
+                item.setValue(reserve.isRegularPayment, forKey: "isRegularPayment")
+                item.setValue(reserve.dueDate, forKey: "dueDate")
+                item.setValue(reserve.targetAmount?.minorUnits, forKey: "targetAmount")
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// A planning target, not a cash deposit. Keep funds, reserves and ledger entries unchanged.
+    public func updateSpendingLimit(_ limit: Money, in budget: StoredBudget, asOf now: Date) throws {
+        try writable()
+        guard limit.currency == .rub, limit.minorUnits > 0, budget.snapshot.period.contains(now) else {
+            throw BudgetError.invalidPlan
+        }
+        do {
+            let period = try object("BudgetPeriod", id: budget.periodID)
+            guard let household = period.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
+            try validateScope(budget, household: household)
+            guard let store = period.objectID.persistentStore, container.canModifyManagedObjects(in: store),
+                  container.canUpdateRecord(forManagedObjectWith: period.objectID) else { throw LedgerError.accessDenied }
+            let current: Int64 = try period.required("monthlyPlan")
+            guard current == budget.snapshot.monthlyFreePlan.minorUnits else { throw LedgerError.conflict }
+            period.setValue(limit.minorUnits, forKey: "monthlyPlan")
+            guard let updated = try load(asOf: now, scope: budget.scope), updated.periodID == budget.periodID else {
+                throw LedgerError.conflict
+            }
+            _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    public func save(_ record: LedgerRecord, in budget: StoredBudget, expectedRevision: UUID?, asOf now: Date,
+                     addIncomeToPlan: Bool = false) throws {
+        try writable()
+        guard [.expense, .refund, .income].contains(record.transaction.kind) else { throw BudgetError.invalidTransaction }
+        _ = try LedgerRules.replacing(record, in: budget, asOf: now)
+        do {
+            if expectedRevision == nil {
+                guard record.transaction.authorID == (try authorID(in: budget)), budget.members.contains(where: { $0.id == record.transaction.payerID && $0.isActive }) else { throw LedgerError.invalidMember }
+            }
+            let period = try object("BudgetPeriod", id: budget.periodID)
+            guard let household = period.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
+            try validateScope(budget, household: household)
+            let matches = try fetch("Transaction", predicate: NSPredicate(format: "id == %@", record.id as NSUUID))
+            let object: NSManagedObject
+            if let existing = matches.first {
+                guard matches.count == 1, let expectedRevision,
+                      existing.value(forKey: "revision") as? UUID == expectedRevision,
+                      existing.value(forKey: "period") as? NSManagedObject == period else { throw LedgerError.conflict }
+                object = existing
+            } else {
+                guard expectedRevision == nil else { throw LedgerError.conflict }
+                object = insert("Transaction", id: record.id, household: household)
+                object.setValue(period, forKey: "period")
+            }
+            guard let store = period.objectID.persistentStore,
+                  container.canModifyManagedObjects(in: store),
+                  container.canUpdateRecord(forManagedObjectWith: object.objectID) else { throw LedgerError.accessDenied }
+            if expectedRevision != nil {
+                // Only the author edits, deletes or restores a record; the rest of the family only reads it.
+                guard object.value(forKey: "authorID") as? UUID == record.transaction.authorID,
+                      record.transaction.authorID == (try authorID(in: budget)) else { throw LedgerError.invalidMember }
+            }
+            // An archived category stays on records that already use it but cannot be picked again.
+            let keepsCategory = expectedRevision != nil && object.value(forKey: "categoryID") as? UUID == record.categoryID
+            try validateCategory(record.categoryID, household: household, allowArchived: keepsCategory)
+            encode(record, into: object, updatedAt: now)
+            if addIncomeToPlan {
+                guard expectedRevision == nil, record.transaction.kind == .income,
+                      record.transaction.funding == .flexible, !record.transaction.isDeleted else { throw BudgetError.invalidTransaction }
+                let plan = Money(minorUnits: try period.required("monthlyPlan"))
+                period.setValue(try plan.adding(record.transaction.amount).minorUnits, forKey: "monthlyPlan")
+            }
+            // Re-read the whole period, including imports, before accepting a write.
+            guard let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.conflict }
+            if expectedRevision == nil {
+                guard current.members.contains(where: { $0.id == record.transaction.payerID && $0.isActive }),
+                      record.transaction.authorID == (try authorID(in: current)) else { throw LedgerError.invalidMember }
+            }
+            _ = try DailyBudgetCalculator.calculate(current.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    public func updatePeriodEnd(_ end: Date, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            guard end > now, let current = try load(asOf: now, scope: budget.scope),
+                  current.snapshot.period == budget.snapshot.period else { throw LedgerError.conflict }
+            guard current.records.allSatisfy({ $0.transaction.date < end }) else { throw BudgetError.invalidPeriod }
+            let otherPeriods = try periods(scope: budget.scope).filter { $0.start != current.snapshot.period.start }
+            guard !otherPeriods.contains(where: { $0.start < end && $0.endExclusive > current.snapshot.period.start }) else {
+                throw LedgerError.existingPeriod
+            }
+            let period = try object("BudgetPeriod", id: current.periodID)
+            period.setValue(end, forKey: "endsAt")
+            guard let updated = try load(asOf: now, scope: budget.scope) else { throw LedgerError.conflict }
+            _ = try DailyBudgetCalculator.calculate(updated.snapshot, asOf: now)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Moves a period's spending plan by `delta`, never below zero.
+    func changePlan(of periodID: UUID, by delta: Int64) throws {
+        let period = try object("BudgetPeriod", id: periodID)
+        let plan: Int64 = try period.required("monthlyPlan")
+        let next = plan.addingReportingOverflow(delta)
+        guard !next.overflow else { throw BudgetError.amountOverflow }
+        period.setValue(max(0, next.partialValue), forKey: "monthlyPlan")
+    }
+
+    /// How the budget's period is extended; nil until one is chosen or when written by a newer app.
+    public func periodRule(scope: BudgetScope) throws -> PeriodRule? {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        return (roots.first?.value(forKey: "periodRule") as? String).flatMap(PeriodRule.init(storageValue:))
+    }
+
+    /// Stored on the budget itself, so a shared family period is extended the same way on every iPhone.
+    public func setPeriodRule(_ rule: PeriodRule, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard root.value(forKey: "periodRule") as? String != rule.storageValue else { return }
+            root.setValue(rule.storageValue, forKey: "periodRule")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// The household of a budget whose current period accepts writes from this device.
+    func writableRoot(_ budget: StoredBudget, now: Date) throws -> NSManagedObject {
+        try writable()
+        let root = try object("Household", id: budget.snapshot.id)
+        try validateScope(budget, household: root)
+        let period = try object("BudgetPeriod", id: budget.periodID)
+        guard period.value(forKey: "household") as? NSManagedObject == root,
+              budget.snapshot.period.contains(now), let store = root.objectID.persistentStore,
+              container.canModifyManagedObjects(in: store), container.canUpdateRecord(forManagedObjectWith: period.objectID),
+              let current = try load(asOf: now, scope: budget.scope), current.periodID == budget.periodID else { throw LedgerError.accessDenied }
+        _ = try authorID(in: current)
+        return root
+    }
+    func writableItem(_ entity: String, id: UUID, budget: StoredBudget) throws -> NSManagedObject {
+        let item = try object(entity, id: id)
+        guard let root = item.value(forKey: "household") as? NSManagedObject else { throw LedgerError.corruptStore }
+        try validateScope(budget, household: root)
+        guard container.canUpdateRecord(forManagedObjectWith: item.objectID) else { throw LedgerError.accessDenied }
+        return item
+    }
+
+    /// Moves money from the author's personal budget into the family budget in one save.
+    /// Both sides share `linkID`; neither is spending. Retrying with the same link is a no-op.
+    public func contribute(_ amount: Money, from personal: StoredBudget, to family: StoredBudget,
+                           asOf now: Date, linkID: UUID = UUID()) throws {
+        try writable()
+        guard amount.currency == .rub, amount.minorUnits > 0 else { throw BudgetError.invalidAmount }
+        guard personal.scope == .personal, family.scope == .family else { throw LedgerError.accessDenied }
+        do {
+            let existing = try fetch("Transaction", predicate: NSPredicate(format: "linkID == %@", linkID as NSUUID))
+            if !existing.isEmpty {
+                guard existing.count == 2, existing.allSatisfy({ $0.value(forKey: "amount") as? Int64 == amount.minorUnits }) else {
+                    throw LedgerError.conflict
+                }
+                return
+            }
+            let personalRoot = try writableRoot(personal, now: now), familyRoot = try writableRoot(family, now: now)
+            guard let currentPersonal = try load(asOf: now, scope: .personal), currentPersonal.periodID == personal.periodID,
+                  let currentFamily = try load(asOf: now, scope: .family), currentFamily.periodID == family.periodID else {
+                throw LedgerError.conflict
+            }
+            let available = try DailyBudgetCalculator.calculate(currentPersonal.snapshot, asOf: now).monthlyRemaining
+            guard amount.minorUnits <= available.minorUnits else { throw BudgetError.insufficientReserve }
+            let personalAuthor = try authorID(in: currentPersonal), familyAuthor = try authorID(in: currentFamily)
+            let sides = [
+                (LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionOut, date: now,
+                    authorID: personalAuthor, payerID: personalAuthor), title: String(localized: "В семейный бюджет", bundle: .module), linkID: linkID), currentPersonal, personalRoot),
+                (LedgerRecord(transaction: TransactionSnapshot(amount: amount, kind: .contributionIn, date: now,
+                    authorID: familyAuthor, payerID: familyAuthor), title: String(localized: "Взнос в семейный бюджет", bundle: .module), linkID: linkID), currentFamily, familyRoot)
+            ]
+            for (record, budget, root) in sides {
+                _ = try LedgerRules.replacing(record, in: budget, asOf: now)
+                let item = insert("Transaction", id: record.id, household: root)
+                item.setValue(try object("BudgetPeriod", id: budget.periodID), forKey: "period")
+                encode(record, into: item, updatedAt: now)
+            }
+            // The money leaves one spending plan and joins the other.
+            try changePlan(of: currentPersonal.periodID, by: -amount.minorUnits)
+            try changePlan(of: currentFamily.periodID, by: amount.minorUnits)
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Cancels both sides of a contribution. Only its author holds the personal side, so only they can cancel it.
+    public func cancelContribution(linkID: UUID, asOf now: Date) throws {
+        try writable()
+        do {
+            let items = try fetch("Transaction", predicate: NSPredicate(format: "linkID == %@", linkID as NSUUID))
+            guard items.count == 2, Set(items.compactMap { $0.value(forKey: "kind") as? String }) == ["contributionOut", "contributionIn"] else {
+                throw LedgerError.missingRecord
+            }
+            for item in items {
+                guard container.canUpdateRecord(forManagedObjectWith: item.objectID) else { throw LedgerError.accessDenied }
+                if item.value(forKey: "tombstone") as? Bool == true { continue }
+                item.setValue(true, forKey: "tombstone")
+                item.setValue(UUID(), forKey: "revision")
+                item.setValue(now, forKey: "updatedAt")
+                // Undo the plan move made with the contribution.
+                if let period = item.value(forKey: "period") as? NSManagedObject, let amount = item.value(forKey: "amount") as? Int64 {
+                    let out = item.value(forKey: "kind") as? String == "contributionOut"
+                    try changePlan(of: try period.required("id"), by: out ? amount : -amount)
+                }
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Custom categories of a budget, archived ones included; built-in ones live in code.
+    public func categories(scope: BudgetScope) throws -> [SpendingCategory] {
+        let roots = try households(in: scope)
+        guard roots.count <= 1 else { throw LedgerError.multipleHouseholds }
+        guard let root = roots.first else { return [] }
+        return try customCategories(household: root)
+    }
+    public func catalog(scope: BudgetScope) throws -> CategoryCatalog {
+        CategoryCatalog(custom: try categories(scope: scope))
+    }
+    private func customCategories(household: NSManagedObject) throws -> [SpendingCategory] {
+        try fetch("Category", predicate: NSPredicate(format: "household == %@", household)).map { item in
+            SpendingCategory(id: try item.required("id"), name: try item.required("name"),
+                // Tolerate values written by a newer version of the app.
+                symbol: item.value(forKey: "symbol") as? String ?? "tag.fill",
+                color: CategoryColor(rawValue: item.value(forKey: "color") as? String ?? "") ?? .gray,
+                isEssential: item.value(forKey: "essential") as? Bool == true,
+                isArchived: item.value(forKey: "archived") as? Bool == true,
+                revision: item.value(forKey: "revision") as? UUID)
+        }.sorted { $0.name == $1.name ? $0.id.uuidString < $1.id.uuidString : $0.name < $1.name }
+    }
+    func validateCategory(_ id: UUID, household: NSManagedObject, allowArchived: Bool) throws {
+        if BuiltInCategory.named(id) != nil { return }
+        guard let category = try customCategories(household: household).first(where: { $0.id == id }) else {
+            throw LedgerError.missingCategory
+        }
+        guard allowArchived || !category.isArchived else { throw LedgerError.missingCategory }
+    }
+    private func validateCategoryFields(name: String, symbol: String, household: NSManagedObject, excluding id: UUID?) throws -> String {
+        guard let clean = SpendingCategory.validName(name), !symbol.isEmpty, symbol.count <= 64 else { throw LedgerError.invalidCategory }
+        // Built-ins count in both languages, so a family on mixed iPhone languages never gets two "Groceries".
+        let taken = BuiltInCategory.allCases.flatMap { [$0.category.name, $0.sourceName] }
+            + (try customCategories(household: household))
+                .filter { !$0.isArchived && $0.id != id && BuiltInCategory.named($0.id) == nil }.map(\.name)
+        guard !taken.contains(where: { $0.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) else {
+            throw LedgerError.duplicateCategory
+        }
+        return clean
+    }
+
+    @discardableResult
+    public func createCategory(name: String, symbol: String, color: CategoryColor, isEssential: Bool,
+                               in budget: StoredBudget, asOf now: Date, id: UUID = UUID()) throws -> UUID {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let clean = try validateCategoryFields(name: name, symbol: symbol, household: root, excluding: nil)
+            guard try fetch("Category", predicate: NSPredicate(format: "id == %@", id as NSUUID)).isEmpty else { throw LedgerError.conflict }
+            let item = insert("Category", id: id, household: root)
+            item.setValue(clean, forKey: "name"); item.setValue(symbol, forKey: "symbol")
+            item.setValue(color.rawValue, forKey: "color"); item.setValue(isEssential, forKey: "essential")
+            item.setValue(false, forKey: "archived"); item.setValue(UUID(), forKey: "revision"); item.setValue(now, forKey: "createdAt")
+            try commit()
+            return id
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Edits a custom category. Records keep its identifier, so history follows the new name.
+    public func updateCategory(_ category: SpendingCategory, name: String, symbol: String, color: CategoryColor,
+                               isEssential: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Category", id: category.id, budget: budget)
+            guard item.value(forKey: "revision") as? UUID == category.revision else { throw LedgerError.conflict }
+            let clean = try validateCategoryFields(name: name, symbol: symbol, household: root, excluding: category.id)
+            item.setValue(clean, forKey: "name"); item.setValue(symbol, forKey: "symbol")
+            item.setValue(color.rawValue, forKey: "color"); item.setValue(isEssential, forKey: "essential")
+            item.setValue(UUID(), forKey: "revision")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Archiving hides a category from new records; history and analytics keep it.
+    public func setCategoryArchived(_ category: SpendingCategory, archived: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try writableItem("Category", id: category.id, budget: budget)
+            guard item.value(forKey: "revision") as? UUID == category.revision else { throw LedgerError.conflict }
+            if !archived { _ = try validateCategoryFields(name: category.name, symbol: category.symbol, household: root, excluding: category.id) }
+            item.setValue(archived, forKey: "archived"); item.setValue(UUID(), forKey: "revision")
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Switches a built-in category on or off for this budget. Old records keep it either way.
+    public func setBuiltInCategory(_ builtIn: BuiltInCategory, enabled: Bool, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            let item = try fetch("Category", predicate: NSPredicate(format: "id == %@ AND household == %@", builtIn.id as NSUUID, root)).first
+                ?? insert("Category", id: builtIn.id, household: root)
+            let category = builtIn.category
+            item.setValue(builtIn.sourceName, forKey: "name"); item.setValue(category.symbol, forKey: "symbol")
+            item.setValue(category.color.rawValue, forKey: "color"); item.setValue(category.isEssential, forKey: "essential")
+            item.setValue(!enabled, forKey: "archived"); item.setValue(UUID(), forKey: "revision")
+            if item.value(forKey: "createdAt") == nil { item.setValue(now, forKey: "createdAt") }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    public func addFamilyMember(name: String, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            let root = try writableRoot(budget, now: now)
+            guard budget.scope == .family, cloudIdentifier == nil else { throw LedgerError.accessDenied }
+            guard try fetch("Member", predicate: NSPredicate(format: "household == %@", root)).filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+            let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { throw LedgerError.invalidMember }
+            let item = insert("Member", household: root); item.setValue(name, forKey: "name"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    public func renameMember(_ member: Member, name: String, in budget: StoredBudget, asOf now: Date) throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            let item = try writableItem("Member", id: member.id, budget: budget), clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { throw LedgerError.invalidMember }
+            item.setValue(clean, forKey: "name"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    public func authorID(in budget: StoredBudget) throws -> UUID {
+        if cloudIdentifier == nil {
+            guard budget.members.contains(where: { $0.id == localMemberID && $0.isActive }) else { throw LedgerError.invalidMember }
+            return localMemberID
+        }
+        if cloudIdentity == nil, !accountLocked,
+           budget.members.contains(where: { $0.id == localMemberID && $0.isActive }) { return localMemberID }
+        guard let cloudIdentity, !accountLocked else { throw LedgerError.accessDenied }
+        let household = try object("Household", id: budget.snapshot.id)
+        let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
+        if let own = members.first(where: { $0.value(forKey: "cloudIdentity") as? String == cloudIdentity }) {
+            guard own.value(forKey: "inactive") as? Bool != true else { throw LedgerError.accessDenied }
+            return try own.required("id")
+        }
+        // A locally created budget keeps its author when iCloud is first enabled.
+        let candidate = members.first(where: { $0.value(forKey: "id") as? UUID == localMemberID })
+
+        guard let candidate else { throw LedgerError.invalidMember }
+        candidate.setValue(cloudIdentity, forKey: "cloudIdentity")
+        try commit()
+        return try candidate.required("id")
+    }
+
+    func writable() throws {
+        guard !accountLocked else { throw LedgerError.accountChanged }
+    }
+    func commit() throws {
+        let changed = Array(context.insertedObjects.union(context.updatedObjects).union(context.deletedObjects))
+        try context.save()
+        if cloudIdentifier != nil {
+            let stores = Set(changed.compactMap { $0.objectID.persistentStore?.identifier })
+            exports.saved(stores: stores)
+        }
+        pendingExport = !exports.pending.isEmpty
+        persistSyncMetadata()
+        changeToken = UUID()
+    }
+    private func persistSyncMetadata() {
+        var metadata = container.persistentStoreCoordinator.metadata(for: privateStore)
+        metadata["FolkiPendingStores"] = Array(exports.pending)
+        metadata["FolkiLastCloudUpdate"] = lastCloudUpdate
+        container.persistentStoreCoordinator.setMetadata(metadata, for: privateStore)
+    }
+    private func decode(_ object: NSManagedObject) throws -> LedgerRecord {
+        let kindString: String = try object.required("kind")
+        let kind: TransactionKind
+        switch kindString {
+        case "expense": kind = .expense
+        case "refund": kind = .refund
+        case "income": kind = .income
+        case "reserveAllocation": kind = .reserveAllocation
+        case "reserveRelease": kind = .reserveRelease
+        case "contributionOut": kind = .contributionOut
+        case "contributionIn": kind = .contributionIn
+        default: throw LedgerError.corruptStore
+        }
+        let fundingString: String = try object.required("funding")
+        let funding: BudgetFunding
+        switch fundingString {
+        case "flexible": funding = .flexible
+        case "unallocated": funding = .unallocated
+        case "reserve": funding = .reserve(try object.required("reserveID"))
+        default: throw LedgerError.corruptStore
+        }
+        return LedgerRecord(transaction: TransactionSnapshot(id: try object.required("id"),
+            amount: Money(minorUnits: try object.required("amount")), kind: kind, funding: funding,
+            date: try object.required("date"), authorID: try object.required("authorID"),
+            payerID: try object.required("payerID"), isDeleted: try object.required("tombstone")),
+            title: try object.required("title"), categoryID: try object.required("categoryID"), revision: try object.required("revision"),
+            linkID: object.value(forKey: "linkID") as? UUID)
+    }
+    func encode(_ record: LedgerRecord, into object: NSManagedObject, updatedAt: Date) {
+        let entry = record.transaction
+        let kind: String = switch entry.kind {
+        case .expense: "expense"; case .refund: "refund"; case .income: "income"
+        case .reserveAllocation: "reserveAllocation"; case .reserveRelease: "reserveRelease"
+        case .contributionOut: "contributionOut"; case .contributionIn: "contributionIn"
+        }
+        let funding: String
+        var reserveID: UUID?
+        switch entry.funding {
+        case .flexible: funding = "flexible"
+        case .unallocated: funding = "unallocated"
+        case .reserve(let id): funding = "reserve"; reserveID = id
+        }
+        let values: [String: Any] = ["amount": entry.amount.minorUnits, "kind": kind, "funding": funding,
+            "date": entry.date, "authorID": entry.authorID, "payerID": entry.payerID,
+            "title": record.title, "categoryID": record.categoryID, "tombstone": entry.isDeleted,
+            "revision": record.revision, "updatedAt": updatedAt]
+        values.forEach { object.setValue($0.value, forKey: $0.key) }
+        object.setValue(reserveID, forKey: "reserveID")
+        object.setValue(record.linkID, forKey: "linkID")
+    }
+
+    private func observe() {
+        observers.append(NotificationCenter.default.addObserver(forName: .NSPersistentStoreRemoteChange,
+            object: container.persistentStoreCoordinator, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.context.refreshAllObjects()
+                    self.changeToken = UUID()
+                }
+            })
+        guard cloudIdentifier != nil else { return }
+        observers.append(NotificationCenter.default.addObserver(forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: container, queue: .main) { [weak self] notification in
+                guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                        as? NSPersistentCloudKitContainer.Event else { return }
+                let snapshot = CloudEventSnapshot(event)
+                Task { @MainActor [weak self] in self?.handle(snapshot) }
+            })
+        observers.append(NotificationCenter.default.addObserver(forName: .CKAccountChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.accountLocked = true
+                self?.syncError = String(localized: "Аккаунт iCloud изменился. Верните прежний Apple ID и перезапустите Folki.", bundle: .module)
+                self?.changeToken = UUID()
+            }
+        })
+    }
+    private func handle(_ event: CloudEventSnapshot) {
+        if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue && event.endDate == nil {
+            exports.started(id: event.identifier, store: event.storeIdentifier)
+        }
+        guard let end = event.endDate else { return }
+        if event.succeeded {
+            syncError = nil
+            if event.type == NSPersistentCloudKitContainer.EventType.import.rawValue || event.type == NSPersistentCloudKitContainer.EventType.export.rawValue { lastCloudUpdate = end }
+            if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue {
+                exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: true)
+                pendingExport = !exports.pending.isEmpty
+            }
+            persistSyncMetadata()
+        } else {
+            if event.type == NSPersistentCloudKitContainer.EventType.export.rawValue { exports.finished(id: event.identifier, store: event.storeIdentifier, succeeded: false) }
+            syncError = String(localized: "Не удалось выполнить обмен с iCloud. Записи сохранены на iPhone; проверьте аккаунт, доступ и сеть.", bundle: .module)
+        }
+        changeToken = UUID()
+    }
+    public func verifyAccount() async {
+        guard let cloudIdentifier else { return }
+        do {
+            let cloud = CKContainer(identifier: cloudIdentifier)
+            guard try await cloud.accountStatus() == .available else { throw LedgerError.accessDenied }
+            let identity = try await cloud.userRecordID().recordName
+            let previous = container.persistentStoreCoordinator.metadata(for: privateStore)["FolkiCloudIdentity"] as? String
+            guard previous == nil || previous == identity else { throw LedgerError.accountChanged }
+            cloudIdentity = identity
+            var metadata = container.persistentStoreCoordinator.metadata(for: privateStore)
+            metadata["FolkiCloudIdentity"] = identity
+            container.persistentStoreCoordinator.setMetadata(metadata, for: privateStore)
+            syncError = nil
+        } catch {
+            if (error as? LedgerError) == .accountChanged { accountLocked = true }
+            if let cloudError = error as? CKError,
+               [.networkUnavailable, .networkFailure, .serviceUnavailable].contains(cloudError.code) {
+                cloudIdentity = container.persistentStoreCoordinator.metadata(for: privateStore)["FolkiCloudIdentity"] as? String
+            }
+            syncError = String(localized: "iCloud недоступен или изменился Apple ID. Локальные записи сохранены.", bundle: .module)
+        }
+        changeToken = UUID()
+    }
+
+    public func sharingRootID(householdID: UUID) throws -> NSManagedObjectID {
+        try sharingRoot(householdID: householdID).objectID
+    }
+    private func sharingRoot(householdID: UUID) throws -> NSManagedObject {
+        let household = try object("Household", id: householdID)
+        guard household.value(forKey: "scope") as? String == BudgetScope.family.rawValue else {
+            throw LedgerError.privateBudgetCannotBeShared
+        }
+        return household
+    }
+    private func validateScope(_ budget: StoredBudget, household: NSManagedObject) throws {
+        guard household.value(forKey: "id") as? UUID == budget.snapshot.id,
+              household.value(forKey: "scope") as? String == budget.scope.rawValue,
+              budget.scope != .personal || household.objectID.persistentStore == privateStore else {
+            throw LedgerError.accessDenied
+        }
+    }
+
+    /// The family's share if it exists already; the invite button hands it to the share sheet as is.
+    public func existingShare(householdID: UUID) throws -> CKShare? {
+        let household = try sharingRoot(householdID: householdID)
+        return try container.fetchShares(matching: [household.objectID])[household.objectID]
+    }
+    /// Whether this iPhone created the family, and so may invite people to it.
+    public func ownsFamily() throws -> Bool {
+        try households(in: .family).first?.objectID.persistentStore == privateStore
+    }
+    /// The invitation is a link anyone can open, so it can be sent to any messenger without knowing
+    /// the person's Apple ID. The five-person limit is checked when the link is accepted.
+    public func share(householdID: UUID) async throws -> CKShare {
+        try writable()
+        guard cloudIdentifier != nil, cloudIdentity != nil else { throw LedgerError.cloudNotConfigured }
+        let household = try sharingRoot(householdID: householdID)
+        if let local = try container.fetchShares(matching: [household.objectID])[household.objectID] {
+            // The local copy may lack the link, or never have reached iCloud: the server's copy answers for both.
+            var share = try await serverShare(local)
+            if share.publicPermission != .readWrite, share.currentUserParticipant?.role == .owner {
+                share.publicPermission = .readWrite
+                share = try await persist(share: share, store: household.objectID.persistentStore!)
+            }
+            if share.url == nil { share = try await serverShare(share) }
+            guard share.url != nil else { throw LedgerError.unavailable }
+            return share
+        }
+        let container = container
+        let householdObjectID = household.objectID
+        let share: CKShare = try await withCheckedThrowingContinuation { continuation in
+            let background = container.newBackgroundContext()
+            background.perform {
+                container.share([background.object(with: householdObjectID)], to: nil) { @Sendable _, share, _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else if let share { continuation.resume(returning: share) }
+                    else { continuation.resume(throwing: LedgerError.unavailable) }
+                }
+            }
+        }
+        share.publicPermission = .readWrite
+        share[CKShare.SystemFieldKey.title] = String(localized: "Общий бюджет Folki", bundle: .module) as CKRecordValue
+        // The link is in the copy iCloud saved, not in the one passed in.
+        var saved = try await persist(share: share, store: household.objectID.persistentStore!)
+        if saved.url == nil { saved = try await serverShare(saved) }
+        guard saved.url != nil else { throw LedgerError.unavailable }
+        return saved
+    }
+    private func serverShare(_ share: CKShare) async throws -> CKShare {
+        guard let server = try await CKContainer(identifier: cloudIdentifier!).privateCloudDatabase
+            .record(for: share.recordID) as? CKShare else { throw LedgerError.unavailable }
+        return server
+    }
+    /// A copied link works like an opened one.
+    public func invitation(from url: URL) async throws -> CKShare.Metadata {
+        guard let cloudIdentifier else { throw LedgerError.cloudNotConfigured }
+        return try await CKContainer(identifier: cloudIdentifier).shareMetadata(for: url)
+    }
+    /// Someone who joined by link adds themselves once the family's records arrive.
+    /// Only participants of the share can write into it, so the link is the only way in.
+    @discardableResult
+    public func claimFamilyMembership() throws -> Bool {
+        guard let cloudIdentity, !accountLocked, let sharedStore else { return false }
+        do {
+            var changed = false
+            for household in try households(in: .family) where household.objectID.persistentStore == sharedStore {
+                let members = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
+                guard !members.contains(where: { $0.value(forKey: "cloudIdentity") as? String == cloudIdentity }) else { continue }
+                guard members.filter({ $0.value(forKey: "inactive") as? Bool != true }).count < 5 else { throw LedgerError.familyFull }
+                let names = try container.fetchShares(matching: [household.objectID])[household.objectID]?
+                    .currentUserParticipant?.userIdentity.nameComponents
+                let name = names.map { PersonNameComponentsFormatter.localizedString(from: $0, style: .short) } ?? ""
+                let member = insert("Member", id: localMemberID, household: household)
+                member.setValue(name.isEmpty ? String(localized: "Участник", bundle: .module) : name, forKey: "name")
+                member.setValue(cloudIdentity, forKey: "cloudIdentity")
+                member.setValue(false, forKey: "inactive")
+                changed = true
+            }
+            if changed { try commit() }
+            return changed
+        } catch { context.rollback(); throw error }
+    }
+
+    public func removeFamilyMember(_ member: Member, in budget: StoredBudget, asOf now: Date) async throws {
+        do {
+            _ = try writableRoot(budget, now: now)
+            guard budget.scope == .family, member.id != (try authorID(in: budget)) else { throw LedgerError.accessDenied }
+            let item = try writableItem("Member", id: member.id, budget: budget)
+            if cloudIdentifier != nil {
+                let share = try await share(householdID: budget.snapshot.id)
+                guard share.currentUserParticipant?.role == .owner else { throw LedgerError.accessDenied }
+                if let identity = item.value(forKey: "cloudIdentity") as? String,
+                   let participant = share.participants.first(where: { $0.userIdentity.userRecordID?.recordName == identity }) {
+                    share.removeParticipant(participant)
+                    try await persist(share: share, store: item.objectID.persistentStore!)
+                }
+            }
+            _ = try writableRoot(budget, now: now)
+            item.setValue(true, forKey: "inactive"); try commit()
+        } catch { context.rollback(); throw error }
+    }
+    /// Core Data's sharing calls wait for their own work before they return, and that work needs the main queue:
+    /// started on the main queue they hang the app until the watchdog kills it, so they start on a background one.
+    private nonisolated static func offMain(_ work: @escaping @Sendable () -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async(execute: work)
+    }
+    @discardableResult
+    public func persist(share: CKShare, store: NSPersistentStore) async throws -> CKShare {
+        guard share.participants.count <= 5 else { throw LedgerError.familyFull }
+        let container = container
+        nonisolated(unsafe) let store = store
+        let saved: CKShare = try await withCheckedThrowingContinuation { continuation in
+            BudgetRepository.offMain {
+                container.persistUpdatedShare(share, in: store) { @Sendable saved, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume(returning: saved ?? share) }
+                }
+            }
+        }
+        changeToken = UUID()
+        return saved
+    }
+    /// An invitation is always accepted. An empty family of one's own is replaced silently;
+    /// one with records needs `replacingExisting` after the user confirms.
+    public func accept(_ metadata: CKShare.Metadata, replacingExisting: Bool = false) async throws {
+        try writable()
+        guard metadata.containerIdentifier == cloudIdentifier, cloudIdentity != nil,
+              let sharedStore else { throw LedgerError.cloudNotConfigured }
+        guard metadata.share.participants.count <= 5 else { throw LedgerError.familyFull }
+        let households = try households(in: .family)
+        for household in households {
+            let existing = try container.fetchShares(matching: [household.objectID])[household.objectID]
+            if existing?.recordID == metadata.share.recordID { return }
+        }
+        if !households.isEmpty {
+            let empty = try familyIsEmpty()
+            guard replacingExisting || empty else { throw LedgerError.familyHasRecords }
+            try removeOwnFamily()
+        }
+        let container = container
+        nonisolated(unsafe) let target = sharedStore
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            BudgetRepository.offMain {
+                container.acceptShareInvitations(from: [metadata], into: target) { @Sendable _, error in
+                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                }
+            }
+        }
+        changeToken = UUID()
+    }
+    /// Nothing worth keeping: no operations, envelopes or own categories, and nobody else has joined.
+    public func familyIsEmpty() throws -> Bool {
+        for household in try households(in: .family) {
+            for entity in ["Transaction", "Envelope"] {
+                if !(try fetch(entity, predicate: NSPredicate(format: "household == %@", household))).isEmpty { return false }
+            }
+            let categories = try fetch("Category", predicate: NSPredicate(format: "household == %@", household))
+            if categories.contains(where: { BuiltInCategory.named(($0.value(forKey: "id") as? UUID) ?? UUID()) == nil }) { return false }
+            let others = try fetch("Member", predicate: NSPredicate(format: "household == %@", household))
+                .filter { $0.value(forKey: "id") as? UUID != localMemberID && $0.value(forKey: "cloudIdentity") != nil }
+            if !others.isEmpty { return false }
+        }
+        return true
+    }
+
+    /// Deletes this device's own family budget before joining another one. The personal budget is untouched.
+    public func removeOwnFamily() throws {
+        do {
+            for household in try households(in: .family) {
+                guard let store = household.objectID.persistentStore, store == privateStore else { continue }
+                context.delete(household)
+            }
+            try commit()
+        } catch { context.rollback(); throw error }
+    }
+
+    /// Two devices that extend a shared budget at the same time each create the period. Both then hold the
+    /// same start: keep the one with the smallest identifier and move the other's operations into it.
+    /// Every device makes the same choice, so they converge. Returns whether anything changed.
+    @discardableResult
+    public func mergeDuplicatePeriods(scope: BudgetScope) throws -> Bool {
+        do {
+            var changed = false
+            for household in try households(in: scope) {
+                let periods = try fetch("BudgetPeriod", predicate: NSPredicate(format: "household == %@", household))
+                let groups = Dictionary(grouping: periods) { $0.value(forKey: "month") as? Date ?? .distantPast }
+                for (_, group) in groups where group.count > 1 {
+                    let sorted = group.sorted { ($0.value(forKey: "id") as? UUID)?.uuidString ?? "" < ($1.value(forKey: "id") as? UUID)?.uuidString ?? "" }
+                    let keep = sorted[0]
+                    guard let store = keep.objectID.persistentStore, container.canModifyManagedObjects(in: store) else { continue }
+                    let kept = try fetch("Reserve", predicate: NSPredicate(format: "period == %@", keep)).compactMap { $0.value(forKey: "id") as? UUID }
+                    for duplicate in sorted.dropFirst() {
+                        for item in try fetch("Transaction", predicate: NSPredicate(format: "period == %@", duplicate)) {
+                            item.setValue(keep, forKey: "period")
+                        }
+                        for reserve in try fetch("Reserve", predicate: NSPredicate(format: "period == %@", duplicate)) {
+                            if let id = reserve.value(forKey: "id") as? UUID, kept.contains(id) { context.delete(reserve) }
+                            else { reserve.setValue(keep, forKey: "period") }
+                        }
+                        context.delete(duplicate)
+                        changed = true
+                    }
+                }
+            }
+            if changed { try commit() }
+            return changed
+        } catch { context.rollback(); throw error }
+    }
+
+    public func reportSharingError() {
+        syncError = String(localized: "Не удалось изменить общий доступ. Проверьте iCloud и попробуйте снова.", bundle: .module)
+    }
+    public func sharingStopped() {
+        context.refreshAllObjects()
+        syncError = String(localized: "Общий доступ отключён. Проверьте статус пространства.", bundle: .module)
+        changeToken = UUID()
+    }
+    public func close() throws {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+        for store in container.persistentStoreCoordinator.persistentStores {
+            try container.persistentStoreCoordinator.remove(store)
+        }
+    }
+}
+
+extension NSManagedObject {
+    func required<T>(_ key: String) throws -> T {
+        guard let value = value(forKey: key) as? T else { throw LedgerError.corruptStore }
+        return value
+    }
+}

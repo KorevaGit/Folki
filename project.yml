@@ -1,0 +1,125 @@
+name: Folki
+options:
+  minimumXcodeGenVersion: 2.44.0
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: ru
+  defaultConfig: Debug
+configs:
+  Debug: debug
+  Release: release
+  Demo: debug
+  Cloud: debug
+  CloudRelease: release
+packages:
+  FolkiDuoCore:
+    path: Core
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "14"
+    SWIFT_EMIT_LOC_STRINGS: YES
+    DEVELOPMENT_TEAM: AKH3FW2JK6
+targets:
+  Folki:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/Sources
+      - path: App/Demo
+      - path: App/Resources
+      - path: Shared
+    info:
+      path: App/Configuration/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CKSharingSupported: true
+        UIBackgroundModes: [remote-notification]
+        FolkiCloudContainer: "$(FOLKI_CLOUD_CONTAINER)"
+        # Only Apple's system crypto is used, so TestFlight skips the export compliance question.
+        ITSAppUsesNonExemptEncryption: false
+        # The same house as the onboarding hero, centred on the system background.
+        UILaunchScreen:
+          UIImageName: LaunchHouse
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.korevagit.folki
+            CFBundleURLSchemes: [folki]
+    dependencies:
+      - target: FolkiWidgets
+      - package: FolkiDuoCore
+      - package: FolkiDuoCore
+        product: FolkiDuoPersistence
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Folki
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        FOLKI_CLOUD_CONTAINER: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: FolkiIcon
+        CODE_SIGN_ENTITLEMENTS: App/Configuration/FolkiLocal.entitlements
+      configs:
+        Cloud:
+          FOLKI_CLOUD_CONTAINER: iCloud.dev.korevagit.folki.budget
+          CODE_SIGN_ENTITLEMENTS: App/Configuration/Folki.entitlements
+        # Optimised iCloud build for TestFlight and the App Store; it talks to the production CloudKit environment.
+        CloudRelease:
+          FOLKI_CLOUD_CONTAINER: iCloud.dev.korevagit.folki.budget
+          CODE_SIGN_ENTITLEMENTS: App/Configuration/Folki.entitlements
+        Demo:
+          PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki.demo
+          INFOPLIST_KEY_CFBundleDisplayName: Folki Demo
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG FOLKI_DEMO"
+  FolkiWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Folki
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki.widgets
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Widgets/FolkiWidgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+      configs:
+        Demo:
+          PRODUCT_BUNDLE_IDENTIFIER: dev.korevagit.folki.demo.widgets
+schemes:
+  Folki:
+    build:
+      targets:
+        Folki: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  Folki-Demo:
+    build:
+      targets:
+        Folki: all
+    run:
+      config: Demo
+    archive:
+      config: Demo
+  Folki-iCloud:
+    build:
+      targets:
+        Folki: all
+    run:
+      config: Cloud
+    archive:
+      config: CloudRelease
